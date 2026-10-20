@@ -98,6 +98,11 @@ impl Core {
         if content.trim().is_empty() {
             return Err(CoreError::EmptyInput);
         }
+        // One turn in flight per session, so replies can never interleave once
+        // inference runs asynchronously on the host.
+        if self.pending.values().any(|s| *s == session) {
+            return Err(CoreError::TurnInProgress(session));
+        }
         self.push_message(session, Role::User, content, at)?;
 
         let id = RequestId(self.next_request);
@@ -211,16 +216,45 @@ mod tests {
     }
 
     #[test]
+    fn one_turn_at_a_time_per_session() {
+        let mut core = Core::new(Config::default());
+        let id = infer_id(&core.step(user("first")).unwrap());
+        assert_eq!(core.step(user("second")), Err(CoreError::TurnInProgress(S)));
+        // Another session is unaffected.
+        let other = Input::Utterance {
+            session: SessionId(2),
+            content: "hi".to_string(),
+            at: Timestamp(10),
+        };
+        assert!(core.step(other).is_ok());
+        // Once answered, the session accepts the next message.
+        core.step(Input::ModelOutput {
+            request: id,
+            content: "ok".to_string(),
+            at: Timestamp(11),
+        })
+        .unwrap();
+        assert!(core.step(user("second")).is_ok());
+    }
+
+    #[test]
     fn history_is_bounded() {
         let mut core = Core::new(Config {
             max_input_bytes: 64,
             max_history: 3,
         });
         for i in 0..5 {
-            let _ = core.step(user(&i.to_string())).unwrap();
+            let id = infer_id(&core.step(user(&i.to_string())).unwrap());
+            core.step(Input::ModelOutput {
+                request: id,
+                content: i.to_string(),
+                at: Timestamp(11),
+            })
+            .unwrap();
         }
+        // Only the three newest remain: assistant "3", user "4", assistant "4".
         let texts: Vec<&str> = core.history(S).map(|m| m.content.as_str()).collect();
-        assert_eq!(texts, vec!["2", "3", "4"]);
+        assert_eq!(texts, vec!["3", "4", "4"]);
     }
 
     #[test]

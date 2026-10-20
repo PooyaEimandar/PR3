@@ -1,6 +1,6 @@
 use core::fmt;
 
-use crate::types::RequestId;
+use crate::types::{RequestId, SessionId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CoreError {
@@ -10,6 +10,8 @@ pub enum CoreError {
     EmptyInput,
     /// The host answered a request the core never made, or answered it twice.
     UnknownRequest(RequestId),
+    /// The session is still waiting for the model; one turn at a time per session.
+    TurnInProgress(SessionId),
     /// An allocation at an untrusted boundary failed.
     OutOfMemory,
 }
@@ -22,6 +24,7 @@ impl fmt::Display for CoreError {
             }
             Self::EmptyInput => f.write_str("input is empty"),
             Self::UnknownRequest(id) => write!(f, "unknown or already answered request {}", id.0),
+            Self::TurnInProgress(_) => f.write_str("still answering the previous message"),
             Self::OutOfMemory => f.write_str("out of memory"),
         }
     }
