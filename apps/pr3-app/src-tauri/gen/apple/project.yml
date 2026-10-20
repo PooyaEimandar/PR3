@@ -72,6 +72,8 @@ targets:
     dependencies:
       - framework: libapp.a
         embed: false
+      # vDSP routines used by llama.cpp's CPU backend (ggml).
+      - sdk: Accelerate.framework
       - sdk: CoreGraphics.framework
       - sdk: Metal.framework
       - sdk: MetalKit.framework

@@ -17,8 +17,10 @@
 		D1D3250B6B2BB566CF309A1F /* libapp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 395D91536909A4B62B763AF2 /* libapp.a */; };
 		DD87AE35E84CAEE240D6BAF4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2A8B09CA1E12D64FC7E0558 /* Assets.xcassets */; };
 		E485096551ABEAF99B3B3C29 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2DC91D4A0C3211EB505030AB /* Metal.framework */; };
+		F066E6E8DBAD0DEF637DDD8D /* libapp.a in Resources */ = {isa = PBXBuildFile; fileRef = D95CA583F3488216482894B5 /* libapp.a */; };
 		F124A680FF350C8FD1E69E1F /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41FAD0AEEA35510C4C4D1AB0 /* MetalKit.framework */; };
 		F474B70B63EBBC8D84E9A5DD /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = 552268B466A0EEF61D60F0D1 /* main.mm */; };
+		FADBC9C86FEEE3F32FB26E74 /* Accelerate.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EEC61EB1B27EFB1D9850C65B /* Accelerate.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -39,6 +41,9 @@
 		A2A8B09CA1E12D64FC7E0558 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A59687A645D9D20ABA34F2CF /* pr3-app_iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "pr3-app_iOS.entitlements"; sourceTree = "<group>"; };
 		CD462428EE1B8BA8826265DB /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
+		D95CA583F3488216482894B5 /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
+		DA866A08EC855DB49C9D37E3 /* llama.rs */ = {isa = PBXFileReference; path = llama.rs; sourceTree = "<group>"; };
+		EEC61EB1B27EFB1D9850C65B /* Accelerate.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Accelerate.framework; path = System/Library/Frameworks/Accelerate.framework; sourceTree = SDKROOT; };
 		F34E2EE0EB38881862E13FD6 /* pr3-app_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "pr3-app_iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		FC8A677EF900606B37181168 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -49,6 +54,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				D1D3250B6B2BB566CF309A1F /* libapp.a in Frameworks */,
+				FADBC9C86FEEE3F32FB26E74 /* Accelerate.framework in Frameworks */,
 				25E471701A2E19F29E845BF2 /* CoreGraphics.framework in Frameworks */,
 				E485096551ABEAF99B3B3C29 /* Metal.framework in Frameworks */,
 				F124A680FF350C8FD1E69E1F /* MetalKit.framework in Frameworks */,
@@ -73,6 +79,7 @@
 		547706E533824A15FBCB543C /* Externals */ = {
 			isa = PBXGroup;
 			children = (
+				AE43E1C1533179FC2BDC899E /* arm64 */,
 			);
 			path = Externals;
 			sourceTree = "<group>";
@@ -90,15 +97,25 @@
 			children = (
 				02EA3C2E1A601DA4324A108D /* host.rs */,
 				6AF90553660EED3CA2C0F4DB /* lib.rs */,
+				DA866A08EC855DB49C9D37E3 /* llama.rs */,
 				5D5C5EB4715C384FD9EEDA83 /* main.rs */,
 			);
 			name = src;
 			path = ../../src;
 			sourceTree = "<group>";
 		};
+		AE43E1C1533179FC2BDC899E /* arm64 */ = {
+			isa = PBXGroup;
+			children = (
+				F84E0023E5327709EBD79507 /* debug */,
+			);
+			path = arm64;
+			sourceTree = "<group>";
+		};
 		C370EA0A4FA81EA96A57C07D /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				EEC61EB1B27EFB1D9850C65B /* Accelerate.framework */,
 				8D9E8DB6861B50B42B10806F /* CoreGraphics.framework */,
 				395D91536909A4B62B763AF2 /* libapp.a */,
 				2DC91D4A0C3211EB505030AB /* Metal.framework */,
@@ -150,6 +167,21 @@
 				676CDB9F375C7406BACA6106 /* bindings */,
 			);
 			path = "pr3-app";
+			sourceTree = "<group>";
+		};
+		F84E0023E5327709EBD79507 /* debug */ = {
+			isa = PBXGroup;
+			children = (
+				D95CA583F3488216482894B5 /* libapp.a */,
+			);
+			path = debug;
+			sourceTree = "<group>";
+		};
+		"TEMP_B481F5DC-7FE0-42D2-A054-67C655BA06DA" /* x86_64 */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = x86_64;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -213,6 +245,7 @@
 				DD87AE35E84CAEE240D6BAF4 /* Assets.xcassets in Resources */,
 				787B29C7853B3458A601576A /* LaunchScreen.storyboard in Resources */,
 				9412B79F34E558488EBA4645 /* assets in Resources */,
+				F066E6E8DBAD0DEF637DDD8D /* libapp.a in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
