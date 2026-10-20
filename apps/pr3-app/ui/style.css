@@ -127,3 +127,11 @@ button {
   font: inherit;
   font-weight: 700;
 }
+
+.msg.pending {
+  color: var(--muted);
+}
+
+button:disabled {
+  opacity: 0.5;
+}

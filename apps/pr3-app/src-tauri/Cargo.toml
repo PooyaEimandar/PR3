@@ -20,3 +20,7 @@ tauri-build = { version = "2", features = [] }
 pr3-core = { workspace = true, features = ["std"] }
 serde = { workspace = true, features = ["std"] }
 tauri = { version = "2", features = [] }
+
+# Bundled GGUF inference: macOS first; iOS and Android follow once llama.cpp builds there.
+[target.'cfg(target_os = "macos")'.dependencies]
+pr3-llamacpp = { path = "../../../crates/pr3-llamacpp" }
