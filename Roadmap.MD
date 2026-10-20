@@ -1194,6 +1194,8 @@ Any one of: a studio with SDK access asks and co-funds the port; a next-generati
 
 **Costs accepted.** The llama.cpp version follows the binding's releases. Clean builds compile llama.cpp from source (about a minute on Apple silicon), and dev builds optimise `llama-cpp-sys-2` because unoptimised llama.cpp is unusable. The prebuilt libraries and checksummed fetch step of §4.3 item 3 are deferred.
 
+**Platform notes from the spike.** iOS links `Accelerate.framework` (llama.cpp's CPU kernels use vDSP), declared in the generated Xcode project. The iOS simulator's Metal gives wrong results for llama.cpp's kernels, so the simulator runs fully on the CPU (no layers, KV cache or operations offloaded); Macs and iPhones use Metal. Android links libc++ statically, so the APK needs no extra shared library, and runs on the CPU until a Vulkan build is measured. Models load on a background thread so the window appears at once on every platform.
+
 **Revisit triggers.** The binding lags a llama.cpp feature PR3 needs; it cannot be made to build for a supported target; clean-build times hurt CI; or a security review prefers the narrower unsafe surface of PR3's own shim.
 
 ---
