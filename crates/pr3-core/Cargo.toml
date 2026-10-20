@@ -1,0 +1,16 @@
+[package]
+name = "pr3-core"
+description = "Sans-I/O, no_std core of the PR3 runtime: a step() state machine the host drives"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["std"]
+# Conveniences only, never behavior (Roadmap §3, §4.2).
+std = ["serde/std"]
+
+[dependencies]
+serde.workspace = true

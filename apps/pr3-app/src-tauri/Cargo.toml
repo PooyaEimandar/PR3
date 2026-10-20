@@ -1,0 +1,22 @@
+[package]
+name = "pr3-app"
+description = "PR3 reference app: a voice-first private assistant for macOS, iOS and Android"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+# staticlib/cdylib for iOS and Android, rlib for the desktop binary.
+name = "pr3_app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+pr3-core = { workspace = true, features = ["std"] }
+serde = { workspace = true, features = ["std"] }
+tauri = { version = "2", features = [] }

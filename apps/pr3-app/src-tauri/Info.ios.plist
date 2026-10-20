@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Merged by Tauri into the iOS app's Info.plist.
+  iOS 27 terminates apps built with its SDK unless they adopt the UIScene lifecycle;
+  tao switches to its TaoSceneDelegate when this manifest enables multiple scenes.
+-->
+<plist version="1.0">
+<dict>
+  <key>UIApplicationSceneManifest</key>
+  <dict>
+    <key>UIApplicationSupportsMultipleScenes</key>
+    <true/>
+  </dict>
+</dict>
+</plist>
