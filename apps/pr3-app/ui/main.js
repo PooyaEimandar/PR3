@@ -61,9 +61,15 @@ form.addEventListener("submit", (event) => {
   send(text);
 });
 
-invoke("platform_info")
-  .then((p) => {
-    document.body.classList.add(p.os);
-    document.querySelector("#platform").textContent = `v${p.version} · ${p.os}/${p.arch} · ${p.model}`;
-  })
-  .catch((err) => show("error", String(err)));
+function showPlatform() {
+  invoke("platform_info")
+    .then((p) => {
+      document.body.classList.add(p.os);
+      document.querySelector("#platform").textContent = `v${p.version} · ${p.os}/${p.arch} · ${p.model}`;
+    })
+    .catch((err) => show("error", String(err)));
+}
+
+// The model loads in the background; refresh the header when it is ready.
+window.__TAURI__.event.listen("model-changed", showPlatform);
+showPlatform();

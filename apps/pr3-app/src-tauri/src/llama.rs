@@ -22,8 +22,14 @@ pub struct LlamaBackend {
 impl LlamaBackend {
     pub fn load(path: &Path) -> Result<Self, EngineError> {
         let config = EngineConfig {
-            // All layers on the GPU: Metal on Apple silicon.
-            gpu_layers: 999,
+            // Metal on Macs and iPhones. CPU on Android until a Vulkan build is measured
+            // per device class (Roadmap §4.3), and in the iOS simulator, whose Metal
+            // produces wrong results for llama.cpp's kernels.
+            gpu_layers: if cfg!(any(target_os = "android", target_abi = "sim")) {
+                0
+            } else {
+                999
+            },
             seed: seed(),
             ..EngineConfig::default()
         };

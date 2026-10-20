@@ -1,15 +1,17 @@
 //! PR3 reference app. The Rust side owns the runtime; the webview only renders.
 
 mod host;
-#[cfg(target_os = "macos")]
 mod llama;
 
 use std::sync::Arc;
 
-use host::{Backend, Host, MockBackend};
+use host::{Backend, Host, LoadingBackend, MockBackend};
 use serde::Serialize;
-use tauri::Manager;
 use tauri::ipc::Channel;
+use tauri::{Emitter, Manager};
+
+/// Event the UI listens to when the active model changes (e.g. loading finished).
+const MODEL_CHANGED: &str = "model-changed";
 
 #[derive(Serialize)]
 struct PlatformInfo {
@@ -45,39 +47,60 @@ async fn send_message(
     .map_err(|e| e.to_string())
 }
 
-/// The bundled model if one is installed, otherwise the mock (the UI shows which).
-#[cfg(target_os = "macos")]
-fn backend(app: &tauri::AppHandle) -> Arc<dyn Backend> {
-    for path in llama::model_candidates(app) {
-        if !path.is_file() {
-            continue;
-        }
-        match llama::LlamaBackend::load(&path) {
-            Ok(backend) => {
-                eprintln!("PR3: loaded {} from {}", backend.label(), path.display());
-                return Arc::new(backend);
-            }
-            Err(e) => eprintln!("PR3: {e}; trying the next model location"),
-        }
-    }
-    eprintln!(
-        "PR3: no {} found; using the mock model (run scripts/fetch-model.sh)",
-        llama::MODEL_FILE
+/// Loads the bundled model in the background so the window appears at once; until it
+/// is ready the UI shows "loading…", and if none is found it says where it looked.
+fn start_model_loading(app: &tauri::AppHandle) {
+    let candidates = llama::model_candidates(app);
+    let Some(path) = candidates.iter().find(|p| p.is_file()).cloned() else {
+        // Phones have no terminal, so the UI says where the model was expected.
+        let expected = candidates
+            .iter()
+            .find(|p| !p.starts_with(env!("CARGO_MANIFEST_DIR")))
+            .and_then(|p| p.parent())
+            .map(|dir| dir.display().to_string());
+        eprintln!(
+            "PR3: no {} found; using the mock model (run scripts/fetch-model.sh)",
+            llama::MODEL_FILE
+        );
+        set_backend(
+            app,
+            Arc::new(MockBackend::missing_model(llama::MODEL_FILE, expected)),
+        );
+        return;
+    };
+
+    let model = path.file_stem().map_or_else(
+        || llama::MODEL_FILE.to_string(),
+        |s| s.to_string_lossy().into_owned(),
     );
-    Arc::new(MockBackend)
+    set_backend(app, Arc::new(LoadingBackend { model }));
+
+    let app = app.clone();
+    std::thread::spawn(move || match llama::LlamaBackend::load(&path) {
+        Ok(backend) => {
+            eprintln!("PR3: loaded {} from {}", backend.label(), path.display());
+            set_backend(&app, Arc::new(backend));
+        }
+        Err(e) => {
+            eprintln!("PR3: {e}");
+            set_backend(&app, Arc::new(MockBackend::failed_model(&e.to_string())));
+        }
+    });
 }
 
-#[cfg(not(target_os = "macos"))]
-fn backend(_app: &tauri::AppHandle) -> Arc<dyn Backend> {
-    Arc::new(MockBackend)
+fn set_backend(app: &tauri::AppHandle, backend: Arc<dyn Backend>) {
+    let label = backend.label();
+    app.state::<Host>().set_backend(backend);
+    // The window may not be listening yet at startup; it also asks on load.
+    let _ = app.emit(MODEL_CHANGED, label);
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let result = tauri::Builder::default()
         .setup(|app| {
-            let host = Host::new(backend(app.handle()));
-            app.manage(host);
+            app.manage(Host::new(Arc::new(MockBackend::default())));
+            start_model_loading(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![platform_info, send_message])

@@ -4,7 +4,7 @@
 //! thread with the lock released, so the UI thread never waits on a model.
 
 use std::fmt;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use pr3_core::{
@@ -59,7 +59,9 @@ impl fmt::Display for HostError {
 
 pub struct Host {
     core: Mutex<Core>,
-    backend: Arc<dyn Backend>,
+    /// Swappable: the app starts with a placeholder and installs the real model once
+    /// it has loaded in the background.
+    backend: RwLock<Arc<dyn Backend>>,
     session: SessionId,
 }
 
@@ -67,13 +69,26 @@ impl Host {
     pub fn new(backend: Arc<dyn Backend>) -> Self {
         Self {
             core: Mutex::new(Core::new(Config::default())),
-            backend,
+            backend: RwLock::new(backend),
             session: SessionId(1),
         }
     }
 
     pub fn backend_label(&self) -> String {
-        self.backend.label()
+        self.backend().label()
+    }
+
+    pub fn set_backend(&self, backend: Arc<dyn Backend>) {
+        if let Ok(mut current) = self.backend.write() {
+            *current = backend;
+        }
+    }
+
+    fn backend(&self) -> Arc<dyn Backend> {
+        match self.backend.read() {
+            Ok(b) => Arc::clone(&b),
+            Err(poisoned) => Arc::clone(&poisoned.into_inner()),
+        }
     }
 
     /// Runs one user turn and returns the actions the UI should show. Tokens are
@@ -139,7 +154,7 @@ impl Host {
     where
         F: FnMut(&str) + Send + 'static,
     {
-        let backend = Arc::clone(&self.backend);
+        let backend = self.backend();
         tauri::async_runtime::spawn_blocking(move || {
             let mut emit = |piece: &str| {
                 if let Ok(mut f) = on_token.lock() {
@@ -153,13 +168,55 @@ impl Host {
     }
 }
 
+/// Placeholder while the real model loads in the background; asks the user to wait.
+pub struct LoadingBackend {
+    pub model: String,
+}
+
+impl Backend for LoadingBackend {
+    fn label(&self) -> String {
+        format!("loading {}…", self.model)
+    }
+
+    fn generate(&self, _: &InferenceRequest, _: &mut dyn FnMut(&str)) -> Result<String, String> {
+        Err(format!(
+            "{} is still loading; try again in a moment.",
+            self.model
+        ))
+    }
+}
+
 /// Stand-in model used when no model file is installed. Deterministic, and it streams
 /// word by word so the UI path is exercised exactly like a real model.
-pub struct MockBackend;
+#[derive(Default)]
+pub struct MockBackend {
+    note: Option<String>,
+}
+
+impl MockBackend {
+    /// A mock that tells the user which model file it is standing in for, and where.
+    pub fn missing_model(file: &str, expected_dir: Option<String>) -> Self {
+        let note = match expected_dir {
+            Some(dir) => format!("no {file} in {dir}"),
+            None => format!("no {file}"),
+        };
+        Self { note: Some(note) }
+    }
+
+    /// A mock standing in for a model that exists but failed to load.
+    pub fn failed_model(reason: &str) -> Self {
+        Self {
+            note: Some(format!("model failed to load: {reason}")),
+        }
+    }
+}
 
 impl Backend for MockBackend {
     fn label(&self) -> String {
-        "mock model".to_string()
+        match &self.note {
+            Some(note) => format!("mock model ({note})"),
+            None => "mock model".to_string(),
+        }
     }
 
     fn generate(
@@ -196,7 +253,7 @@ mod tests {
     use super::*;
 
     fn host() -> Host {
-        Host::new(Arc::new(MockBackend))
+        Host::new(Arc::new(MockBackend::default()))
     }
 
     #[test]
