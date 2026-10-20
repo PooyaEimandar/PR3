@@ -68,7 +68,8 @@ pub struct EngineConfig {
     pub n_ctx: u32,
     /// Longest answer, in tokens.
     pub max_new_tokens: u32,
-    /// Layers offloaded to the GPU (Metal/Vulkan); 0 means CPU only.
+    /// Layers offloaded to the GPU (Metal/Vulkan). 0 means fully CPU: no layers, KV
+    /// cache or individual operations go to the GPU.
     pub gpu_layers: u32,
     /// Allow Qwen3's reasoning block. Off by default: on-device answers stay short and
     /// fast, and long reasoning belongs on the node (Roadmap §4.3).
@@ -190,9 +191,14 @@ impl Engine {
 
         let prompt_tokens = self.prompt_tokens(messages)?;
         let n_ctx = self.config.n_ctx;
-        let ctx_params = LlamaContextParams::default()
+        let mut ctx_params = LlamaContextParams::default()
             .with_n_ctx(NonZeroU32::new(n_ctx))
             .with_n_batch(n_ctx);
+        if self.config.gpu_layers == 0 {
+            // Otherwise llama.cpp still offloads the KV cache and large operations to
+            // the GPU, which is wrong where the GPU is unusable (iOS simulator).
+            ctx_params = ctx_params.with_offload_kqv(false).with_op_offload(false);
+        }
         let mut ctx = self
             .model
             .new_context(backend, ctx_params)
