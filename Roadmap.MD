@@ -1,7 +1,7 @@
 # PR3 — Portable Private Personal Intelligence
 
 **Technical Architecture, Open-Source Strategy & Benchmarking**  
-**Version:** 1.7 — Rust-first; sans-I/O `no_std` core; protocol-first reach; platform-model backends; trust-boundary schemas, trust tiers and verification lineage from the PR3/Samantha plan; application-neutral research roadmap; voice-first personal model  
+**Version:** 1.8 — Rust-first; sans-I/O `no_std` core; protocol-first reach; platform-model backends; trust-boundary schemas, trust tiers and verification lineage from the PR3/Samantha plan; application-neutral research roadmap; voice-first personal model  
 **Date:** 19 October 2026  
 **Status:** Rust-first architectural direction confirmed (ADR-001); trust architecture adopted with seL4 as a preserved tier (ADR-002); pending proof-of-concept and engineering validation  
 **Working name:** PR3
@@ -9,6 +9,10 @@
 ---
 
 ## 0. Change log
+
+### v1.8 (20 October 2026) — first model on device
+
+1. **ADR-003** (Appendix C, §4.3): for the spike, `pr3-llamacpp` wraps the maintained `llama-cpp-2` bindings behind PR3's own frozen API instead of a hand-written C shim; prebuilt libraries are deferred.
 
 ### v1.7 (19 October 2026) — voice-first personal model
 
@@ -394,7 +398,7 @@ Three backend classes behind one trait. Routing is by **capability** (context, t
 
 **Speech, voice first.** Speech is a pipeline: on-device speech-to-text → the selected model → text-to-speech, each behind a `pr3-speech` trait so backends swap the way models do. Platform engines come first (the on-device speech recognizers and voices of Apple and Android); whisper.cpp is the fallback where no on-device recognizer exists, and a local neural voice (such as Piper) a later option. Voice notes — speak, get a written reply — work everywhere and come first; low-latency spoken conversation targets the node. End-to-end speech models (Qwen-Omni class) are a node experiment only, because today they run mainly on Python stacks the runtime does not ship. Push-to-talk comes before any always-listening wake word, and raw audio is kept only if the user chooses.
 
-**`pr3-llamacpp` binding strategy (M1's primary engineering risk):**
+**`pr3-llamacpp` binding strategy (M1's primary engineering risk).** Spike status: items 1–2 are replaced by pinned `llama-cpp-2` bindings behind PR3's own frozen Rust API, and item 3's prebuilts are deferred (ADR-003). The target design:
 
 1. Vendor llama.cpp as a git submodule pinned to a reviewed commit; upgrade on a cadence with a conformance run, never ad hoc.
 2. Write a **tiny C shim with a frozen API** over the subset PR3 uses (load, tokenize, decode step, sampling hooks, KV-cache control, release). Bindgen the shim, not llama.cpp. Upstream API churn is absorbed in the shim.
@@ -1179,6 +1183,18 @@ Any one of: a studio with SDK access asks and co-funds the port; a next-generati
 **Costs accepted.** The `dev` tier does not protect against a compromised OS kernel and every claim must say so. If a deployment requires that protection, PR3 is one tier away rather than there.
 
 **Revisit triggers.** A funded partner (government, key custody, OEM) requiring host-compromise-resistant policy or keys, together with a chosen reference board; or the `protected` tier proving insufficient for live execution at the M5 gate. Either is raised as an RFC with a budget, never started by drift.
+
+### ADR-003 — `pr3-llamacpp` wraps `llama-cpp-2` for the spike
+
+**Status:** Accepted, 20 October 2026. **Decision:** implement `pr3-llamacpp` on the maintained `llama-cpp-2` Rust bindings, pinned exactly (`=0.1.160`), behind PR3's own small API — `Engine::load`, `Engine::chat` and PR3's `ChatMessage` type — instead of the vendored llama.cpp plus hand-written frozen C shim planned in §4.3.
+
+**Context.** §4.3 plans a frozen C shim so llama.cpp's API churn never reaches PR3. The spike needs Qwen3 running on macOS, the iOS simulator and the Android emulator within days, and `llama-cpp-2` already builds llama.cpp from source with Metal on Apple targets and the NDK toolchain on Android.
+
+**Why this still meets the goal.** The frozen boundary moves from C to Rust: callers see only `pr3-llamacpp`'s types, so a binding upgrade or a later switch to PR3's own shim changes one crate. The crate itself needs no `unsafe` (`#![forbid(unsafe_code)]`); the unsafe surface is the audited third-party binding.
+
+**Costs accepted.** The llama.cpp version follows the binding's releases. Clean builds compile llama.cpp from source (about a minute on Apple silicon), and dev builds optimise `llama-cpp-sys-2` because unoptimised llama.cpp is unusable. The prebuilt libraries and checksummed fetch step of §4.3 item 3 are deferred.
+
+**Revisit triggers.** The binding lags a llama.cpp feature PR3 needs; it cannot be made to build for a supported target; clean-build times hurt CI; or a security review prefers the narrower unsafe surface of PR3's own shim.
 
 ---
 
