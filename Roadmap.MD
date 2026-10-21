@@ -1,14 +1,18 @@
 # PR3 — Portable Private Personal Intelligence
 
 **Technical Architecture, Open-Source Strategy & Benchmarking**  
-**Version:** 1.9 — Rust-first; sans-I/O `no_std` core; protocol-first reach; platform-model backends; trust-boundary schemas, trust tiers and verification lineage from the PR3/Samantha plan; application-neutral research roadmap; voice-first personal model; a model per device class  
-**Date:** 20 October 2026  
+**Version:** 1.10 — Rust-first; sans-I/O `no_std` core; protocol-first reach; platform-model backends; trust-boundary schemas, trust tiers and verification lineage from the PR3/Samantha plan; application-neutral research roadmap; voice-first personal model; a model per device class  
+**Date:** 21 October 2026  
 **Status:** Rust-first architectural direction confirmed (ADR-001); trust architecture adopted with seL4 as a preserved tier (ADR-002); pending proof-of-concept and engineering validation  
 **Working name:** PR3
 
 ---
 
 ## 0. Change log
+
+### v1.10 (21 October 2026) — prompt cache reuse
+
+1. **`pr3-llamacpp` keeps one llama.cpp context per engine and reuses it** (ADR-003): each call processes only the part of its prompt the context has not already seen, so a tool round and the next turn skip the system prompt, the tool list and the conversation so far. Hybrid models (Qwen3.5 and later) rewind through checkpoints of their recurrent state. On the CPU, as phones run it, Qwen3.5-4B answers after a tool call in 0.6 s instead of 4.5 s.
 
 ### v1.9 (20 October 2026) — a model per device class
 
@@ -1207,6 +1211,8 @@ Any one of: a studio with SDK access asks and co-funds the port; a next-generati
 **Platform notes from the spike.** iOS links `Accelerate.framework` (llama.cpp's CPU kernels use vDSP), declared in the generated Xcode project. The iOS simulator's Metal gives wrong results for llama.cpp's kernels, so the simulator runs fully on the CPU (no layers, KV cache or operations offloaded); Macs and iPhones use Metal. Android links libc++ statically, so the APK needs no extra shared library, and runs on the CPU until a Vulkan build is measured. Its CPU kernels are built for ARMv8.2 with int8 dot products (`.cargo/config.toml`, v1.9): the bindings' ARMv8.0 default made 4-bit models about 2.5 times slower on the emulator. Every arm64 phone core since about 2018 has dot products; older devices are unsupported until llama.cpp's runtime CPU-variant dispatch is adopted. Models load on a background thread so the window appears at once on every platform.
 
 **Prompt formats (v1.9).** The crate renders prompts itself rather than through llama.cpp's built-in template engine, which cannot render tools. It recognises the model family from the chat template inside the GGUF — Qwen3's JSON tool calls or Qwen3.5's XML calls, and whether earlier turns keep their reasoning blocks (Qwen3.8) — and refuses other families, so a new model generation is a deliberate change with its own tests. Unit tests pin the rendered prompt to each official template, and XML arguments are typed by the tool's schema the way vLLM's `qwen3_coder` parser types them.
+
+**Prompt cache (v1.10).** Each `Engine` owns its model and one llama.cpp context on a dedicated thread: the context borrows the model, so this keeps the crate free of `unsafe`, and dropping the engine ends the thread and frees both, which keeps the Metal exit fix. A call processes only the tokens after the longest prefix its prompt shares with what the context holds. Qwen3 trims its attention cache directly. Qwen3.5-family models cannot rewind their recurrent state, so the engine saves it (llama.cpp's partial sequence state, about 52 MB for the 4B model and 156 MB for the 27B) after the system turn and, where the template rewrites earlier answers, after each question, and restores the latest checkpoint that still matches. Saving costs the first call 0.1–0.2 s; later calls are two to seven times faster.
 
 **Revisit triggers.** The binding lags a llama.cpp feature PR3 needs; it cannot be made to build for a supported target; clean-build times hurt CI; or a security review prefers the narrower unsafe surface of PR3's own shim.
 
