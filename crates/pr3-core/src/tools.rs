@@ -19,19 +19,18 @@ enum Kind {
     Boolean,
     Object,
     Array,
-    Any,
 }
 
 impl Kind {
-    fn parse(schema: &Value) -> Self {
-        match schema.get("type").and_then(Value::as_str) {
-            Some("string") => Self::String,
-            Some("number") => Self::Number,
-            Some("integer") => Self::Integer,
-            Some("boolean") => Self::Boolean,
-            Some("object") => Self::Object,
-            Some("array") => Self::Array,
-            _ => Self::Any,
+    fn parse(name: &str) -> Option<Self> {
+        match name {
+            "string" => Some(Self::String),
+            "number" => Some(Self::Number),
+            "integer" => Some(Self::Integer),
+            "boolean" => Some(Self::Boolean),
+            "object" => Some(Self::Object),
+            "array" => Some(Self::Array),
+            _ => None,
         }
     }
 
@@ -43,7 +42,6 @@ impl Kind {
             Self::Boolean => value.is_boolean(),
             Self::Object => value.is_object(),
             Self::Array => value.is_array(),
-            Self::Any => true,
         }
     }
 
@@ -55,14 +53,52 @@ impl Kind {
             Self::Boolean => "true or false",
             Self::Object => "an object",
             Self::Array => "a list",
-            Self::Any => "any value",
         }
+    }
+}
+
+/// One argument: its type and, optionally, the values it may take.
+#[derive(Debug)]
+struct Property {
+    kind: Kind,
+    allowed: Option<Vec<Value>>,
+}
+
+impl Property {
+    /// Only what the checks below enforce is accepted, so a schema can never promise a
+    /// constraint (a pattern, a range, nested fields) that goes unchecked.
+    fn parse(schema: &Value) -> Result<Self, String> {
+        let Value::Object(fields) = schema else {
+            return Err("must be an object schema".to_string());
+        };
+        if let Some(other) = fields
+            .keys()
+            .find(|k| !matches!(k.as_str(), "type" | "description" | "enum"))
+        {
+            return Err(format!("'{other}' is not supported"));
+        }
+        let kind = fields
+            .get("type")
+            .and_then(Value::as_str)
+            .and_then(Kind::parse)
+            .ok_or("needs one type: string, number, integer, boolean, object or array")?;
+        let allowed = match fields.get("enum") {
+            None => None,
+            Some(Value::Array(values)) if !values.is_empty() => {
+                if let Some(bad) = values.iter().find(|v| !kind.accepts(v)) {
+                    return Err(format!("enum value {bad} is not {}", kind.name()));
+                }
+                Some(values.clone())
+            }
+            Some(_) => return Err("enum must be a non-empty list".to_string()),
+        };
+        Ok(Self { kind, allowed })
     }
 }
 
 #[derive(Debug)]
 struct Schema {
-    properties: BTreeMap<String, Kind>,
+    properties: BTreeMap<String, Property>,
     required: Vec<String>,
     allow_additional: bool,
 }
@@ -75,12 +111,26 @@ impl Schema {
         if value.get("type").and_then(Value::as_str) != Some("object") {
             return Err(invalid("parameters must be an object schema"));
         }
+        if let Some(other) = value.as_object().and_then(|top| {
+            top.keys().find(|k| {
+                !matches!(
+                    k.as_str(),
+                    "type" | "properties" | "required" | "additionalProperties" | "description"
+                )
+            })
+        }) {
+            return Err(invalid(&format!("'{other}' is not supported")));
+        }
         let properties = match value.get("properties") {
             None => BTreeMap::new(),
             Some(Value::Object(props)) => props
                 .iter()
-                .map(|(k, v)| (k.clone(), Kind::parse(v)))
-                .collect(),
+                .map(|(k, v)| {
+                    Property::parse(v)
+                        .map(|p| (k.clone(), p))
+                        .map_err(|why| invalid(&format!("property '{k}': {why}")))
+                })
+                .collect::<Result<_, _>>()?,
             Some(_) => return Err(invalid("properties must be an object")),
         };
         let required: Vec<String> = match value.get("required") {
@@ -112,8 +162,18 @@ impl Schema {
         }
         for (key, value) in args {
             match self.properties.get(key) {
-                Some(kind) if !kind.accepts(value) => {
-                    return Err(format!("argument '{key}' must be {}", kind.name()));
+                Some(p) if !p.kind.accepts(value) => {
+                    return Err(format!("argument '{key}' must be {}", p.kind.name()));
+                }
+                Some(Property {
+                    allowed: Some(allowed),
+                    ..
+                }) if !allowed.contains(value) => {
+                    let options: Vec<String> = allowed.iter().map(Value::to_string).collect();
+                    return Err(format!(
+                        "argument '{key}' must be one of {}",
+                        options.join(", ")
+                    ));
                 }
                 None if !self.allow_additional => {
                     return Err(format!("unexpected argument '{key}'"));
@@ -310,5 +370,44 @@ mod tests {
         let mut upper = calculator();
         upper.name = "Calc".to_string();
         assert!(ToolRegistry::default().register(upper).is_err());
+    }
+
+    #[test]
+    fn unchecked_constraints_are_refused_and_enums_are_checked() {
+        let spec = |parameters: &str| ToolSpec {
+            name: "t".to_string(),
+            parameters: parameters.to_string(),
+            ..calculator()
+        };
+        for unsupported in [
+            r#"{"type":"object","properties":{"q":{"type":"string","pattern":"^a"}}}"#,
+            r#"{"type":"object","properties":{"n":{"type":["integer","null"]}}}"#,
+            r#"{"type":"object","properties":{"n":{}}}"#,
+            r#"{"type":"object","properties":{"o":{"type":"object","properties":{}}}}"#,
+            r#"{"type":"object","oneOf":[]}"#,
+            r#"{"type":"object","properties":{"u":{"type":"string","enum":[1]}}}"#,
+        ] {
+            let refused = ToolRegistry::default().register(spec(unsupported));
+            assert!(refused.is_err(), "{unsupported}");
+        }
+
+        let mut r = ToolRegistry::default();
+        r.register(spec(
+            r#"{"type":"object","properties":{"unit":{"type":"string","enum":["c","f"]}}}"#,
+        ))
+        .unwrap();
+        let check = |args: &str| {
+            r.validate(
+                &ProposedToolCall {
+                    name: "t".to_string(),
+                    arguments: args.to_string(),
+                },
+                "c".to_string(),
+                1024,
+            )
+        };
+        assert!(check(r#"{"unit":"c"}"#).is_ok());
+        let refused = check(r#"{"unit":"rm -rf /"}"#).unwrap_err();
+        assert!(refused.contains(r#"one of "c", "f""#), "{refused}");
     }
 }
