@@ -19,6 +19,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 pr3-core = { workspace = true, features = ["std"] }
 pr3-llamacpp = { path = "../../../crates/pr3-llamacpp" }
+pr3-memory-sqlite = { path = "../../../crates/pr3-memory-sqlite" }
 pr3-tools = { path = "../../../crates/pr3-tools" }
 serde = { workspace = true, features = ["std"] }
 serde_json = { workspace = true, features = ["std"] }

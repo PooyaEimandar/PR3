@@ -12,7 +12,9 @@ use crate::host::{Backend, Generation};
 
 const SYSTEM_PROMPT: &str = "You are PR3, a private assistant running entirely on the \
 user's own device. Answer clearly and briefly. Use the tools for calculations and the \
-current time instead of guessing.";
+current time instead of guessing. When the user tells you something about themselves \
+worth keeping, or asks you to remember something, save it with remember; before \
+answering questions about the user, look it up with recall.";
 
 pub struct LlamaBackend {
     engine: Engine,
@@ -139,7 +141,7 @@ mod tests {
 
     use super::*;
     use crate::config::Config;
-    use crate::host::{Host, TurnEvent};
+    use crate::host::{Backend, Host, TurnEvent};
 
     fn host(path: &Path) -> Host {
         Host::new(
@@ -208,6 +210,59 @@ mod tests {
             let (answer, events) = turn(&host, "What's today's date?");
             assert_eq!(tool_names(&events), ["get_time"], "{id}: {answer}");
             eprintln!("{id}: ok ({answer})");
+            tested += 1;
+        }
+        assert!(
+            tested > 0,
+            "no selected model in {}",
+            repo_models().display()
+        );
+    }
+
+    /// Tells one conversation a fact and asks for it in a new one that shares only the
+    /// memory store, so only long-term memory can carry it across.
+    #[test]
+    #[ignore = "needs the selected models in models/"]
+    fn real_models_remember_across_conversations() {
+        let config = Config::built_in().unwrap();
+        let choice = &config.model;
+        let mut tested = 0;
+        for id in [&choice.desktop, &choice.mobile, &choice.mobile_small] {
+            let path = repo_models().join(&config.models[id].file);
+            if !path.is_file() {
+                eprintln!("{id}: {} missing, skipped", path.display());
+                continue;
+            }
+            let file =
+                std::env::temp_dir().join(format!("pr3-memory-{id}-{}.sqlite", std::process::id()));
+            let _ = std::fs::remove_file(&file);
+            let store: pr3_tools::SharedMemory = Arc::new(Mutex::new(
+                pr3_memory_sqlite::SqliteMemory::open(&file).unwrap(),
+            ));
+            let backend: Arc<dyn Backend> = Arc::new(LlamaBackend::load(&path).unwrap());
+            let conversation = || {
+                let mut tools = pr3_tools::builtin();
+                tools.extend(pr3_tools::memory_tools(Arc::clone(&store)));
+                Host::new(Arc::clone(&backend), tools)
+                    .unwrap()
+                    .with_memory(Arc::clone(&store))
+            };
+
+            let (_, events) = turn(
+                &conversation(),
+                "Please remember that my favourite colour is green.",
+            );
+            assert!(
+                tool_names(&events).contains(&"remember"),
+                "{id}: {events:?}"
+            );
+
+            // The host finds the memory and shows it to the model; the model may also
+            // call recall itself.
+            let (answer, _) = turn(&conversation(), "What is my favourite colour?");
+            assert!(answer.to_lowercase().contains("green"), "{id}: {answer}");
+            eprintln!("{id}: remembered ({answer})");
+            let _ = std::fs::remove_file(&file);
             tested += 1;
         }
         assert!(

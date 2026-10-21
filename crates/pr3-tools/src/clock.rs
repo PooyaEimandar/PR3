@@ -15,9 +15,7 @@ const WEEKDAYS: [&str; 7] = [
 
 /// e.g. "Tuesday 2026-10-20 19:45 (UTC+03:30)".
 pub fn describe(now: Timestamp, utc_offset_minutes: i32) -> String {
-    let local_secs = (now.0 / 1000) as i64 + i64::from(utc_offset_minutes) * 60;
-    let days = local_secs.div_euclid(86_400);
-    let secs_of_day = local_secs.rem_euclid(86_400);
+    let (days, secs_of_day) = local(now, utc_offset_minutes);
     let (year, month, day) = civil_from_days(days);
     let weekday = WEEKDAYS[days.rem_euclid(7) as usize];
     let sign = if utc_offset_minutes < 0 { '-' } else { '+' };
@@ -29,6 +27,18 @@ pub fn describe(now: Timestamp, utc_offset_minutes: i32) -> String {
         offset / 60,
         offset % 60,
     )
+}
+
+/// The local date, e.g. "2026-10-20".
+pub fn date(at: Timestamp, utc_offset_minutes: i32) -> String {
+    let (year, month, day) = civil_from_days(local(at, utc_offset_minutes).0);
+    format!("{year:04}-{month:02}-{day:02}")
+}
+
+/// Local days since 1970-01-01 and seconds into that day.
+fn local(at: Timestamp, utc_offset_minutes: i32) -> (i64, i64) {
+    let secs = (at.0 / 1000) as i64 + i64::from(utc_offset_minutes) * 60;
+    (secs.div_euclid(86_400), secs.rem_euclid(86_400))
 }
 
 /// Days since 1970-01-01 to a proleptic Gregorian (year, month, day). Howard Hinnant's
@@ -60,6 +70,8 @@ mod tests {
         let t = Timestamp(1_792_512_900_000);
         assert_eq!(describe(t, 210), "Tuesday 2026-10-20 19:45 (UTC+03:30)");
         assert_eq!(describe(t, -420), "Tuesday 2026-10-20 09:15 (UTC-07:00)");
+        assert_eq!(date(t, 210), "2026-10-20");
+        assert_eq!(date(t, -1000), "2026-10-19");
     }
 
     #[test]

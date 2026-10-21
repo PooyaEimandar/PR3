@@ -13,7 +13,7 @@ use pr3_core::{
     Action, Config, Core, CoreError, GenerationInfo, InferenceRequest, Input, ProposedToolCall,
     Role, SessionId, Timestamp, ToolCall, Trace,
 };
-use pr3_tools::{Tool, ToolContext};
+use pr3_tools::{SharedMemory, Tool, ToolContext};
 use serde::Serialize;
 use serde_json::{Map, Value};
 
@@ -99,6 +99,9 @@ pub struct Host {
     /// it has loaded in the background.
     backend: RwLock<Arc<dyn Backend>>,
     tools: BTreeMap<String, Box<dyn Tool>>,
+    /// Searched for every message, so the model sees what it knows about the user
+    /// without having to ask.
+    memory: Option<SharedMemory>,
     trace_sink: RwLock<Option<TraceSink>>,
     session: SessionId,
 }
@@ -117,11 +120,18 @@ impl Host {
             core: Mutex::new(core),
             backend: RwLock::new(backend),
             tools: by_name,
+            memory: None,
             trace_sink: RwLock::new(None),
             // The launch time keeps trace ids (`pr3-{session}-{turn}`) unique across
             // launches, which OpenJarvis's trace store needs.
             session: SessionId(now().0),
         })
+    }
+
+    /// Looks up each message in `memory` and gives the matches to the model as notes.
+    pub fn with_memory(mut self, memory: SharedMemory) -> Self {
+        self.memory = Some(memory);
+        self
     }
 
     pub fn backend_label(&self) -> String {
@@ -159,9 +169,14 @@ impl Host {
     where
         F: FnMut(TurnEvent) + Send + 'static,
     {
+        let utterance = text.clone();
+        let notes = self.memory.as_ref().map_or_else(Vec::new, |memory| {
+            pr3_tools::notes_for(memory, &text, now())
+        });
         let mut queue = self.step(Input::Utterance {
             session: self.session,
             content: text,
+            notes,
             at: now(),
         })?;
         let mut for_ui = Vec::new();
@@ -194,6 +209,8 @@ impl Host {
                     let ctx = ToolContext {
                         now: now(),
                         utc_offset_minutes,
+                        session: self.session,
+                        utterance: utterance.clone(),
                     };
                     let (success, output) = self.run_tool(&call, &ctx);
                     if let Ok(mut emit) = on_event.lock() {

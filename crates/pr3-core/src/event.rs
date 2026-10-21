@@ -15,6 +15,10 @@ pub enum Input {
     Utterance {
         session: SessionId,
         content: String,
+        /// What the host looked up for this turn, such as matching memories. The model
+        /// sees them ahead of the user's words as information, never as instructions;
+        /// the trace records the user's words alone.
+        notes: Vec<String>,
         at: Timestamp,
     },
     /// The host finished an [`Action::Infer`]. `tool_calls` are the model's proposals,

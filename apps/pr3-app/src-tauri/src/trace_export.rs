@@ -24,6 +24,7 @@ pub fn to_openjarvis(trace: &Trace) -> Value {
         .map(|s| {
             json!({
                 "step_type": match s.step_type {
+                    StepType::Retrieve => "retrieve",
                     StepType::Generate => "generate",
                     StepType::ToolCall => "tool_call",
                     StepType::Respond => "respond",

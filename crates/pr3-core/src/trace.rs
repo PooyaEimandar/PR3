@@ -14,6 +14,8 @@ use crate::types::{GenerationInfo, ProposedToolCall, Timestamp};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StepType {
+    /// Context looked up for the turn (OpenJarvis's memory retrieval step).
+    Retrieve,
     Generate,
     ToolCall,
     Respond,
@@ -136,6 +138,17 @@ impl TraceBuilder {
             at,
             json!({ "model": self.trace.model }),
             json!({ "content": "", "error": reason, "finish_reason": "error", "tokens": 0 }),
+        );
+    }
+
+    /// The host's lookup for this turn: what was searched and how much was found.
+    pub(crate) fn retrieve(&mut self, at: Timestamp, query: &str, results: usize) {
+        self.push(
+            StepType::Retrieve,
+            at,
+            at,
+            json!({ "query": query }),
+            json!({ "num_results": results }),
         );
     }
 

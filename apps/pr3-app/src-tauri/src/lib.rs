@@ -5,7 +5,7 @@ mod host;
 mod llama;
 mod trace_export;
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use host::{Backend, Host, LoadingBackend, MockBackend, TurnEvent};
 use serde::Serialize;
@@ -111,6 +111,46 @@ fn set_backend(app: &tauri::AppHandle, backend: Arc<dyn Backend>) {
     let _ = app.emit(MODEL_CHANGED, label);
 }
 
+/// The memory store in the app's data folder. Without it PR3 still runs; it just
+/// cannot remember.
+fn open_memory(app: &tauri::AppHandle) -> Option<pr3_tools::SharedMemory> {
+    let opened = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())
+        .and_then(|dir| {
+            std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+            let path = dir.join("memory.sqlite");
+            pr3_memory_sqlite::SqliteMemory::open(&path)
+                .map(|store| (store, path))
+                .map_err(|e| e.to_string())
+        });
+    match opened {
+        Ok((store, path)) => {
+            eprintln!("PR3: memory at {}", path.display());
+            Some(Arc::new(Mutex::new(store)))
+        }
+        Err(e) => {
+            eprintln!("PR3: memory unavailable: {e}");
+            None
+        }
+    }
+}
+
+/// The host with the built-in tools, plus memory tools and per-message recall when
+/// memory is available.
+fn host(app: &tauri::AppHandle) -> Result<Host, host::HostError> {
+    let backend = Arc::new(MockBackend::default());
+    match open_memory(app) {
+        Some(memory) => {
+            let mut tools = pr3_tools::builtin();
+            tools.extend(pr3_tools::memory_tools(Arc::clone(&memory)));
+            Ok(Host::new(backend, tools)?.with_memory(memory))
+        }
+        None => Host::new(backend, pr3_tools::builtin()),
+    }
+}
+
 /// Finished turns are appended as OpenJarvis trace records to `traces.jsonl` in the app's
 /// data folder, where OpenJarvis's analysis and learning tools can read them.
 fn start_tracing(app: &tauri::AppHandle) {
@@ -129,10 +169,7 @@ fn start_tracing(app: &tauri::AppHandle) {
 pub fn run() {
     let app = tauri::Builder::default()
         .setup(|app| {
-            app.manage(Host::new(
-                Arc::new(MockBackend::default()),
-                pr3_tools::builtin(),
-            )?);
+            app.manage(host(app.handle())?);
             start_tracing(app.handle());
             start_model_loading(app.handle());
             Ok(())

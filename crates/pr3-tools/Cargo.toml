@@ -1,6 +1,6 @@
 [package]
 name = "pr3-tools"
-description = "Built-in deterministic tools for PR3 (calculator, clock)"
+description = "Built-in tools for PR3: calculator, clock and memory"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -10,4 +10,5 @@ publish = false
 
 [dependencies]
 pr3-core = { workspace = true, features = ["std"] }
+pr3-memory = { workspace = true, features = ["std"] }
 serde_json = { workspace = true, features = ["std"] }
