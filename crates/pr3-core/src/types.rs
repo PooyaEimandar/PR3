@@ -61,8 +61,9 @@ pub struct ToolSpec {
     /// JSON Schema for the arguments object. PR3 checks a strict subset: `properties`
     /// with basic `type`s, `required`, and `additionalProperties` (default `false`).
     pub parameters: String,
-    /// Consequential tools need the trusted confirmation path (Roadmap §4.6), which
-    /// arrives with the trusted side; until then the core refuses to run them.
+    /// Consequential tools (sending, paying, sharing) are never run directly: the core
+    /// hands their calls to the host as [`crate::Action::Propose`], for the trusted
+    /// confirmation path (Roadmap §4.6).
     #[serde(default)]
     pub requires_confirmation: bool,
     #[serde(default)]

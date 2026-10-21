@@ -226,6 +226,13 @@ impl ToolRegistry {
         self.tools.values().map(|e| &e.spec)
     }
 
+    /// Whether calls to `name` go through the trusted side instead of running directly.
+    pub(crate) fn requires_confirmation(&self, name: &str) -> bool {
+        self.tools
+            .get(name)
+            .is_some_and(|e| e.spec.requires_confirmation)
+    }
+
     /// Turns a proposed call into a validated one, or explains — in words the model can
     /// act on — why it was refused.
     pub(crate) fn validate(
@@ -238,12 +245,6 @@ impl ToolRegistry {
             .tools
             .get(&proposed.name)
             .ok_or_else(|| format!("unknown tool '{}'", proposed.name))?;
-        if entry.spec.requires_confirmation {
-            return Err(format!(
-                "tool '{}' needs the user's confirmation, which is not available yet",
-                proposed.name
-            ));
-        }
         if proposed.arguments.len() > max_args_bytes {
             return Err(format!("arguments are larger than {max_args_bytes} bytes"));
         }
@@ -329,22 +330,28 @@ mod tests {
     }
 
     #[test]
-    fn confirmation_tools_are_refused_until_the_trusted_side_exists() {
-        let mut r = ToolRegistry::default();
+    fn confirmation_tools_are_validated_like_any_other_and_marked() {
+        let mut r = registry();
         r.register(ToolSpec {
             name: "send_mail".to_string(),
             requires_confirmation: true,
             ..calculator()
         })
         .unwrap();
-        let err = r
-            .validate(
+        assert!(r.requires_confirmation("send_mail"));
+        assert!(!r.requires_confirmation("calculate"));
+        assert!(
+            r.validate(
                 &call("send_mail", r#"{"expression":"x"}"#),
                 "c".into(),
-                1024,
+                1024
             )
-            .unwrap_err();
-        assert!(err.contains("confirmation"));
+            .is_ok()
+        );
+        assert!(
+            r.validate(&call("send_mail", "{}"), "c".into(), 1024)
+                .is_err()
+        );
     }
 
     #[test]

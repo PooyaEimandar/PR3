@@ -339,7 +339,11 @@ impl Core {
         for call in valid {
             self.calls.insert(call.id.clone(), session);
             pending.insert(call.id.clone(), (call.clone(), at));
-            actions.push(Action::CallTool(call));
+            actions.push(if self.tools.requires_confirmation(&call.name) {
+                Action::Propose(call)
+            } else {
+                Action::CallTool(call)
+            });
         }
         self.turn_mut(session)?.awaiting = Awaiting::Tools { pending };
         Ok(actions)
@@ -680,6 +684,45 @@ mod tests {
             ]
         );
         assert_eq!(trace.steps[1].output["result"], "4");
+    }
+
+    #[test]
+    fn consequential_calls_are_proposed_never_called() {
+        let mut core = with_calculator();
+        core.register_tool(ToolSpec {
+            name: "send_email".to_string(),
+            description: "Send an email".to_string(),
+            parameters:
+                r#"{"type":"object","properties":{"to":{"type":"string"}},"required":["to"]}"#
+                    .to_string(),
+            requires_confirmation: true,
+            required_capabilities: vec!["mail.send".to_string()],
+        })
+        .unwrap();
+        let id = infer_id(&core.step(user("email Alex")).unwrap());
+        let actions = core
+            .step(answer(id, "", &[("send_email", r#"{"to":"Alex"}"#)], 20))
+            .unwrap();
+        let [Action::Propose(call)] = actions.as_slice() else {
+            panic!("{actions:?}")
+        };
+        // The host's answer comes back like any tool's: here the user said no.
+        let id = infer_id(
+            &core
+                .step(Input::ToolOutcome {
+                    call_id: call.id.clone(),
+                    success: false,
+                    output: "the user declined; nothing was sent".to_string(),
+                    at: Timestamp(30),
+                })
+                .unwrap(),
+        );
+        let seen = core.history(S).last().unwrap();
+        assert_eq!(seen.content, "error: the user declined; nothing was sent");
+        let actions = core
+            .step(answer(id, "Okay, I did not send it.", &[], 40))
+            .unwrap();
+        assert!(matches!(actions[0], Action::Reply { .. }));
     }
 
     #[test]
