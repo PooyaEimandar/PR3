@@ -14,12 +14,38 @@ pub const FILE_NAME: &str = "pr3.toml";
 pub struct Config {
     pub model: ModelChoice,
     pub models: BTreeMap<String, ModelEntry>,
+    #[serde(default)]
+    pub traces: Traces,
+}
+
+/// OpenJarvis-format traces of every turn. Off unless the config turns them on: they
+/// hold whole conversations in plain text.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(default)]
+pub struct Traces {
+    pub enabled: bool,
+    /// The file is rotated at this size; one older file is kept.
+    pub max_mb: u64,
+}
+
+impl Default for Traces {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            max_mb: 8,
+        }
+    }
 }
 
 /// Which model each kind of device runs, by id.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ModelChoice {
     pub desktop: String,
+    /// For computers with less than `desktop_min_memory_gb` of memory.
+    #[serde(default)]
+    pub desktop_small: Option<String>,
+    #[serde(default)]
+    pub desktop_min_memory_gb: f64,
     pub mobile: String,
     /// For phones with less than `mobile_min_memory_gb` of memory.
     pub mobile_small: String,
@@ -33,10 +59,13 @@ pub struct ModelEntry {
     pub file: String,
 }
 
+/// The kind of device, with its physical memory in bytes if known.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Device {
-    Desktop,
-    /// A phone or tablet, with its physical memory in bytes if known.
+    Desktop {
+        memory: Option<u64>,
+    },
+    /// A phone or tablet.
     Mobile {
         memory: Option<u64>,
     },
@@ -44,12 +73,11 @@ pub enum Device {
 
 impl Device {
     pub fn current() -> Self {
+        let memory = physical_memory();
         if cfg!(any(target_os = "ios", target_os = "android")) {
-            Self::Mobile {
-                memory: physical_memory(),
-            }
+            Self::Mobile { memory }
         } else {
-            Self::Desktop
+            Self::Desktop { memory }
         }
     }
 }
@@ -78,7 +106,10 @@ impl Config {
     pub fn parse(text: &str) -> Result<Self, String> {
         let config: Self = toml::from_str(text).map_err(|e| e.to_string())?;
         let choice = &config.model;
-        for id in [&choice.desktop, &choice.mobile, &choice.mobile_small] {
+        let named = [&choice.desktop, &choice.mobile, &choice.mobile_small]
+            .into_iter()
+            .chain(choice.desktop_small.as_ref());
+        for id in named {
             if !config.models.contains_key(id) {
                 return Err(format!(
                     "[model] names '{id}', which [models] does not list"
@@ -92,11 +123,20 @@ impl Config {
     /// the small one.
     pub fn model_for(&self, device: Device) -> Option<(&str, &ModelEntry)> {
         let choice = &self.model;
+        let gb = |n: f64| n * 1024.0 * 1024.0 * 1024.0;
         let id = match device {
-            Device::Desktop => &choice.desktop,
+            // A computer whose memory is unknown gets the large model.
+            Device::Desktop { memory } => match &choice.desktop_small {
+                Some(small)
+                    if memory.is_some_and(|m| (m as f64) < gb(choice.desktop_min_memory_gb)) =>
+                {
+                    small
+                }
+                _ => &choice.desktop,
+            },
+            // A phone whose memory is unknown gets the small one.
             Device::Mobile { memory } => {
-                let min = choice.mobile_min_memory_gb * 1024.0 * 1024.0 * 1024.0;
-                if memory.is_some_and(|m| m as f64 >= min) {
+                if memory.is_some_and(|m| m as f64 >= gb(choice.mobile_min_memory_gb)) {
                     &choice.mobile
                 } else {
                     &choice.mobile_small
@@ -149,7 +189,18 @@ mod tests {
     #[test]
     fn built_in_config_is_valid_and_picks_per_device() {
         let config = Config::built_in().unwrap();
-        assert_eq!(config.model_for(Device::Desktop).unwrap().0, "qwen3.8-27b");
+        assert_eq!(
+            config
+                .model_for(Device::Desktop { memory: None })
+                .unwrap()
+                .0,
+            "qwen3.8-27b"
+        );
+        let desktop = |gb| Device::Desktop {
+            memory: Some(gb * GB),
+        };
+        assert_eq!(config.model_for(desktop(96)).unwrap().0, "qwen3.8-27b");
+        assert_eq!(config.model_for(desktop(16)).unwrap().0, "qwen3.5-4b");
         let phone = |gb| Device::Mobile {
             memory: Some(gb * GB),
         };
@@ -178,13 +229,22 @@ mod tests {
         std::fs::write(dir.join(FILE_NAME), text).unwrap();
         let config = Config::load(Some(&dir)).unwrap();
         assert_eq!(
-            config.model_for(Device::Desktop).unwrap().0,
+            config
+                .model_for(Device::Desktop { memory: None })
+                .unwrap()
+                .0,
             "qwen3.8-27b-q8"
         );
 
         std::fs::write(dir.join(FILE_NAME), "not toml [").unwrap();
         let config = Config::load(Some(&dir)).unwrap();
-        assert_eq!(config.model_for(Device::Desktop).unwrap().0, "qwen3.8-27b");
+        assert_eq!(
+            config
+                .model_for(Device::Desktop { memory: None })
+                .unwrap()
+                .0,
+            "qwen3.8-27b"
+        );
         let _ = std::fs::remove_dir_all(dir);
     }
 

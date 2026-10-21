@@ -6,10 +6,20 @@
 # Which model each kind of device runs. Values are ids from [models] below.
 [model]
 desktop = "qwen3.8-27b"
+# Computers with less memory than this run `desktop_small` instead of `desktop`.
+desktop_small = "qwen3.5-4b"
+desktop_min_memory_gb = 30
 mobile = "qwen3.5-4b"
 # Phones with less memory than this run `mobile_small` instead of `mobile`.
 mobile_small = "qwen3.5-2b"
 mobile_min_memory_gb = 7
+
+# OpenJarvis-format traces of every turn, for benchmarks and analysis. Off by default:
+# they hold whole conversations in plain text, and forgetting a memory does not remove
+# it from them. The file rotates at max_mb, keeping one older file.
+[traces]
+enabled = false
+max_mb = 8
 
 # The models PR3 knows, each pinned to a repository revision and SHA-256 so a download
 # is exactly the file that was tested. scripts/fetch-model.sh downloads them into models/.

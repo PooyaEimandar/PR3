@@ -29,3 +29,8 @@ toml = { version = "1", default-features = false, features = ["std", "serde", "p
 # Physical memory, to pick the phone model (config/pr3.toml).
 [target.'cfg(target_vendor = "apple")'.dependencies]
 libc = "0.2"
+
+# Excluding the data folder from iCloud and computer backups.
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSError", "NSString", "NSURL", "NSValue"] }

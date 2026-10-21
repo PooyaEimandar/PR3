@@ -2394,6 +2394,8 @@ name = "pr3-app"
 version = "0.1.0"
 dependencies = [
  "libc",
+ "objc2",
+ "objc2-foundation",
  "pr3-core",
  "pr3-llamacpp",
  "pr3-memory-sqlite",

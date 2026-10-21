@@ -59,10 +59,16 @@ pub fn to_openjarvis(trace: &Trace) -> Value {
     })
 }
 
-/// Appends one trace to a JSON Lines file, creating it and its folder if needed.
-pub fn append(path: &Path, trace: &Trace) -> io::Result<()> {
+/// Appends one trace to a JSON Lines file, creating it and its folder if needed. Once
+/// the file reaches `max_bytes` it is renamed to `<name>.1.jsonl` (replacing the older
+/// one) and a new file is started.
+pub fn append(path: &Path, trace: &Trace, max_bytes: u64) -> io::Result<()> {
     if let Some(dir) = path.parent() {
         fs::create_dir_all(dir)?;
+    }
+    if fs::metadata(path).is_ok_and(|m| m.len() >= max_bytes) {
+        let stem = path.file_stem().unwrap_or_default().to_string_lossy();
+        fs::rename(path, path.with_file_name(format!("{stem}.1.jsonl")))?;
     }
     let mut file = OpenOptions::new().create(true).append(true).open(path)?;
     writeln!(file, "{}", to_openjarvis(trace))
@@ -140,10 +146,17 @@ mod tests {
     fn append_writes_one_line_per_trace() {
         let dir = std::env::temp_dir().join(format!("pr3-trace-test-{}", std::process::id()));
         let path = dir.join("traces.jsonl");
-        append(&path, &trace()).unwrap();
-        append(&path, &trace()).unwrap();
+        append(&path, &trace(), u64::MAX).unwrap();
+        append(&path, &trace(), u64::MAX).unwrap();
         let text = fs::read_to_string(&path).unwrap();
         assert_eq!(text.lines().count(), 2);
+
+        // Past the limit, the file rotates and one older file is kept.
+        append(&path, &trace(), 1).unwrap();
+        append(&path, &trace(), 1).unwrap();
+        let current = fs::read_to_string(&path).unwrap();
+        let older = fs::read_to_string(dir.join("traces.1.jsonl")).unwrap();
+        assert_eq!((current.lines().count(), older.lines().count()), (1, 1));
         let _ = fs::remove_dir_all(dir);
     }
 }
