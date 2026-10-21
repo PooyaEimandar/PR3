@@ -1,7 +1,7 @@
 # PR3 — Portable Private Personal Intelligence
 
 **Technical Architecture, Open-Source Strategy & Benchmarking**  
-**Version:** 1.12 — Rust-first; sans-I/O `no_std` core; protocol-first reach; platform-model backends; trust-boundary schemas, trust tiers and verification lineage from the PR3/Samantha plan; application-neutral research roadmap; voice-first personal model; a model per device class  
+**Version:** 1.13 — Rust-first; sans-I/O `no_std` core; protocol-first reach; platform-model backends; trust-boundary schemas, trust tiers and verification lineage from the PR3/Samantha plan; application-neutral research roadmap; voice-first personal model; a model per device class  
 **Date:** 21 October 2026  
 **Status:** Rust-first architectural direction confirmed (ADR-001); trust architecture adopted with seL4 as a preserved tier (ADR-002); pending proof-of-concept and engineering validation  
 **Working name:** PR3
@@ -9,6 +9,17 @@
 ---
 
 ## 0. Change log
+
+### v1.13 (21 October 2026) — the trusted side for one action
+
+Spike step 5 (§11): sending an email through a sandbox connector, by the path §4.6 describes.
+
+1. **Trusted side in `pr3-core`** (`trusted`, `no_std`, M1-E7). The intent validator checks the runtime's envelope (nonce, time, freshness, a replay window), refuses fields the operation does not define, and resolves recipients by name from the user's address book, so the model never types an address; a subject cannot break a line to add mail headers, and no text may carry the invisible characters that reorder it on screen. A deterministic policy applies a kill switch, a recipient limit, a daily limit and one approval at a time, and every email needs approval. Approval receipts are verified with P-256 ECDSA, the curve Secure Enclave and Android Keystore sign with, and exchanged for one-use capabilities that expire in 30 seconds. The audit log is a SHA-256 hash chain that keeps addresses and hashes, not message text. Proptest checks the §12 properties: no capability without a receipt that matches the request exactly and is signed by the device key, nothing authorized after expiry or twice, and any rewrite of the log detected. A CI script keeps the trusted modules free of agent-side imports.
+2. **Agent loop.** Calls to consequential tools reach the host as `Action::Propose` instead of being refused; the host answers with the outcome — sent, declined, denied or expired — like any tool result.
+3. **`pr3-vault`** signs approved receipts. For now the key is a file in the app's private, backup-excluded folder (`dev` tier, §7.3); Secure Enclave and Android Keystore, with a biometric prompt, replace it behind the same trait.
+4. **App.** A confirmation card shows the recipients' real addresses, the subject and the exact text, from the validated intent, with Send, Decline and a two-minute expiry. The sandbox outbox delivers once per capability. `audit.jsonl` is verified at every start, and a log that does not verify turns actions off. Contacts and limits live under `[actions]` in `config/pr3.toml`.
+
+Not yet: biometric approval with keys in platform storage, signed audit checkpoints, connector manifests (M5-E1), and confirmation on the phone for actions prepared on the desktop (step 6).
 
 ### v1.12 (21 October 2026) — hardening after the first review
 

@@ -52,7 +52,8 @@ crates/pr3-inference   model-neutral inference traits
 crates/pr3-llamacpp    bundled GGUF backend
 crates/pr3-memory      user memory with provenance (no_std types and store interface)
 crates/pr3-memory-sqlite  SQLite/FTS5 memory store
-crates/pr3-tools       built-in tools: calculator, clock, memory
+crates/pr3-tools       built-in tools: calculator, clock, memory; sandbox mail connector
+crates/pr3-vault       device approval key: signs approval receipts, never hands out the key
 crates/pr3-speech      on-device speech-to-text and text-to-speech
 crates/pr3-ffi         C ABI and UniFFI bindings
 client-c/              C11 protocol client for non-Rust hosts
