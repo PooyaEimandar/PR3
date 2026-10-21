@@ -18,6 +18,22 @@ PR3 is not another assistant. Platform owners ship on-device models and OS agent
 - **The model is not the authority.** Every model output is an untrusted proposal. Consequential actions go through structured intent, deterministic policy, user confirmation on a trusted device, a one-use capability and a hash-chained audit log. The model never sees a credential.
 - **User-owned memory.** Memory is local, encrypted, inspectable, exportable and deletable, and stays usable without any model.
 
+## Getting started
+
+You need Rust (rustup picks the pinned version from `rust-toolchain.toml`), the Tauri CLI (`cargo install tauri-cli --version "^2"`) and Python 3.11+. iOS needs Xcode; Android needs the Android SDK with NDK 27 and JDK 21.
+
+```bash
+scripts/fetch-model.sh                        # the models config/pr3.toml selects
+cargo test --workspace                        # unit tests
+cargo test --workspace --release -- --ignored # real-model tests (needs the models)
+```
+
+- **macOS:** `cd apps/pr3-app && cargo tauri dev`.
+- **iOS simulator:** `cd apps/pr3-app && cargo tauri ios build --debug --target aarch64-sim`, then `xcrun simctl install booted src-tauri/gen/apple/build/arm64-sim/PR3.app`. Debug builds read the models from the repository's `models/` folder.
+- **Android:** `scripts/build-android.sh` builds the APK. Install it with `adb install`, then copy the phone model into the app's data folder, for example `adb exec-in run-as ai.pooya.pr3 sh -c 'mkdir -p models && cat > models/Qwen3.5-2B-Q4_K_M.gguf' < models/Qwen3.5-2B-Q4_K_M.gguf`.
+
+Traces of every turn, in OpenJarvis's format, are off by default; turn them on under `[traces]` in `config/pr3.toml`.
+
 ## Models
 
 The bundled model is chosen per device class in [`config/pr3.toml`](config/pr3.toml): Qwen3.8-27B on desktops (32 GB of memory or more), Qwen3.5-4B on phones with 8 GB or more, and Qwen3.5-2B on smaller phones. Every model is pinned to a repository revision and SHA-256. To run a different one, change the ids under `[model]`; to change it without rebuilding, put an edited copy in the app's data folder.

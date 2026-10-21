@@ -1,7 +1,7 @@
 # PR3 — Portable Private Personal Intelligence
 
 **Technical Architecture, Open-Source Strategy & Benchmarking**  
-**Version:** 1.11 — Rust-first; sans-I/O `no_std` core; protocol-first reach; platform-model backends; trust-boundary schemas, trust tiers and verification lineage from the PR3/Samantha plan; application-neutral research roadmap; voice-first personal model; a model per device class  
+**Version:** 1.12 — Rust-first; sans-I/O `no_std` core; protocol-first reach; platform-model backends; trust-boundary schemas, trust tiers and verification lineage from the PR3/Samantha plan; application-neutral research roadmap; voice-first personal model; a model per device class  
 **Date:** 21 October 2026  
 **Status:** Rust-first architectural direction confirmed (ADR-001); trust architecture adopted with seL4 as a preserved tier (ADR-002); pending proof-of-concept and engineering validation  
 **Working name:** PR3
@@ -9,6 +9,15 @@
 ---
 
 ## 0. Change log
+
+### v1.12 (21 October 2026) — hardening after the first review
+
+A whole-project review of spike steps 1–4 found no design problems but several gaps between what the code promised and what it did. All were fixed before step 5.
+
+1. **Security.** Message text can no longer forge chat-control tokens: prompts are tokenized in pieces, with only the template's own turn markers as control tokens, and model output is printed without them (ADR-003). Memory arguments and notes are kept to one line, so a memory cannot pose as the user's words or as a "confirmed" line. Tool schemas must use the subset the core enforces (`enum` included); anything else is refused at registration. The webview may only listen for events.
+2. **Privacy.** Forgetting erases a memory from the search index too (FTS5 `secure-delete`, with a migration that purges words older builds left behind), along with its principal and, once unused, the user's source words. Traces are off unless `config/pr3.toml` turns them on, and they rotate. App data is excluded from cloud backups and device transfer on Android and from iCloud and computer backups on iOS, as the `device_only` consent scope says.
+3. **Failure paths.** A new `Input::Abort` lets the host end a turn after any failure, so one crash no longer locks the session. History and the prompt window are trimmed by whole exchanges, never splitting a tool call from its result or dropping the current question. Refused tool calls and calls over the per-message limit are kept in outline only. The loop guard keeps identical-call detection and a per-turn budget; its name-only ping-pong check stopped legitimate turns. The engine can be stopped mid-answer, and quitting waits for it and for a model still loading before the process exits. Computers with less memory fall back to a smaller model.
+4. **Build.** The Android dot-product flag moved to `scripts/build-android.sh` (it had also changed the Apple builds), the toolchain is pinned in `rust-toolchain.toml` with an honest minimum version (1.90), and CI checks formatting, lints, tests, the `no_std` builds and dependency advisories (§12).
 
 ### v1.11 (21 October 2026) — memory with provenance
 
@@ -313,7 +322,8 @@ pr3/
 | `pr3-ffi` **core** build | `no_std + alloc` staticlib: core and trusted-side modules only, inference/storage/network supplied by host callbacks; `panic = "abort"`. Appendix B hosts | permitted, audited |
 | `pr3-llamacpp` | `std` only | permitted, audited |
 | `pr3-platform-llm`, `pr3-vault`, `pr3-speech` | `std` only | `#![deny(unsafe_code)]`; permitted only in one audited `sys` module for platform FFI |
-| `pr3-hybrid`, `pr3-memory-sqlite`, `pr3-learning`, `pr3-node` | `std` only | forbidden |
+| `pr3-hybrid`, `pr3-memory-sqlite`, `pr3-learning`, `pr3-node`, `pr3-tools` | `std` only | forbidden |
+| `apps/pr3-app` (reference app) | `std` only | permitted only in audited platform calls: physical memory on Apple, backup exclusion on iOS |
 | `pr3-web` | either; `no_std` keeps Wasm small | forbidden |
 | `pr3-client-c` | C11, freestanding-capable | n/a (C) |
 
@@ -1214,11 +1224,11 @@ Any one of: a studio with SDK access asks and co-funds the port; a next-generati
 
 **Costs accepted.** The llama.cpp version follows the binding's releases. Clean builds compile llama.cpp from source (about a minute on Apple silicon), and dev builds optimise `llama-cpp-sys-2` because unoptimised llama.cpp is unusable. The prebuilt libraries and checksummed fetch step of §4.3 item 3 are deferred.
 
-**Platform notes from the spike.** iOS links `Accelerate.framework` (llama.cpp's CPU kernels use vDSP), declared in the generated Xcode project. The iOS simulator's Metal gives wrong results for llama.cpp's kernels, so the simulator runs fully on the CPU (no layers, KV cache or operations offloaded); Macs and iPhones use Metal. Android links libc++ statically, so the APK needs no extra shared library, and runs on the CPU until a Vulkan build is measured. Its CPU kernels are built for ARMv8.2 with int8 dot products (`.cargo/config.toml`, v1.9): the bindings' ARMv8.0 default made 4-bit models about 2.5 times slower on the emulator. Every arm64 phone core since about 2018 has dot products; older devices are unsupported until llama.cpp's runtime CPU-variant dispatch is adopted. Models load on a background thread so the window appears at once on every platform.
+**Platform notes from the spike.** iOS links `Accelerate.framework` (llama.cpp's CPU kernels use vDSP), declared in the generated Xcode project. The iOS simulator's Metal gives wrong results for llama.cpp's kernels, so the simulator runs fully on the CPU (no layers, KV cache or operations offloaded); Macs and iPhones use Metal. Android links libc++ statically, so the APK needs no extra shared library, and runs on the CPU until a Vulkan build is measured. Its CPU kernels are built for ARMv8.2 with int8 dot products (`scripts/build-android.sh`; v1.9, moved there in v1.12 because the bindings pass every `GGML_*` variable to Apple targets too): the bindings' ARMv8.0 default made 4-bit models about 2.5 times slower on the emulator. Every arm64 phone core since about 2018 has dot products; older devices are unsupported until llama.cpp's runtime CPU-variant dispatch is adopted. Models load on a background thread so the window appears at once on every platform.
 
-**Prompt formats (v1.9).** The crate renders prompts itself rather than through llama.cpp's built-in template engine, which cannot render tools. It recognises the model family from the chat template inside the GGUF — Qwen3's JSON tool calls or Qwen3.5's XML calls, and whether earlier turns keep their reasoning blocks (Qwen3.8) — and refuses other families, so a new model generation is a deliberate change with its own tests. Unit tests pin the rendered prompt to each official template, and XML arguments are typed by the tool's schema the way vLLM's `qwen3_coder` parser types them.
+**Prompt formats (v1.9).** The crate renders prompts itself rather than through llama.cpp's built-in template engine, which cannot render tools. It recognises the model family from the chat template inside the GGUF — Qwen3's JSON tool calls or Qwen3.5's XML calls, and whether earlier turns keep their reasoning blocks (Qwen3.8) — and refuses other families, so a new model generation is a deliberate change with its own tests. Unit tests pin the rendered prompt to each official template, and XML arguments are typed by the tool's schema the way vLLM's `qwen3_coder` parser types them. Since v1.12 the prompt is tokenized in pieces: only the template's own turn markers become control tokens, and every message's text is tokenized as text, so text containing `<|im_start|>` cannot open a turn; generation stops at any control token the model writes, and output is printed without them.
 
-**Prompt cache (v1.10).** Each `Engine` owns its model and one llama.cpp context on a dedicated thread: the context borrows the model, so this keeps the crate free of `unsafe`, and dropping the engine ends the thread and frees both, which keeps the Metal exit fix. A call processes only the tokens after the longest prefix its prompt shares with what the context holds. Qwen3 trims its attention cache directly. Qwen3.5-family models cannot rewind their recurrent state, so the engine saves it (llama.cpp's partial sequence state, about 52 MB for the 4B model and 156 MB for the 27B) after the system turn and, where the template rewrites earlier answers, after each question, and restores the latest checkpoint that still matches. Saving costs the first call 0.1–0.2 s; later calls are two to seven times faster.
+**Prompt cache (v1.10).** Each `Engine` owns its model and one llama.cpp context on a dedicated thread: the context borrows the model, so this keeps the crate free of `unsafe`, and dropping the engine ends the thread and frees both, which keeps the Metal exit fix. A call processes only the tokens after the longest prefix its prompt shares with what the context holds. Qwen3 trims its attention cache directly. Qwen3.5-family models cannot rewind their recurrent state, so the engine saves it (llama.cpp's partial sequence state, about 52 MB for the 4B model and 156 MB for the 27B) after the system turn and after each question (since v1.12 for every template: the answer the model wrote does not always tokenize the same way when it comes back as history), and restores the latest checkpoint that still matches. Saving costs the first call 0.1–0.2 s; later calls are two to seven times faster.
 
 **Revisit triggers.** The binding lags a llama.cpp feature PR3 needs; it cannot be made to build for a supported target; clean-build times hurt CI; or a security review prefers the narrower unsafe surface of PR3's own shim.
 
