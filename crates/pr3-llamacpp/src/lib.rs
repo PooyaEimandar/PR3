@@ -6,27 +6,27 @@
 //! upgrades stay inside this crate (Roadmap §4.3, ADR-003). It runs the Qwen3 and
 //! Qwen3.5-family (3.5, 3.6, 3.8) GGUFs, recognising which from the model's own chat
 //! template. It wraps the `llama-cpp-2` bindings and needs no `unsafe` itself.
+//!
+//! Each engine keeps one llama.cpp context on its own thread, so a call only processes
+//! the part of its prompt that earlier calls have not (see `cache`).
 
 #![forbid(unsafe_code)]
 
+mod cache;
 mod prompt;
+mod session;
 mod text;
 mod tools;
 
-use std::num::NonZeroU32;
 use std::path::Path;
-use std::sync::{Mutex, OnceLock};
+use std::sync::OnceLock;
+use std::sync::mpsc;
+use std::thread::JoinHandle;
 
-use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::llama_backend::LlamaBackend;
-use llama_cpp_2::llama_batch::LlamaBatch;
-use llama_cpp_2::model::LlamaModel;
-use llama_cpp_2::model::params::LlamaModelParams;
-use llama_cpp_2::sampling::LlamaSampler;
 
 pub use crate::prompt::PromptFormat;
-use crate::text::{BlockExtractor, ThinkFilter, Utf8Stream};
-use crate::tools::{CALL_CLOSE, CALL_OPEN};
+use crate::session::{Event, Request};
 pub use crate::tools::{ToolCallText, ToolDef};
 
 /// llama.cpp's backend may be initialised once per process.
@@ -80,6 +80,8 @@ pub struct ChatOutput {
     /// As written by the model; the caller validates them.
     pub tool_calls: Vec<ToolCallText>,
     pub prompt_tokens: u32,
+    /// Prompt tokens an earlier call had already processed, so this one skipped them.
+    pub reused_tokens: u32,
     pub completion_tokens: u32,
 }
 
@@ -153,48 +155,47 @@ impl std::fmt::Display for EngineError {
 
 impl std::error::Error for EngineError {}
 
-/// A loaded GGUF model. Generation is serialised: one answer at a time per engine.
+/// A loaded GGUF model. Calls are answered one at a time, in order.
 pub struct Engine {
-    model: LlamaModel,
-    format: PromptFormat,
-    config: EngineConfig,
     label: String,
-    generating: Mutex<()>,
+    format: PromptFormat,
+    requests: Option<mpsc::Sender<Request>>,
+    thread: Option<JoinHandle<()>>,
 }
 
 impl Engine {
+    /// Loads the model on the engine's own thread and waits until it is ready.
     pub fn load(path: &Path, config: EngineConfig) -> Result<Self, EngineError> {
         if !path.is_file() {
             return Err(EngineError::Load(format!("{} not found", path.display())));
         }
-        let backend = backend()?;
-        let params = LlamaModelParams::default().with_n_gpu_layers(config.gpu_layers);
-        let model = LlamaModel::load_from_file(backend, path, &params)
-            .map_err(|e| EngineError::Load(e.to_string()))?;
-        let template = model
-            .chat_template(None)
-            .map_err(|e| EngineError::Template(e.to_string()))?;
-        let format = template
-            .as_c_str()
-            .to_str()
-            .ok()
-            .and_then(PromptFormat::detect)
-            .ok_or_else(|| {
-                EngineError::Template(
-                    "unsupported model: PR3 runs Qwen3 and Qwen3.5-family GGUFs".to_string(),
-                )
-            })?;
         let label = path.file_stem().map_or_else(
             || "local model".to_string(),
             |s| s.to_string_lossy().into_owned(),
         );
-        Ok(Self {
-            model,
-            format,
-            config,
-            label,
-            generating: Mutex::new(()),
-        })
+        let (ready, loaded) = mpsc::channel();
+        let (requests, inbox) = mpsc::channel();
+        let path = path.to_path_buf();
+        let thread = std::thread::Builder::new()
+            .name("pr3-llamacpp".to_string())
+            .spawn(move || session::run(&path, config, &ready, &inbox))
+            .map_err(|e| EngineError::Backend(e.to_string()))?;
+        match loaded.recv() {
+            Ok(Ok(format)) => Ok(Self {
+                label,
+                format,
+                requests: Some(requests),
+                thread: Some(thread),
+            }),
+            Ok(Err(e)) => {
+                let _ = thread.join();
+                Err(e)
+            }
+            Err(_) => {
+                let _ = thread.join();
+                Err(EngineError::Load("the model thread stopped".to_string()))
+            }
+        }
     }
 
     /// Model name for display, from the file name (e.g. "Qwen3.5-4B-Q4_K_M").
@@ -226,147 +227,36 @@ impl Engine {
         tools: &[ToolDef],
         on_text: &mut dyn FnMut(&str),
     ) -> Result<ChatOutput, EngineError> {
-        let _one_at_a_time = self
-            .generating
-            .lock()
-            .map_err(|_| EngineError::Decode("engine is unavailable".to_string()))?;
-        let backend = backend()?;
-        let vocab = self.model.vocab();
-
-        let prompt_tokens = self.prompt_tokens(messages, tools)?;
-        let n_ctx = self.config.n_ctx;
-        let mut ctx_params = LlamaContextParams::default()
-            .with_n_ctx(NonZeroU32::new(n_ctx))
-            .with_n_batch(n_ctx);
-        if self.config.gpu_layers == 0 {
-            // Otherwise llama.cpp still offloads the KV cache and large operations to
-            // the GPU, which is wrong where the GPU is unusable (iOS simulator).
-            ctx_params = ctx_params.with_offload_kqv(false).with_op_offload(false);
-        }
-        let mut ctx = self
-            .model
-            .new_context(backend, ctx_params)
-            .map_err(|e| EngineError::Decode(e.to_string()))?;
-
-        let mut batch = LlamaBatch::new(n_ctx as usize, 1);
-        let last = prompt_tokens.len().saturating_sub(1);
-        for (i, token) in prompt_tokens.iter().enumerate() {
-            batch
-                .add(*token, pos(i)?, &[0], i == last)
-                .map_err(|e| EngineError::Decode(e.to_string()))?;
-        }
-        ctx.decode(&mut batch)
-            .map_err(|e| EngineError::Decode(e.to_string()))?;
-
-        let mut sampler = LlamaSampler::chain_simple([
-            // Over the answer so far, as vLLM applies Qwen's recommended penalty.
-            LlamaSampler::penalties(
-                self.model.n_vocab(),
-                64,
-                1.0,
-                0.0,
-                self.config.presence_penalty,
-            ),
-            LlamaSampler::top_k(self.config.top_k),
-            LlamaSampler::top_p(self.config.top_p, 1),
-            LlamaSampler::temp(self.config.temperature),
-            LlamaSampler::dist(self.config.seed),
-        ]);
-
-        // Model bytes → UTF-8 → hide a leading <think> block → pull out <tool_call>s.
-        let mut utf8 = Utf8Stream::default();
-        let mut think = if self.format.opens_think(self.config.thinking) {
-            ThinkFilter::inside_think()
-        } else {
-            ThinkFilter::default()
+        let stopped = || EngineError::Decode("the model thread stopped".to_string());
+        let (events, received) = mpsc::channel();
+        let request = Request {
+            messages: messages.to_vec(),
+            tools: tools.to_vec(),
+            events,
         };
-        let mut calls = BlockExtractor::new(CALL_OPEN, CALL_CLOSE);
-        let mut answer = String::new();
-        let mut emit = |visible: String, answer: &mut String| {
-            if !visible.is_empty() {
-                on_text(&visible);
-                answer.push_str(&visible);
+        self.requests
+            .as_ref()
+            .ok_or_else(stopped)?
+            .send(request)
+            .map_err(|_| stopped())?;
+        for event in received {
+            match event {
+                Event::Text(text) => on_text(&text),
+                Event::Done(result) => return result,
             }
-        };
-
-        let budget = (n_ctx as usize)
-            .saturating_sub(prompt_tokens.len())
-            .min(self.config.max_new_tokens as usize);
-        let first = prompt_tokens.len();
-        let mut completion_tokens = 0u32;
-        for position in first..first + budget {
-            let token = sampler.sample(&ctx, batch.n_tokens() - 1);
-            sampler.accept(token);
-            if vocab.is_eog(token) {
-                break;
-            }
-            completion_tokens += 1;
-            // `special = true` so `<think>` and `<tool_call>` tags reach the filters.
-            let piece = vocab.token_to_piece(token, true, None);
-            emit(calls.push(&think.push(&utf8.push(&piece))), &mut answer);
-
-            batch.clear();
-            batch
-                .add(token, pos(position)?, &[0], true)
-                .map_err(|e| EngineError::Decode(e.to_string()))?;
-            ctx.decode(&mut batch)
-                .map_err(|e| EngineError::Decode(e.to_string()))?;
         }
-        let tail = calls.push(&think.finish());
-        emit(tail, &mut answer);
-        emit(calls.finish(), &mut answer);
-
-        Ok(ChatOutput {
-            text: answer.trim().to_string(),
-            tool_calls: calls
-                .blocks()
-                .iter()
-                .map(|b| self.format.parse_call(b, tools))
-                .collect(),
-            prompt_tokens: u32::try_from(prompt_tokens.len()).unwrap_or(u32::MAX),
-            completion_tokens,
-        })
-    }
-
-    /// Builds and tokenizes the prompt. If it would not leave room for an answer, the
-    /// oldest messages are dropped — never the system prompt, and never so that the
-    /// window starts with an orphaned tool result.
-    fn prompt_tokens(
-        &self,
-        messages: &[ChatMessage],
-        tools: &[ToolDef],
-    ) -> Result<Vec<llama_cpp_2::token::LlamaToken>, EngineError> {
-        let vocab = self.model.vocab();
-        let room_for_answer = self.config.max_new_tokens.min(self.config.n_ctx / 2) as usize;
-        let (system, rest) = match messages.split_first() {
-            Some((first, rest)) if first.role == ChatRole::System => (Some(first), rest),
-            _ => (None, messages),
-        };
-        let mut start = 0;
-        loop {
-            while rest.get(start).is_some_and(|m| m.role == ChatRole::Tool) {
-                start += 1;
-            }
-            let window: Vec<&ChatMessage> = system
-                .into_iter()
-                .chain(rest.get(start..).unwrap_or_default())
-                .collect();
-            let prompt = prompt::render(self.format, &window, tools, self.config.thinking);
-            let tokens = vocab.tokenize(prompt.as_bytes(), true, true);
-            if tokens.len() + room_for_answer <= self.config.n_ctx as usize {
-                return Ok(tokens);
-            }
-            if start + 1 >= rest.len() {
-                return Err(EngineError::ContextFull {
-                    prompt_tokens: tokens.len(),
-                    n_ctx: self.config.n_ctx,
-                });
-            }
-            start += 1;
-        }
+        Err(stopped())
     }
 }
 
-fn pos(i: usize) -> Result<i32, EngineError> {
-    i32::try_from(i).map_err(|_| EngineError::Decode("position out of range".to_string()))
+impl Drop for Engine {
+    /// Closing the queue ends the thread, which frees the context and then the model
+    /// before this returns: llama.cpp's Metal backend aborts at process exit if model
+    /// buffers are still alive.
+    fn drop(&mut self) {
+        drop(self.requests.take());
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
 }

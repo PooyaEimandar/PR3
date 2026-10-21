@@ -55,6 +55,18 @@ impl PromptFormat {
         thinking && matches!(self, Self::Qwen35 { .. })
     }
 
+    /// Answers are written back without the reasoning block they were generated after
+    /// once a new question follows, so the next turn's prompt differs from what was
+    /// generated, starting right after the question.
+    pub(crate) fn rewrites_history(self) -> bool {
+        matches!(
+            self,
+            Self::Qwen35 {
+                preserve_thinking: false
+            }
+        )
+    }
+
     fn tools_section(self, tools: &[ToolDef]) -> String {
         match self {
             Self::Qwen3 => hermes::tools_section(tools),
@@ -84,27 +96,44 @@ impl PromptFormat {
     }
 }
 
-/// The whole prompt, ending where the model starts its answer.
+/// A rendered prompt and where its turns that later prompts share end.
+pub(crate) struct Rendered {
+    /// The whole prompt, ending where the model starts its answer.
+    pub text: String,
+    /// Byte offset just after the system turn.
+    pub system_end: Option<usize>,
+    /// Byte offset just after the last user question.
+    pub query_end: Option<usize>,
+}
+
 pub(crate) fn render(
     format: PromptFormat,
     messages: &[&ChatMessage],
     tools: &[ToolDef],
     thinking: bool,
-) -> String {
+) -> Rendered {
     let (system, rest) = match messages.split_first() {
         Some((first, rest)) if first.role == ChatRole::System => (Some(first.content.trim()), rest),
         _ => (None, messages),
     };
     let mut out = String::new();
+    let mut system_end = None;
+    let mut query_end = None;
     if let Some(system) = format.system_with_tools(system, tools) {
         turn(&mut out, "system", &system);
+        system_end = Some(out.len());
     }
 
     let last_query = rest.iter().rposition(|m| m.role == ChatRole::User);
     for (i, m) in rest.iter().enumerate() {
         match m.role {
             ChatRole::System => turn(&mut out, "system", m.content.trim()),
-            ChatRole::User => turn(&mut out, "user", m.content.trim()),
+            ChatRole::User => {
+                turn(&mut out, "user", m.content.trim());
+                if last_query == Some(i) {
+                    query_end = Some(out.len());
+                }
+            }
             ChatRole::Assistant => {
                 let mut text = String::new();
                 if let PromptFormat::Qwen35 { preserve_thinking } = format {
@@ -140,7 +169,11 @@ pub(crate) fn render(
         (PromptFormat::Qwen3, true) => "",
         (PromptFormat::Qwen35 { .. }, true) => "<think>\n",
     });
-    out
+    Rendered {
+        text: out,
+        system_end,
+        query_end,
+    }
 }
 
 fn turn(out: &mut String, role: &str, content: &str) {
@@ -196,7 +229,7 @@ mod tests {
 
     fn render_all(format: PromptFormat, messages: &[ChatMessage], tools: &[ToolDef]) -> String {
         let refs: Vec<&ChatMessage> = messages.iter().collect();
-        render(format, &refs, tools, false)
+        render(format, &refs, tools, false).text
     }
 
     #[test]
@@ -294,11 +327,44 @@ mod tests {
         let messages = [msg(ChatRole::User, "Hi")];
         let refs: Vec<&ChatMessage> = messages.iter().collect();
         assert_eq!(
-            render(QWEN35, &refs, &[], false),
+            render(QWEN35, &refs, &[], false).text,
             "<|im_start|>user\nHi<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
         );
-        assert!(render(QWEN35, &refs, &[], true).ends_with("<|im_start|>assistant\n<think>\n"));
-        assert!(render(PromptFormat::Qwen3, &refs, &[], true).ends_with("<|im_start|>assistant\n"));
+        assert!(
+            render(QWEN35, &refs, &[], true)
+                .text
+                .ends_with("<|im_start|>assistant\n<think>\n")
+        );
+        assert!(
+            render(PromptFormat::Qwen3, &refs, &[], true)
+                .text
+                .ends_with("<|im_start|>assistant\n")
+        );
         assert!(QWEN35.opens_think(true) && !PromptFormat::Qwen3.opens_think(true));
+    }
+
+    #[test]
+    fn boundaries_mark_the_system_turn_and_the_last_question() {
+        let mut messages = tool_turn();
+        messages.push(msg(ChatRole::Assistant, "4."));
+        messages.push(msg(ChatRole::User, "Thanks"));
+        let refs: Vec<&ChatMessage> = messages.iter().collect();
+        let r = render(QWEN35, &refs, &[calc()], false);
+        let system_end = r.system_end.expect("system turn");
+        let query_end = r.query_end.expect("question");
+        assert!(r.text[..system_end].ends_with("You are PR3.<|im_end|>\n"));
+        assert!(r.text[..query_end].ends_with("<|im_start|>user\nThanks<|im_end|>\n"));
+        assert_eq!(
+            &r.text[query_end..],
+            "<|im_start|>assistant\n<think>\n\n</think>\n\n"
+        );
+
+        let only_user = [msg(ChatRole::User, "Hi")];
+        let refs: Vec<&ChatMessage> = only_user.iter().collect();
+        let r = render(QWEN35, &refs, &[], false);
+        let question = "<|im_start|>user\nHi<|im_end|>\n".len();
+        assert_eq!((r.system_end, r.query_end), (None, Some(question)));
+        assert!(QWEN35.rewrites_history() && !QWEN38.rewrites_history());
+        assert!(!PromptFormat::Qwen3.rewrites_history());
     }
 }
