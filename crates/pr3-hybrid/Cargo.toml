@@ -1,0 +1,18 @@
+[package]
+name = "pr3-hybrid"
+description = "PR3's private hybrid: pairing a phone with the user's own computer, which lends it its larger model"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+pr3-core = { workspace = true, features = ["std"] }
+pr3-protocol = { workspace = true, features = ["std"] }
+serde = { workspace = true, features = ["std"] }
+serde_json = { workspace = true, features = ["std"] }
+snow = "0.10"
+spake2 = "0.4"
+getrandom = "0.3"

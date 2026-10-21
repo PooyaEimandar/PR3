@@ -1,0 +1,18 @@
+[package]
+name = "pr3-protocol"
+description = "PR3's versioned wire contract: what a phone and its node say to each other"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["std"]
+# CBOR encoding and decoding; the message types alone are no_std.
+std = ["dep:ciborium", "pr3-core/std", "serde/std"]
+
+[dependencies]
+pr3-core.workspace = true
+serde.workspace = true
+ciborium = { version = "0.2", optional = true }
