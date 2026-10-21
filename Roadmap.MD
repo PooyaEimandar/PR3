@@ -1,7 +1,7 @@
 # PR3 — Portable Private Personal Intelligence
 
 **Technical Architecture, Open-Source Strategy & Benchmarking**  
-**Version:** 1.13 — Rust-first; sans-I/O `no_std` core; protocol-first reach; platform-model backends; trust-boundary schemas, trust tiers and verification lineage from the PR3/Samantha plan; application-neutral research roadmap; voice-first personal model; a model per device class  
+**Version:** 1.14 — Rust-first; sans-I/O `no_std` core; protocol-first reach; platform-model backends; trust-boundary schemas, trust tiers and verification lineage from the PR3/Samantha plan; application-neutral research roadmap; voice-first personal model; a model per device class  
 **Date:** 21 October 2026  
 **Status:** Rust-first architectural direction confirmed (ADR-001); trust architecture adopted with seL4 as a preserved tier (ADR-002); pending proof-of-concept and engineering validation  
 **Working name:** PR3
@@ -9,6 +9,14 @@
 ---
 
 ## 0. Change log
+
+### v1.14 (21 October 2026) — approval keys in platform key storage
+
+1. **Apple devices.** The approval key is a P-256 key in the Secure Enclave whose access policy requires Face ID, Touch ID or the device passcode for every signature. CryptoKit wraps it so that only this device's Secure Enclave can use it, and the wrapped form is kept in the app's data folder; no keychain entitlement is needed, so unsigned development builds on a Mac use the Secure Enclave too. The system's prompt names what is approved ("send the email “Lunch” to Alex Rivera"); the OS draws it, outside the webview. The iOS simulator cannot create such keys, so there a software key signs after the same LocalAuthentication check, and the vault labels itself accordingly.
+2. **Android.** A P-256 key in the Android Keystore (StrongBox when the phone has one) that requires user authentication for each use: BiometricPrompt with a CryptoObject unlocks exactly one signature, with a strong biometric or, from Android 11, the screen lock. Without a secure screen lock the key cannot be created, so actions stay off and the log says why.
+3. **`pr3-vault`.** `sign` now receives the reason the prompt shows and can answer "cancelled", which ends the request like a decline. The Swift half (`swift/`) is linked with swift-rs, as Tauri links its own, and called from the crate's one audited `unsafe` module; Android's half is a Kotlin plugin in the app, because BiometricPrompt needs the app's activity. A software key from earlier builds is deleted once the platform key exists.
+
+The passcode or screen lock is accepted as a fallback, as the platforms' own payment confirmations accept it; requiring biometrics only is one flag on each platform.
 
 ### v1.13 (21 October 2026) — the trusted side for one action
 
@@ -19,7 +27,7 @@ Spike step 5 (§11): sending an email through a sandbox connector, by the path �
 3. **`pr3-vault`** signs approved receipts. For now the key is a file in the app's private, backup-excluded folder (`dev` tier, §7.3); Secure Enclave and Android Keystore, with a biometric prompt, replace it behind the same trait.
 4. **App.** A confirmation card shows the recipients' real addresses, the subject and the exact text, from the validated intent, with Send, Decline and a two-minute expiry. The sandbox outbox delivers once per capability. `audit.jsonl` is verified at every start, and a log that does not verify turns actions off. Contacts and limits live under `[actions]` in `config/pr3.toml`.
 
-Not yet: biometric approval with keys in platform storage, signed audit checkpoints, connector manifests (M5-E1), and confirmation on the phone for actions prepared on the desktop (step 6).
+Not yet: biometric approval with keys in platform storage (v1.14), signed audit checkpoints, connector manifests (M5-E1), and confirmation on the phone for actions prepared on the desktop (step 6).
 
 ### v1.12 (21 October 2026) — hardening after the first review
 
