@@ -14,7 +14,8 @@ version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/PooyaEimandar/pr3"
-rust-version = "1.85"
+# Tauri 2 needs 1.90; the code itself uses let-chains (1.88).
+rust-version = "1.90"
 
 [workspace.dependencies]
 # `pr3-core` is `no_std + alloc`; hosts opt into `std` explicitly (Roadmap §4.2).
