@@ -1,0 +1,213 @@
+//! PR3's vault (Roadmap §4.1, §7.2 items 2 and 10): it holds the device's approval key
+//! and signs the receipts the user approves. It hands out signatures and the public
+//! key, never the private key.
+//!
+//! This first vault keeps the key in a file in the app's private data folder, which the
+//! app excludes from backups — the `dev` tier (§7.3), with no claim against anyone who
+//! can read that folder. Platform key storage (Secure Enclave on Apple devices, Android
+//! Keystore), with a biometric prompt before every signature, replaces it behind the
+//! same [`Vault`] trait.
+
+#![forbid(unsafe_code)]
+
+use std::fmt::{self, Write as _};
+use std::fs::{self, OpenOptions};
+use std::io::{self, Write as _};
+use std::path::Path;
+
+use p256::ecdsa::signature::Signer as _;
+use p256::ecdsa::{Signature, SigningKey};
+use pr3_core::trusted::{Receipt, SignedReceipt};
+
+pub trait Vault: Send + Sync {
+    /// The approval key's public half as an uncompressed SEC1 point, which the trusted
+    /// side registers as the device's approval key.
+    fn public_key(&self) -> Vec<u8>;
+
+    /// Signs a receipt the user has just approved on the trusted confirmation screen.
+    fn sign(&self, receipt: Receipt) -> Result<SignedReceipt, VaultError>;
+
+    /// Where the key lives, for logs.
+    fn label(&self) -> &'static str;
+}
+
+#[derive(Debug)]
+pub enum VaultError {
+    Io(io::Error),
+    /// The key file exists but does not hold a key.
+    Corrupt,
+    /// The system's random number generator failed.
+    Entropy,
+}
+
+impl fmt::Display for VaultError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Io(e) => write!(f, "vault: {e}"),
+            Self::Corrupt => f.write_str("vault: the key file is damaged"),
+            Self::Entropy => f.write_str("vault: no randomness available"),
+        }
+    }
+}
+
+impl std::error::Error for VaultError {}
+
+impl From<io::Error> for VaultError {
+    fn from(e: io::Error) -> Self {
+        Self::Io(e)
+    }
+}
+
+/// A P-256 key in a file readable only by the app.
+pub struct SoftwareVault {
+    key: SigningKey,
+}
+
+impl SoftwareVault {
+    /// Opens the key at `path`, creating it the first time.
+    pub fn open(path: &Path) -> Result<Self, VaultError> {
+        match fs::read_to_string(path) {
+            Ok(text) => {
+                let bytes = from_hex(text.trim()).ok_or(VaultError::Corrupt)?;
+                let key = SigningKey::from_slice(&bytes).map_err(|_| VaultError::Corrupt)?;
+                Ok(Self { key })
+            }
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                let vault = Self::generate()?;
+                vault.save(path)?;
+                Ok(vault)
+            }
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    /// A key that lives only in memory, for tests.
+    pub fn generate() -> Result<Self, VaultError> {
+        // A random 32-byte string is a valid P-256 key except with negligible
+        // probability; try again in that case.
+        for _ in 0..8 {
+            let mut secret = [0u8; 32];
+            getrandom::fill(&mut secret).map_err(|_| VaultError::Entropy)?;
+            if let Ok(key) = SigningKey::from_slice(&secret) {
+                return Ok(Self { key });
+            }
+        }
+        Err(VaultError::Entropy)
+    }
+
+    fn save(&self, path: &Path) -> Result<(), VaultError> {
+        if let Some(dir) = path.parent() {
+            fs::create_dir_all(dir)?;
+        }
+        let mut options = OpenOptions::new();
+        // create_new: never overwrite a key that appeared meanwhile.
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        let mut file = options.open(path)?;
+        file.write_all(to_hex(&self.key.to_bytes()).as_bytes())?;
+        file.sync_all()?;
+        Ok(())
+    }
+}
+
+impl Vault for SoftwareVault {
+    fn public_key(&self) -> Vec<u8> {
+        self.key
+            .verifying_key()
+            .to_encoded_point(false)
+            .as_bytes()
+            .to_vec()
+    }
+
+    fn sign(&self, receipt: Receipt) -> Result<SignedReceipt, VaultError> {
+        let signature: Signature = self.key.sign(&receipt.signing_bytes());
+        Ok(SignedReceipt {
+            receipt,
+            signature: to_hex(signature.to_der().as_bytes()),
+        })
+    }
+
+    fn label(&self) -> &'static str {
+        "software key (dev tier)"
+    }
+}
+
+fn to_hex(bytes: &[u8]) -> String {
+    let mut text = String::with_capacity(bytes.len() * 2);
+    for b in bytes {
+        let _ = write!(text, "{b:02x}");
+    }
+    text
+}
+
+fn from_hex(text: &str) -> Option<Vec<u8>> {
+    let (pairs, rest) = text.as_bytes().as_chunks::<2>();
+    if !rest.is_empty() {
+        return None;
+    }
+    pairs
+        .iter()
+        .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).ok()?, 16).ok())
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pr3_core::Timestamp;
+    use pr3_core::trusted::{ApprovalKey, Hash, Object};
+
+    fn receipt() -> Receipt {
+        Receipt {
+            request: "r1".to_string(),
+            principal: "user:local".to_string(),
+            actor: "agent:pr3".to_string(),
+            operation: "mail.send".to_string(),
+            provider: "mail:sandbox".to_string(),
+            object: Object::Mail {
+                to: vec!["alex@example.com".to_string()],
+                subject: Hash::of(&[b"s"]),
+                body: Hash::of(&[b"b"]),
+            },
+            approved_at: Timestamp(1),
+            expires_at: Timestamp(2),
+        }
+    }
+
+    #[test]
+    fn signatures_verify_with_the_published_key() {
+        let vault = SoftwareVault::generate().unwrap();
+        let approver = ApprovalKey::from_sec1(&vault.public_key()).unwrap();
+        let signed = vault.sign(receipt()).unwrap();
+        assert!(approver.verifies(&signed));
+        let other = SoftwareVault::generate().unwrap();
+        assert!(
+            !ApprovalKey::from_sec1(&other.public_key())
+                .unwrap()
+                .verifies(&signed)
+        );
+    }
+
+    #[test]
+    fn the_key_file_is_created_once_private_and_reused() {
+        let dir = std::env::temp_dir().join(format!("pr3-vault-test-{}", std::process::id()));
+        let path = dir.join("vault.key");
+        let _ = fs::remove_dir_all(&dir);
+        let first = SoftwareVault::open(&path).unwrap();
+        let again = SoftwareVault::open(&path).unwrap();
+        assert_eq!(first.public_key(), again.public_key());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            let mode = fs::metadata(&path).unwrap().permissions().mode();
+            assert_eq!(mode & 0o777, 0o600);
+        }
+        fs::write(&path, "not a key").unwrap();
+        assert!(matches!(
+            SoftwareVault::open(&path),
+            Err(VaultError::Corrupt)
+        ));
+        let _ = fs::remove_dir_all(dir);
+    }
+}
