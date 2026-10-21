@@ -23,6 +23,7 @@ mod loop_guard;
 mod runtime;
 mod tools;
 mod trace;
+pub mod trusted;
 mod types;
 
 pub use crate::error::CoreError;

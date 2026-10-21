@@ -15,3 +15,10 @@ std = ["serde/std", "serde_json/std"]
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
+# The trusted side: SHA-256 for receipts and the audit chain, P-256 ECDSA to verify
+# approvals (the curve Secure Enclave and Android Keystore sign with). Both no_std.
+sha2 = { version = "0.10", default-features = false }
+p256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
+
+[dev-dependencies]
+proptest = "1"
