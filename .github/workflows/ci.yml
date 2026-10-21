@@ -1,0 +1,42 @@
+# Quality gates for every change (Roadmap §12): formatting, lints, tests, the no_std
+# builds of the core crates, and known-vulnerability checks on the dependencies.
+# Real-model tests need multi-gigabyte models and stay manual (cargo test -- --ignored).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    # Apple silicon, like the development machines; llama.cpp builds with Metal.
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain from rust-toolchain.toml
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+      - name: no_std builds
+        run: |
+          cargo check -p pr3-core --no-default-features --target thumbv7em-none-eabihf
+          cargo check -p pr3-core --no-default-features --target wasm32-unknown-unknown
+          cargo check -p pr3-memory --no-default-features --target thumbv7em-none-eabihf
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+      - run: cargo audit
