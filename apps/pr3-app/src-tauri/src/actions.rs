@@ -1,14 +1,14 @@
 //! Consequential actions: the host side of the trusted path (Roadmap §4.6). A call the
 //! core proposes goes to the gate in `pr3_core::trusted`; the user answers on the
-//! confirmation card; `pr3-vault` signs the receipt; the gate exchanges it for a
-//! one-use capability; the sandbox outbox delivers once; and every step is appended
-//! to `audit.jsonl`.
+//! confirmation card; the vault signs the receipt after the system's biometric or
+//! passcode prompt; the gate exchanges it for a one-use capability; the sandbox outbox
+//! delivers once; and every step is appended to `audit.jsonl`.
 
 use std::collections::BTreeMap;
 use std::fs::{self, OpenOptions};
 use std::io::{self, BufRead as _, BufReader, Write as _};
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, mpsc};
+use std::sync::{Arc, Mutex, mpsc};
 use std::time::Duration;
 
 use pr3_core::trusted::{
@@ -17,7 +17,7 @@ use pr3_core::trusted::{
 };
 use pr3_core::{Timestamp, ToolCall, ToolSpec};
 use pr3_tools::mail::{self, SandboxOutbox};
-use pr3_vault::{SoftwareVault, Vault};
+use pr3_vault::{Vault, VaultError};
 
 /// Who proposes and on whose behalf, from the session's binding (§4.6). One user and
 /// one agent until pairing (spike step 6) brings device identities.
@@ -35,13 +35,8 @@ pub struct Actions {
 }
 
 impl Actions {
-    /// Opens the vault, outbox and audit log in `dir`. Refuses to start if the audit log
-    /// does not verify: actions stay off until someone looks at it.
-    pub fn open(dir: &Path, limits: Limits, directory: Directory) -> Result<Self, String> {
-        let vault = SoftwareVault::open(&dir.join("vault.key")).map_err(|e| e.to_string())?;
-        Self::with_vault(dir, limits, directory, Box::new(vault))
-    }
-
+    /// Opens the outbox and audit log in `dir`, with `vault` as the approver. Refuses to
+    /// start if the audit log does not verify: actions stay off until someone looks at it.
     pub fn with_vault(
         dir: &Path,
         limits: Limits,
@@ -82,7 +77,11 @@ impl Actions {
     /// Takes a call the core proposed through the trusted path; returns what the core
     /// should tell the model. `ask` shows the confirmation card; the answer arrives
     /// through [`Actions::answer`].
-    pub async fn run(&self, call: &ToolCall, ask: impl FnOnce(&ApprovalRequest)) -> (bool, String) {
+    pub async fn run(
+        self: Arc<Self>,
+        call: &ToolCall,
+        ask: impl FnOnce(&ApprovalRequest),
+    ) -> (bool, String) {
         let operation = match call.name.as_str() {
             mail::SEND_EMAIL => MAIL_SEND,
             other => return (false, format!("'{other}' is not a known action")),
@@ -128,7 +127,16 @@ impl Actions {
         let id = &request.request;
         let recipients = names(&request.mail.to);
         match approved {
-            Some(true) => self.execute(id),
+            Some(true) => {
+                // The vault blocks on the system's prompt, so it runs off the async
+                // threads.
+                let reason = prompt_reason(&request);
+                let this = Arc::clone(&self);
+                let request = id.clone();
+                tauri::async_runtime::spawn_blocking(move || this.execute(&request, &reason))
+                    .await
+                    .unwrap_or_else(|_| (false, "NOT SENT: the approval failed".to_string()))
+            }
             Some(false) => {
                 self.with_gate(|gate| gate.decline(id, "the user declined", now()));
                 let said = format!(
@@ -161,8 +169,9 @@ impl Actions {
             .map_err(|_| "this request is no longer waiting".to_string())
     }
 
-    /// Approved: receipt → vault signature → capability → one delivery → audit.
-    fn execute(&self, request: &str) -> (bool, String) {
+    /// Approved on the card: receipt → the system's prompt and the vault's signature →
+    /// capability → one delivery → audit.
+    fn execute(&self, request: &str, reason: &str) -> (bool, String) {
         let Some(receipt) = self.with_gate(|gate| gate.approve(request, now())) else {
             return (false, "the trusted side is unavailable".to_string());
         };
@@ -170,12 +179,22 @@ impl Actions {
             Ok(receipt) => receipt,
             Err(e) => return (false, format!("not sent: {e}")),
         };
-        // Signed with the gate unlocked: a platform vault waits for biometrics here.
-        let signed = match self.vault.sign(receipt) {
+        // Signed with the gate unlocked: the vault waits for Face ID, Touch ID, a
+        // fingerprint or the passcode here.
+        let signed = match self.vault.sign(receipt, reason) {
             Ok(signed) => signed,
+            Err(VaultError::Cancelled) => {
+                self.with_gate(|gate| gate.decline(request, "the user cancelled the check", now()));
+                return (
+                    false,
+                    "NOT SENT. The person you are talking to cancelled the Face ID, \
+                     fingerprint or passcode check, so the email was not sent."
+                        .to_string(),
+                );
+            }
             Err(e) => {
                 self.with_gate(|gate| gate.decline(request, &e.to_string(), now()));
-                return (false, format!("not sent: {e}"));
+                return (false, format!("NOT SENT: {e}"));
             }
         };
         let issued = self.with_gate(|gate| {
@@ -216,6 +235,13 @@ impl Actions {
         }
         Some(result)
     }
+}
+
+/// What the system's prompt says is being approved: shown by the OS, outside the
+/// webview, from the validated intent.
+fn prompt_reason(request: &ApprovalRequest) -> String {
+    let subject: String = request.mail.subject.chars().take(60).collect();
+    format!("send the email “{subject}” to {}", names(&request.mail.to))
 }
 
 fn names(contacts: &[Contact]) -> String {
@@ -264,17 +290,21 @@ fn now() -> Timestamp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pr3_core::trusted::verify;
+    use pr3_core::trusted::{Receipt, SignedReceipt, verify};
+    use pr3_vault::SoftwareVault;
 
-    fn actions(dir: &Path, limits: Limits) -> Actions {
-        let directory = Directory {
+    fn directory() -> Directory {
+        Directory {
             contacts: vec![Contact {
                 name: "Alex Rivera".to_string(),
                 address: "alex@example.com".to_string(),
             }],
-        };
+        }
+    }
+
+    fn actions(dir: &Path, limits: Limits) -> Arc<Actions> {
         let vault = SoftwareVault::generate().unwrap();
-        Actions::with_vault(dir, limits, directory, Box::new(vault)).unwrap()
+        Arc::new(Actions::with_vault(dir, limits, directory(), Box::new(vault)).unwrap())
     }
 
     fn call(arguments: &str) -> ToolCall {
@@ -295,8 +325,8 @@ mod tests {
     const TO_ALEX: &str = r#"{"body":"Noon?","subject":"Lunch","to":"Alex"}"#;
 
     /// Runs a call, answering the confirmation card with `answer` (or not at all).
-    fn run(actions: &Actions, arguments: &str, answer: Option<bool>) -> (bool, String) {
-        tauri::async_runtime::block_on(actions.run(&call(arguments), |request| {
+    fn run(actions: &Arc<Actions>, arguments: &str, answer: Option<bool>) -> (bool, String) {
+        tauri::async_runtime::block_on(Arc::clone(actions).run(&call(arguments), |request| {
             if let Some(approve) = answer {
                 actions.answer(&request.request, approve).unwrap();
             }
@@ -346,6 +376,52 @@ mod tests {
         assert!(!ok && said.contains("address"), "{said}");
         assert!(!dir.join("outbox.jsonl").exists());
         assert!(actions.answer("no-such-request", true).is_err());
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    /// A vault whose prompt the user dismisses; it records what the prompt showed.
+    struct DismissedPrompt {
+        key: SoftwareVault,
+        shown: Arc<Mutex<Vec<String>>>,
+    }
+
+    impl Vault for DismissedPrompt {
+        fn public_key(&self) -> Vec<u8> {
+            self.key.public_key()
+        }
+        fn sign(&self, _: Receipt, reason: &str) -> Result<SignedReceipt, VaultError> {
+            self.shown.lock().unwrap().push(reason.to_string());
+            Err(VaultError::Cancelled)
+        }
+        fn label(&self) -> &'static str {
+            "test vault"
+        }
+    }
+
+    #[test]
+    fn cancelling_the_system_prompt_sends_nothing() {
+        let dir = temp("cancel");
+        let shown = Arc::new(Mutex::new(Vec::new()));
+        let vault = DismissedPrompt {
+            key: SoftwareVault::generate().unwrap(),
+            shown: Arc::clone(&shown),
+        };
+        let actions = Arc::new(
+            Actions::with_vault(&dir, Limits::default(), directory(), Box::new(vault)).unwrap(),
+        );
+        let (ok, said) = run(&actions, TO_ALEX, Some(true));
+        assert!(!ok && said.contains("cancelled"), "{said}");
+        assert!(!dir.join("outbox.jsonl").exists());
+        // The system's prompt names what is being approved.
+        assert_eq!(
+            shown.lock().unwrap().as_slice(),
+            ["send the email “Lunch” to Alex Rivera"]
+        );
+        let log = read_log(&dir.join("audit.jsonl")).unwrap();
+        assert!(matches!(
+            log.last().map(|e| &e.event),
+            Some(pr3_core::trusted::Event::Declined { .. })
+        ));
         let _ = fs::remove_dir_all(dir);
     }
 

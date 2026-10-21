@@ -4,6 +4,7 @@
   Merged by Tauri into the iOS app's Info.plist.
   iOS 27 terminates apps built with its SDK unless they adopt the UIScene lifecycle;
   tao switches to its TaoSceneDelegate when this manifest enables multiple scenes.
+  Face ID needs a usage description; pr3-vault asks for it before signing an approval.
 -->
 <plist version="1.0">
 <dict>
@@ -12,5 +13,7 @@
     <key>UIApplicationSupportsMultipleScenes</key>
     <true/>
   </dict>
+  <key>NSFaceIDUsageDescription</key>
+  <string>PR3 asks for Face ID before it sends anything in your name.</string>
 </dict>
 </plist>

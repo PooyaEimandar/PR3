@@ -339,7 +339,7 @@ impl Host {
                                     });
                                 }
                             };
-                            actions.run(&call, ask).await
+                            Arc::clone(actions).run(&call, ask).await
                         }
                         None => (false, "actions are not available".to_string()),
                     };

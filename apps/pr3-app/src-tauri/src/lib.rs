@@ -1,12 +1,15 @@
 //! PR3 reference app. The Rust side owns the runtime; the webview only renders.
 
 mod actions;
+#[cfg(target_os = "android")]
+mod android_vault;
 mod backup;
 mod config;
 mod host;
 mod llama;
 mod trace_export;
 
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -178,6 +181,30 @@ fn open_memory(app: &tauri::AppHandle) -> Option<pr3_tools::SharedMemory> {
     }
 }
 
+/// This device's approval key: in the Secure Enclave on Apple devices, in the Keystore
+/// on Android, signing only after Face ID, Touch ID, a fingerprint or the passcode.
+fn platform_vault(app: &tauri::AppHandle, dir: &Path) -> Result<Box<dyn pr3_vault::Vault>, String> {
+    #[cfg(target_os = "android")]
+    {
+        let plugin = app
+            .try_state::<android_vault::VaultHandle>()
+            .ok_or("the vault plugin is not loaded")?;
+        let vault = android_vault::KeystoreVault::open(plugin.0.clone())
+            .map_err(|e| format!("{e} (set a screen lock to approve actions)"))?;
+        // A software key from earlier builds is no longer needed.
+        match std::fs::remove_file(dir.join(pr3_vault::SOFTWARE_KEY_FILE)) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e.to_string()),
+            _ => {}
+        }
+        Ok(Box::new(vault))
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = app;
+        pr3_vault::open_platform(dir).map_err(|e| e.to_string())
+    }
+}
+
 /// The trusted path for consequential actions, with its vault, outbox and audit log
 /// in the app's data folder. Without it PR3 runs, but cannot act.
 fn open_actions(app: &tauri::AppHandle, settings: &config::Actions) -> Option<Arc<Actions>> {
@@ -185,7 +212,10 @@ fn open_actions(app: &tauri::AppHandle, settings: &config::Actions) -> Option<Ar
         .path()
         .app_data_dir()
         .map_err(|e| e.to_string())
-        .and_then(|dir| Actions::open(&dir, settings.limits(), settings.directory()));
+        .and_then(|dir| {
+            let vault = platform_vault(app, &dir)?;
+            Actions::with_vault(&dir, settings.limits(), settings.directory(), vault)
+        });
     match opened {
         Ok(actions) => Some(Arc::new(actions)),
         Err(e) => {
@@ -250,7 +280,10 @@ fn prepare_data_dir(app: &tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let app = tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(target_os = "android")]
+    let builder = builder.plugin(android_vault::plugin());
+    let app = builder
         .setup(|app| {
             prepare_data_dir(app.handle());
             let data_dir = app.path().app_data_dir().ok();

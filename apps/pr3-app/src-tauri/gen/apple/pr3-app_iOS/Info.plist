@@ -45,5 +45,7 @@
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<true/>
 	</dict>
+	<key>NSFaceIDUsageDescription</key>
+	<string>PR3 asks for Face ID before it sends anything in your name.</string>
 </dict>
 </plist>

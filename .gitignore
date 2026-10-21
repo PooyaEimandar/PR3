@@ -28,3 +28,6 @@ BUSINESS.md
 
 # Model weights: fetched by scripts/fetch-model.sh, never committed
 /models/
+
+# SwiftPM build output (crates/pr3-vault/swift builds into target/ normally)
+.build/

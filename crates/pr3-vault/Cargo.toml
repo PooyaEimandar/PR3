@@ -12,3 +12,8 @@ publish = false
 pr3-core = { workspace = true, features = ["std"] }
 p256 = { version = "0.13", default-features = false, features = ["ecdsa", "std"] }
 getrandom = "0.3"
+serde_json = { workspace = true, features = ["std"] }
+
+[build-dependencies]
+# Builds the Swift half (swift/) on Apple platforms; the same version Tauri uses.
+swift-rs = { version = "1.0.9", features = ["build"] }
