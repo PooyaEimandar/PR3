@@ -1,7 +1,7 @@
 # PR3 — Portable Private Personal Intelligence
 
 **Technical Architecture, Open-Source Strategy & Benchmarking**  
-**Version:** 1.14 — Rust-first; sans-I/O `no_std` core; protocol-first reach; platform-model backends; trust-boundary schemas, trust tiers and verification lineage from the PR3/Samantha plan; application-neutral research roadmap; voice-first personal model; a model per device class  
+**Version:** 1.15 — Rust-first; sans-I/O `no_std` core; protocol-first reach; platform-model backends; trust-boundary schemas, trust tiers and verification lineage from the PR3/Samantha plan; application-neutral research roadmap; voice-first personal model; a model per device class  
 **Date:** 21 October 2026  
 **Status:** Rust-first architectural direction confirmed (ADR-001); trust architecture adopted with seL4 as a preserved tier (ADR-002); pending proof-of-concept and engineering validation  
 **Working name:** PR3
@@ -9,6 +9,15 @@
 ---
 
 ## 0. Change log
+
+### v1.15 (21 October 2026) — the computer as the user's node
+
+Spike step 6 (§11): pairing and handoff between a phone and the user's own computer.
+
+1. **Pairing** (M2-E3, `pr3-hybrid`). The computer shows a six-digit code, valid for one attempt within two minutes. Phone and computer run SPAKE2 on it, so an eavesdropper cannot test guesses offline and an active attacker gets one guess per code. The key it yields authenticates a Noise `XXpsk3` handshake in which each side learns the other's long-term X25519 key. Forgetting a phone on the computer revokes it.
+2. **Sessions.** Every connection is a Noise `IK` handshake between paired keys — mutually authenticated, forward-secret, and refused for any key the computer has not paired with — carrying `pr3-protocol` v0 messages as CBOR (a new crate whose types are `no_std`). Messages are size-bounded, encrypted and in order, and nothing replays into another session. Cancelling stops the computer's model at its next token without stopping its engine.
+3. **Handoff, spike-sized** (M2-E2). The computer lends its model; the phone keeps the conversation, memory, tools and the trusted side. A paired phone sends each model call to the computer, answers with its own model when the computer cannot be reached, and says which answered in its header. A node's model can propose an action, but the phone validates the proposal against its own address book, shows its own card and signs with its own key — checked with Qwen3.8-27B on a Mac proposing an email that the iPhone simulator's card then showed and declined. Delegating whole tasks and proactive jobs (M2-E4, M5-E4), discovery on the local network and the TLA+ model of the handoff protocol (§12) come later.
+4. **Defaults.** The computer listens on 127.0.0.1 only, which reaches the iOS simulator and, as 10.0.2.2, the Android emulator; phones on the network need `listen = "0.0.0.0:7313"` under `[node]`.
 
 ### v1.14 (21 October 2026) — approval keys in platform key storage
 

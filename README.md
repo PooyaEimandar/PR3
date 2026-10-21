@@ -48,6 +48,7 @@ scripts/fetch-model.sh --list     # every model it knows
 ```text
 crates/pr3-core        sans-I/O core and trusted-side modules (intent, policy, capability, audit, identity)
 crates/pr3-protocol    versioned wire contract
+crates/pr3-hybrid      pairing a phone with your computer, which lends it its larger model
 crates/pr3-inference   model-neutral inference traits
 crates/pr3-llamacpp    bundled GGUF backend
 crates/pr3-memory      user memory with provenance (no_std types and store interface)
