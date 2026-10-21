@@ -6,6 +6,8 @@
 
 use std::collections::BTreeMap;
 use std::fmt;
+use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -20,6 +22,10 @@ use serde_json::{Map, Value};
 /// Upper bound on host/core round trips per user turn; a backstop, not the normal exit.
 /// The core's own limits (tool rounds, loop guard) end a turn long before this.
 const MAX_ROUND_TRIPS: usize = 64;
+
+/// Longer messages are not looked up in memory: a long paste is not a question about
+/// the user, and the lookup runs before the core checks the message's size.
+const MAX_LOOKUP_BYTES: usize = 4 * 1024;
 
 /// What a model produced for one inference request.
 #[derive(Debug, Clone, Default)]
@@ -42,6 +48,9 @@ pub trait Backend: Send + Sync {
         request: &InferenceRequest,
         on_token: &mut dyn FnMut(&str),
     ) -> Result<Generation, String>;
+
+    /// Ends a generation in progress soon, for shutting down.
+    fn stop(&self) {}
 }
 
 /// Live events for the UI while a turn runs.
@@ -104,6 +113,9 @@ pub struct Host {
     memory: Option<SharedMemory>,
     trace_sink: RwLock<Option<TraceSink>>,
     session: SessionId,
+    /// Set once the app is quitting: a model that finishes loading afterwards is
+    /// dropped instead of installed.
+    shutting_down: AtomicBool,
 }
 
 impl Host {
@@ -122,6 +134,7 @@ impl Host {
             tools: by_name,
             memory: None,
             trace_sink: RwLock::new(None),
+            shutting_down: AtomicBool::new(false),
             // The launch time keeps trace ids (`pr3-{session}-{turn}`) unique across
             // launches, which OpenJarvis's trace store needs.
             session: SessionId(now().0),
@@ -139,9 +152,26 @@ impl Host {
     }
 
     pub fn set_backend(&self, backend: Arc<dyn Backend>) {
+        if self.shutting_down.load(Ordering::SeqCst) {
+            return;
+        }
         if let Ok(mut current) = self.backend.write() {
             *current = backend;
         }
+    }
+
+    /// For quitting: stops the model's current answer, swaps in a placeholder and
+    /// returns the model, so the caller can wait until nothing else holds it and free
+    /// it before the process exits. Later models are not installed.
+    pub fn shut_down(&self) -> Arc<dyn Backend> {
+        self.shutting_down.store(true, Ordering::SeqCst);
+        let placeholder: Arc<dyn Backend> = Arc::new(MockBackend::default());
+        let model = match self.backend.write() {
+            Ok(mut current) => std::mem::replace(&mut *current, placeholder),
+            Err(_) => placeholder,
+        };
+        model.stop();
+        model
     }
 
     /// Where finished turns' traces go (for example, an OpenJarvis JSONL file).
@@ -170,18 +200,49 @@ impl Host {
         F: FnMut(TurnEvent) + Send + 'static,
     {
         let utterance = text.clone();
-        let notes = self.memory.as_ref().map_or_else(Vec::new, |memory| {
-            pr3_tools::notes_for(memory, &text, now())
-        });
-        let mut queue = self.step(Input::Utterance {
+        let notes = match &self.memory {
+            Some(memory) if text.len() <= MAX_LOOKUP_BYTES => {
+                pr3_tools::notes_for(memory, &text, now())
+            }
+            _ => Vec::new(),
+        };
+        // If the core refuses the message, no turn was started.
+        let queue = self.step(Input::Utterance {
             session: self.session,
             content: text,
             notes,
             at: now(),
         })?;
-        let mut for_ui = Vec::new();
         let on_event = Arc::new(Mutex::new(on_event));
+        match self
+            .drive(queue, utc_offset_minutes, &utterance, on_event)
+            .await
+        {
+            Ok(for_ui) => Ok(for_ui),
+            // The turn is still open: end it, so the session takes the next message.
+            Err(error) => {
+                let actions = self.step(Input::Abort {
+                    session: self.session,
+                    reason: error.to_string(),
+                    at: now(),
+                })?;
+                Ok(self.deliver(actions))
+            }
+        }
+    }
 
+    /// Performs the core's actions until the turn ends.
+    async fn drive<F>(
+        &self,
+        mut queue: Vec<Action>,
+        utc_offset_minutes: i32,
+        utterance: &str,
+        on_event: Arc<Mutex<F>>,
+    ) -> Result<Vec<Action>, HostError>
+    where
+        F: FnMut(TurnEvent) + Send + 'static,
+    {
+        let mut for_ui = Vec::new();
         for _ in 0..MAX_ROUND_TRIPS {
             if queue.is_empty() {
                 break;
@@ -189,17 +250,23 @@ impl Host {
             match queue.remove(0) {
                 Action::Infer(request) => {
                     let id = request.id;
-                    let input = match self.infer(request, Arc::clone(&on_event)).await? {
-                        Ok(g) => Input::ModelOutput {
+                    let input = match self.infer(request, Arc::clone(&on_event)).await {
+                        Ok(Ok(g)) => Input::ModelOutput {
                             request: id,
                             content: g.content,
                             tool_calls: g.tool_calls,
                             info: g.info,
                             at: now(),
                         },
-                        Err(reason) => Input::ModelFailed {
+                        Ok(Err(reason)) => Input::ModelFailed {
                             request: id,
                             reason,
+                            at: now(),
+                        },
+                        // The worker itself failed (a panic): report it like a model error.
+                        Err(error) => Input::ModelFailed {
+                            request: id,
+                            reason: error.to_string(),
                             at: now(),
                         },
                     };
@@ -210,7 +277,7 @@ impl Host {
                         now: now(),
                         utc_offset_minutes,
                         session: self.session,
-                        utterance: utterance.clone(),
+                        utterance: utterance.to_string(),
                     };
                     let (success, output) = self.run_tool(&call, &ctx);
                     if let Ok(mut emit) = on_event.lock() {
@@ -238,6 +305,20 @@ impl Host {
         Ok(for_ui)
     }
 
+    /// Records traces and returns what the UI should show.
+    fn deliver(&self, actions: Vec<Action>) -> Vec<Action> {
+        actions
+            .into_iter()
+            .filter(|a| match a {
+                Action::Trace(trace) => {
+                    self.record(trace);
+                    false
+                }
+                _ => true,
+            })
+            .collect()
+    }
+
     fn step(&self, input: Input) -> Result<Vec<Action>, HostError> {
         let mut core = self
             .core
@@ -255,17 +336,20 @@ impl Host {
             Ok(Value::Object(map)) => map,
             _ => return (false, "arguments must be a JSON object".to_string()),
         };
-        match tool.run(&arguments, ctx) {
-            Ok(output) => (true, output),
-            Err(error) => (false, error),
+        // A tool that panics fails its call instead of the whole turn.
+        match catch_unwind(AssertUnwindSafe(|| tool.run(&arguments, ctx))) {
+            Ok(Ok(output)) => (true, output),
+            Ok(Err(error)) => (false, error),
+            Err(_) => (false, format!("tool '{}' crashed", call.name)),
         }
     }
 
     fn record(&self, trace: &Trace) {
         if let Ok(sink) = self.trace_sink.read()
             && let Some(sink) = sink.as_ref()
+            && catch_unwind(AssertUnwindSafe(|| sink(trace))).is_err()
         {
-            sink(trace);
+            eprintln!("PR3: the trace sink crashed; trace dropped");
         }
     }
 
@@ -521,5 +605,122 @@ mod tests {
             result.unwrap().as_slice(),
             [Action::Failed { reason, .. }] if reason == "model unavailable"
         ));
+    }
+
+    /// A model whose worker thread panics on the first call, then answers.
+    struct CrashingOnce(std::sync::atomic::AtomicBool);
+
+    impl Backend for CrashingOnce {
+        fn label(&self) -> String {
+            "crashing".to_string()
+        }
+
+        fn generate(
+            &self,
+            _: &InferenceRequest,
+            _: &mut dyn FnMut(&str),
+        ) -> Result<Generation, String> {
+            if !self.0.swap(true, Ordering::SeqCst) {
+                panic!("the model fell over");
+            }
+            Ok(Generation {
+                content: "back again".to_string(),
+                ..Generation::default()
+            })
+        }
+    }
+
+    #[test]
+    fn a_crashed_model_fails_the_turn_and_the_next_message_still_works() {
+        let host = host(CrashingOnce(std::sync::atomic::AtomicBool::new(false)));
+        let (first, _) = run(&host, "hello");
+        assert!(
+            matches!(first.as_deref(), Ok([Action::Failed { .. }])),
+            "{first:?}"
+        );
+        let (second, _) = run(&host, "hello again");
+        assert!(
+            matches!(second.as_deref(), Ok([Action::Reply { content, .. }]) if content == "back again"),
+            "{second:?}"
+        );
+    }
+
+    /// A tool that panics.
+    struct Exploding;
+
+    impl Tool for Exploding {
+        fn spec(&self) -> pr3_core::ToolSpec {
+            pr3_core::ToolSpec {
+                name: "explode".to_string(),
+                description: "Always crashes.".to_string(),
+                parameters: r#"{"type":"object","properties":{}}"#.to_string(),
+                requires_confirmation: false,
+                required_capabilities: Vec::new(),
+            }
+        }
+
+        fn run(&self, _: &Map<String, Value>, _: &ToolContext) -> Result<String, String> {
+            panic!("boom")
+        }
+    }
+
+    /// Calls `explode` once, then answers with what it saw.
+    struct CallsExplode;
+
+    impl Backend for CallsExplode {
+        fn label(&self) -> String {
+            "calls explode".to_string()
+        }
+
+        fn generate(
+            &self,
+            request: &InferenceRequest,
+            _: &mut dyn FnMut(&str),
+        ) -> Result<Generation, String> {
+            let last = request.messages.last().map(|m| m.content.clone());
+            if request
+                .messages
+                .iter()
+                .any(|m| m.role == pr3_core::Role::Tool)
+            {
+                return Ok(Generation {
+                    content: last.unwrap_or_default(),
+                    ..Generation::default()
+                });
+            }
+            Ok(Generation {
+                tool_calls: vec![pr3_core::ProposedToolCall {
+                    name: "explode".to_string(),
+                    arguments: "{}".to_string(),
+                }],
+                ..Generation::default()
+            })
+        }
+    }
+
+    #[test]
+    fn a_crashing_tool_fails_its_call_not_the_turn() {
+        let host = Host::new(Arc::new(CallsExplode), vec![Box::new(Exploding)]).unwrap();
+        let (result, events) = run(&host, "go");
+        assert!(
+            matches!(result.as_deref(), Ok([Action::Reply { content, .. }]) if content.contains("crashed")),
+            "{result:?}"
+        );
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, TurnEvent::Tool { success: false, .. }))
+        );
+    }
+
+    #[test]
+    fn after_shutdown_no_new_model_is_installed() {
+        let host = host(MockBackend::default());
+        let model = host.shut_down();
+        assert_eq!(Arc::strong_count(&model), 1);
+        host.set_backend(Arc::new(CrashingOnce(std::sync::atomic::AtomicBool::new(
+            true,
+        ))));
+        assert_eq!(host.backend_label(), MockBackend::default().label());
     }
 }

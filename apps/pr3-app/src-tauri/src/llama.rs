@@ -12,9 +12,12 @@ use crate::host::{Backend, Generation};
 
 const SYSTEM_PROMPT: &str = "You are PR3, a private assistant running entirely on the \
 user's own device. Answer clearly and briefly. Use the tools for calculations and the \
-current time instead of guessing. When the user tells you something about themselves \
-worth keeping, or asks you to remember something, save it with remember; before \
-answering questions about the user, look it up with recall.";
+current time instead of guessing.";
+
+/// Added only when the memory tools are offered.
+const MEMORY_PROMPT: &str = " When the user tells you something about themselves worth \
+keeping, or asks you to remember something, save it with remember; before answering \
+questions about the user, look it up with recall.";
 
 pub struct LlamaBackend {
     engine: Engine,
@@ -45,13 +48,21 @@ impl Backend for LlamaBackend {
         self.engine.label().to_string()
     }
 
+    fn stop(&self) {
+        self.engine.stop();
+    }
+
     fn generate(
         &self,
         request: &InferenceRequest,
         on_token: &mut dyn FnMut(&str),
     ) -> Result<Generation, String> {
         let mut messages = Vec::with_capacity(request.messages.len() + 1);
-        messages.push(ChatMessage::new(ChatRole::System, SYSTEM_PROMPT));
+        let mut system = SYSTEM_PROMPT.to_string();
+        if request.tools.iter().any(|t| t.name == "remember") {
+            system.push_str(MEMORY_PROMPT);
+        }
+        messages.push(ChatMessage::new(ChatRole::System, system));
         messages.extend(request.messages.iter().map(|m| {
             let role = match m.role {
                 Role::System => ChatRole::System,
@@ -116,12 +127,14 @@ pub fn model_candidates(data_dir: Option<&Path>, file: &str) -> Vec<PathBuf> {
     if let Some(dir) = data_dir {
         paths.push(dir.join("models").join(file));
     }
-    if cfg!(debug_assertions) {
-        paths.push(repo_models().join(file));
-    }
+    #[cfg(debug_assertions)]
+    paths.push(repo_models().join(file));
     paths
 }
 
+/// The repository's `models/` folder. Debug builds and tests only, so release builds
+/// carry no path from the build machine.
+#[cfg(any(debug_assertions, test))]
 fn repo_models() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../models")
 }
