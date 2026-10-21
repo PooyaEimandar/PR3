@@ -9,6 +9,7 @@ rust-version.workspace = true
 publish = false
 
 [dependencies]
+serde_json = { workspace = true, features = ["std"] }
 # Pinned exactly: upgrades are deliberate, with a conformance run (Roadmap §4.3).
 llama-cpp-2 = { version = "=0.1.160", default-features = false }
 

@@ -18,6 +18,15 @@ PR3 is not another assistant. Platform owners ship on-device models and OS agent
 - **The model is not the authority.** Every model output is an untrusted proposal. Consequential actions go through structured intent, deterministic policy, user confirmation on a trusted device, a one-use capability and a hash-chained audit log. The model never sees a credential.
 - **User-owned memory.** Memory is local, encrypted, inspectable, exportable and deletable, and stays usable without any model.
 
+## Models
+
+The bundled model is chosen per device class in [`config/pr3.toml`](config/pr3.toml): Qwen3.8-27B on desktops (32 GB of memory or more), Qwen3.5-4B on phones with 8 GB or more, and Qwen3.5-2B on smaller phones. Every model is pinned to a repository revision and SHA-256. To run a different one, change the ids under `[model]`; to change it without rebuilding, put an edited copy in the app's data folder.
+
+```bash
+scripts/fetch-model.sh            # the models config/pr3.toml selects
+scripts/fetch-model.sh --list     # every model it knows
+```
+
 ## Planned layout
 
 ```text

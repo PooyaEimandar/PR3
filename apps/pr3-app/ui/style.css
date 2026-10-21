@@ -135,3 +135,16 @@ button {
 button:disabled {
   opacity: 0.5;
 }
+
+.msg.tool {
+  align-self: flex-start;
+  max-width: 95%;
+  padding: 4px 10px;
+  border: 1px dashed var(--line);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.msg.tool.failed {
+  color: var(--error);
+}

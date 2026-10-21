@@ -1,6 +1,6 @@
 //! Talk to a GGUF model from the terminal, streaming the answer.
 //!
-//! cargo run -p pr3-llamacpp --release --example chat -- models/Qwen3-0.6B-Q8_0.gguf "Hello"
+//! cargo run -p pr3-llamacpp --release --example chat -- models/Qwen3.5-4B-Q4_K_M.gguf "Hello"
 
 use std::io::Write;
 use std::path::PathBuf;
@@ -28,12 +28,14 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    eprintln!("[loaded {} in {:.2?}]", engine.label(), started.elapsed());
+    eprintln!(
+        "[loaded {} ({:?}) in {:.2?}]",
+        engine.label(),
+        engine.format(),
+        started.elapsed()
+    );
 
-    let messages = [ChatMessage {
-        role: ChatRole::User,
-        content: prompt,
-    }];
+    let messages = [ChatMessage::new(ChatRole::User, prompt)];
     let started = Instant::now();
     let mut stdout = std::io::stdout();
     let result = engine.chat(&messages, &mut |piece| {

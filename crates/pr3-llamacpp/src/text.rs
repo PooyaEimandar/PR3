@@ -66,6 +66,14 @@ enum ThinkState {
 }
 
 impl ThinkFilter {
+    /// For output that starts inside a think block the prompt already opened.
+    pub(crate) fn inside_think() -> Self {
+        Self {
+            state: ThinkState::InsideThink,
+            ..Self::default()
+        }
+    }
+
     /// Adds streamed text and returns the part that is safe to show now.
     pub(crate) fn push(&mut self, text: &str) -> String {
         self.buffer.push_str(text);
@@ -125,6 +133,78 @@ impl ThinkFilter {
     }
 }
 
+/// Removes `open … close` blocks from streamed text wherever they appear, keeping their
+/// contents. Used for `<tool_call>` blocks: the user sees the answer, the caller gets the
+/// calls. Partial tags are held back until it is clear whether they open a block.
+#[derive(Debug)]
+pub(crate) struct BlockExtractor {
+    open: &'static str,
+    close: &'static str,
+    buffer: String,
+    inside: bool,
+    blocks: Vec<String>,
+}
+
+impl BlockExtractor {
+    pub(crate) fn new(open: &'static str, close: &'static str) -> Self {
+        Self {
+            open,
+            close,
+            buffer: String::new(),
+            inside: false,
+            blocks: Vec::new(),
+        }
+    }
+
+    /// Adds streamed text and returns the part that is visible now.
+    pub(crate) fn push(&mut self, text: &str) -> String {
+        self.buffer.push_str(text);
+        let mut visible = String::new();
+        loop {
+            if self.inside {
+                let Some(end) = self.buffer.find(self.close) else {
+                    return visible;
+                };
+                self.blocks.push(self.buffer[..end].to_string());
+                self.buffer.drain(..end + self.close.len());
+                self.inside = false;
+            } else if let Some(start) = self.buffer.find(self.open) {
+                visible.push_str(&self.buffer[..start]);
+                self.buffer.drain(..start + self.open.len());
+                self.inside = true;
+            } else {
+                // Hold back a suffix that could still grow into the opening tag. The tag
+                // is ASCII, so the cut is always on a character boundary.
+                let keep = (1..self.open.len())
+                    .rev()
+                    .find(|&n| self.buffer.ends_with(&self.open[..n]))
+                    .unwrap_or(0);
+                let emit = self.buffer.len() - keep;
+                visible.push_str(&self.buffer[..emit]);
+                self.buffer.drain(..emit);
+                return visible;
+            }
+        }
+    }
+
+    /// Ends the stream: returns the remaining visible text. An unterminated block is
+    /// still kept as a block — a model that forgets the closing tag still meant to call.
+    pub(crate) fn finish(&mut self) -> String {
+        let rest = std::mem::take(&mut self.buffer);
+        if self.inside {
+            self.blocks.push(rest);
+            self.inside = false;
+            String::new()
+        } else {
+            rest
+        }
+    }
+
+    pub(crate) fn blocks(&self) -> &[String] {
+        &self.blocks
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -180,7 +260,46 @@ mod tests {
     }
 
     #[test]
+    fn output_that_starts_inside_think_hides_the_reasoning() {
+        let mut f = ThinkFilter::inside_think();
+        let shown = f.push("weighing it up\n</think>\n\nYes.") + &f.finish();
+        assert_eq!(shown, "Yes.");
+    }
+
+    #[test]
     fn unterminated_think_is_dropped() {
         assert_eq!(run(&["<think>never closed"]), "");
+    }
+
+    fn extract(pieces: &[&str]) -> (String, Vec<String>) {
+        let mut x = BlockExtractor::new("<tool_call>", "</tool_call>");
+        let mut out: String = pieces.iter().map(|p| x.push(p)).collect();
+        out.push_str(&x.finish());
+        (out, x.blocks().to_vec())
+    }
+
+    #[test]
+    fn tool_call_blocks_are_removed_and_kept() {
+        let (text, blocks) = extract(&[
+            "Sure.\n<tool_",
+            "call>\n{\"name\":\"a\"}\n</tool_call>",
+            " done",
+        ]);
+        assert_eq!(text, "Sure.\n done");
+        assert_eq!(blocks, vec!["\n{\"name\":\"a\"}\n".to_string()]);
+    }
+
+    #[test]
+    fn text_resembling_a_tag_is_released() {
+        let (text, blocks) = extract(&["a <tool", "s are fine"]);
+        assert_eq!(text, "a <tools are fine");
+        assert!(blocks.is_empty());
+    }
+
+    #[test]
+    fn unterminated_block_still_counts() {
+        let (text, blocks) = extract(&["<tool_call>{\"name\":\"a\"}"]);
+        assert_eq!(text, "");
+        assert_eq!(blocks, vec!["{\"name\":\"a\"}".to_string()]);
     }
 }

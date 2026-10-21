@@ -1,27 +1,54 @@
 #!/usr/bin/env bash
-# Downloads the pinned development model into models/ and verifies its SHA-256.
-# Usage: scripts/fetch-model.sh [destination-dir]
+# Downloads pinned models from config/pr3.toml into models/ and verifies each SHA-256.
+#
+# Usage: scripts/fetch-model.sh            the models [model] selects for desktop and mobile
+#        scripts/fetch-model.sh ID...      specific models, e.g. qwen3.8-27b-q8
+#        scripts/fetch-model.sh --list     every model the config knows
+# PR3_MODELS_DIR overrides the destination folder.
 set -euo pipefail
 
-MODEL="Qwen3-0.6B-Q8_0.gguf"
-REPO="Qwen/Qwen3-0.6B-GGUF"
-REVISION="23749fefcc72300e3a2ad315e1317431b06b590a"
-SHA256="9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+CONFIG="$ROOT/config/pr3.toml"
+DEST_DIR="${PR3_MODELS_DIR:-$ROOT/models}"
 
-DEST_DIR="${1:-$(cd "$(dirname "$0")/.." && pwd)/models}"
-DEST="$DEST_DIR/$MODEL"
+# Python's tomllib (3.11+) reads the config; prints one model per line.
+models() {
+  python3 -I - "$CONFIG" "$@" <<'EOF'
+import sys, tomllib
+config = tomllib.load(open(sys.argv[1], "rb"))
+known, args = config["models"], sys.argv[2:]
+if args == ["--list"]:
+    for id, m in known.items():
+        print(f"{id:16} {m['file']:28} {m['size'] / 1e9:6.2f} GB  {m['repo']}", file=sys.stderr)
+    sys.exit(0)
+if args:
+    ids = args
+else:
+    selected = config["model"]
+    ids = list(dict.fromkeys(selected[k] for k in ("desktop", "mobile", "mobile_small")))
+for id in ids:
+    if id not in known:
+        sys.exit(f"unknown model '{id}'; see scripts/fetch-model.sh --list")
+    m = known[id]
+    print(id, m["repo"], m["revision"], m["file"], m["sha256"], m["size"])
+EOF
+}
+
+listing="$(models "$@")"
+[ -z "$listing" ] && exit 0
 mkdir -p "$DEST_DIR"
 
-if [ -f "$DEST" ] && echo "$SHA256  $DEST" | shasum -a 256 -c --status -; then
-  echo "$MODEL already present and verified: $DEST"
-  exit 0
-fi
-
-PARTIAL="$DEST.partial"
-echo "Downloading $MODEL (~640 MB) from $REPO@${REVISION:0:7}"
-curl -fL --retry 3 -C - -o "$PARTIAL" \
-  "https://huggingface.co/$REPO/resolve/$REVISION/$MODEL"
-
-echo "$SHA256  $PARTIAL" | shasum -a 256 -c -
-mv "$PARTIAL" "$DEST"
-echo "Saved $DEST"
+while read -r id repo revision file sha256 size; do
+  dest="$DEST_DIR/$file"
+  if [ -f "$dest" ] && echo "$sha256  $dest" | shasum -a 256 -c --status -; then
+    echo "$id: $file already present and verified"
+    continue
+  fi
+  partial="$dest.partial"
+  echo "$id: downloading $file ($((size / 1000000)) MB) from $repo@${revision:0:7}"
+  curl -fL --retry 3 -C - -o "$partial" \
+    "https://huggingface.co/$repo/resolve/$revision/$file"
+  echo "$sha256  $partial" | shasum -a 256 -c -
+  mv "$partial" "$dest"
+  echo "$id: saved $dest"
+done <<< "$listing"

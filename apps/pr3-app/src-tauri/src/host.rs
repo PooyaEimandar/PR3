@@ -1,18 +1,34 @@
-//! The host side of the sans-I/O loop: it performs the actions `pr3-core` asks for.
+//! The host side of the sans-I/O loop: it performs the actions `pr3-core` asks for —
+//! running the model, running validated tool calls, storing traces.
 //!
 //! The core's lock is held only for each `step()`; inference runs on a blocking worker
 //! thread with the lock released, so the UI thread never waits on a model.
 
+use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use pr3_core::{
-    Action, Config, Core, CoreError, InferenceRequest, Input, Role, SessionId, Timestamp,
+    Action, Config, Core, CoreError, GenerationInfo, InferenceRequest, Input, ProposedToolCall,
+    Role, SessionId, Timestamp, ToolCall, Trace,
 };
+use pr3_tools::{Tool, ToolContext};
+use serde::Serialize;
+use serde_json::{Map, Value};
 
 /// Upper bound on host/core round trips per user turn; a backstop, not the normal exit.
-const MAX_ROUND_TRIPS: usize = 16;
+/// The core's own limits (tool rounds, loop guard) end a turn long before this.
+const MAX_ROUND_TRIPS: usize = 64;
+
+/// What a model produced for one inference request.
+#[derive(Debug, Clone, Default)]
+pub struct Generation {
+    pub content: String,
+    /// Parsed from the model's output format; validated by the core, not here.
+    pub tool_calls: Vec<ProposedToolCall>,
+    pub info: GenerationInfo,
+}
 
 /// A model the host can run. Host-side and `std`; the core never sees it.
 pub trait Backend: Send + Sync {
@@ -20,13 +36,31 @@ pub trait Backend: Send + Sync {
     fn label(&self) -> String;
 
     /// Answers `request`, calling `on_token` with each piece of visible text as it is
-    /// produced. Returns the complete final answer.
+    /// produced.
     fn generate(
         &self,
         request: &InferenceRequest,
         on_token: &mut dyn FnMut(&str),
-    ) -> Result<String, String>;
+    ) -> Result<Generation, String>;
 }
+
+/// Live events for the UI while a turn runs.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum TurnEvent {
+    Token {
+        text: String,
+    },
+    /// A tool the core approved has run; shown so the user sees what PR3 did.
+    Tool {
+        name: String,
+        arguments: String,
+        success: bool,
+        output: String,
+    },
+}
+
+pub type TraceSink = Arc<dyn Fn(&Trace) + Send + Sync>;
 
 #[derive(Debug)]
 pub enum HostError {
@@ -57,21 +91,37 @@ impl fmt::Display for HostError {
     }
 }
 
+impl std::error::Error for HostError {}
+
 pub struct Host {
     core: Mutex<Core>,
     /// Swappable: the app starts with a placeholder and installs the real model once
     /// it has loaded in the background.
     backend: RwLock<Arc<dyn Backend>>,
+    tools: BTreeMap<String, Box<dyn Tool>>,
+    trace_sink: RwLock<Option<TraceSink>>,
     session: SessionId,
 }
 
 impl Host {
-    pub fn new(backend: Arc<dyn Backend>) -> Self {
-        Self {
-            core: Mutex::new(Core::new(Config::default())),
-            backend: RwLock::new(backend),
-            session: SessionId(1),
+    pub fn new(backend: Arc<dyn Backend>, tools: Vec<Box<dyn Tool>>) -> Result<Self, HostError> {
+        let mut core = Core::new(Config::default());
+        let mut by_name = BTreeMap::new();
+        for tool in tools {
+            let spec = tool.spec();
+            let name = spec.name.clone();
+            core.register_tool(spec)?;
+            by_name.insert(name, tool);
         }
+        Ok(Self {
+            core: Mutex::new(core),
+            backend: RwLock::new(backend),
+            tools: by_name,
+            trace_sink: RwLock::new(None),
+            // The launch time keeps trace ids (`pr3-{session}-{turn}`) unique across
+            // launches, which OpenJarvis's trace store needs.
+            session: SessionId(now().0),
+        })
     }
 
     pub fn backend_label(&self) -> String {
@@ -84,6 +134,13 @@ impl Host {
         }
     }
 
+    /// Where finished turns' traces go (for example, an OpenJarvis JSONL file).
+    pub fn set_trace_sink(&self, sink: TraceSink) {
+        if let Ok(mut current) = self.trace_sink.write() {
+            *current = Some(sink);
+        }
+    }
+
     fn backend(&self) -> Arc<dyn Backend> {
         match self.backend.read() {
             Ok(b) => Arc::clone(&b),
@@ -91,11 +148,16 @@ impl Host {
         }
     }
 
-    /// Runs one user turn and returns the actions the UI should show. Tokens are
-    /// streamed through `on_token` while the model runs.
-    pub async fn send<F>(&self, text: String, on_token: F) -> Result<Vec<Action>, HostError>
+    /// Runs one user turn and returns what the UI should show at the end (a reply or a
+    /// failure). Tokens and tool activity stream through `on_event` meanwhile.
+    pub async fn send<F>(
+        &self,
+        text: String,
+        utc_offset_minutes: i32,
+        on_event: F,
+    ) -> Result<Vec<Action>, HostError>
     where
-        F: FnMut(&str) + Send + 'static,
+        F: FnMut(TurnEvent) + Send + 'static,
     {
         let mut queue = self.step(Input::Utterance {
             session: self.session,
@@ -103,21 +165,21 @@ impl Host {
             at: now(),
         })?;
         let mut for_ui = Vec::new();
-        let on_token = Arc::new(Mutex::new(on_token));
+        let on_event = Arc::new(Mutex::new(on_event));
 
         for _ in 0..MAX_ROUND_TRIPS {
             if queue.is_empty() {
                 break;
             }
-            let action = queue.remove(0);
-            match action {
+            match queue.remove(0) {
                 Action::Infer(request) => {
                     let id = request.id;
-                    let outcome = self.infer(request, Arc::clone(&on_token)).await?;
-                    let input = match outcome {
-                        Ok(content) => Input::ModelOutput {
+                    let input = match self.infer(request, Arc::clone(&on_event)).await? {
+                        Ok(g) => Input::ModelOutput {
                             request: id,
-                            content,
+                            content: g.content,
+                            tool_calls: g.tool_calls,
+                            info: g.info,
                             at: now(),
                         },
                         Err(reason) => Input::ModelFailed {
@@ -128,6 +190,28 @@ impl Host {
                     };
                     queue.extend(self.step(input)?);
                 }
+                Action::CallTool(call) => {
+                    let ctx = ToolContext {
+                        now: now(),
+                        utc_offset_minutes,
+                    };
+                    let (success, output) = self.run_tool(&call, &ctx);
+                    if let Ok(mut emit) = on_event.lock() {
+                        emit(TurnEvent::Tool {
+                            name: call.name.clone(),
+                            arguments: call.arguments.clone(),
+                            success,
+                            output: output.clone(),
+                        });
+                    }
+                    queue.extend(self.step(Input::ToolOutcome {
+                        call_id: call.id,
+                        success,
+                        output,
+                        at: now(),
+                    })?);
+                }
+                Action::Trace(trace) => self.record(&trace),
                 other => for_ui.push(other),
             }
         }
@@ -145,23 +229,48 @@ impl Host {
         Ok(core.step(input)?)
     }
 
+    /// Runs a call the core has already validated against the tool's schema.
+    fn run_tool(&self, call: &ToolCall, ctx: &ToolContext) -> (bool, String) {
+        let Some(tool) = self.tools.get(&call.name) else {
+            return (false, format!("tool '{}' is not available", call.name));
+        };
+        let arguments: Map<String, Value> = match serde_json::from_str(&call.arguments) {
+            Ok(Value::Object(map)) => map,
+            _ => return (false, "arguments must be a JSON object".to_string()),
+        };
+        match tool.run(&arguments, ctx) {
+            Ok(output) => (true, output),
+            Err(error) => (false, error),
+        }
+    }
+
+    fn record(&self, trace: &Trace) {
+        if let Ok(sink) = self.trace_sink.read()
+            && let Some(sink) = sink.as_ref()
+        {
+            sink(trace);
+        }
+    }
+
     /// Runs the backend on a blocking worker thread, with the core unlocked.
     async fn infer<F>(
         &self,
         request: InferenceRequest,
-        on_token: Arc<Mutex<F>>,
-    ) -> Result<Result<String, String>, HostError>
+        on_event: Arc<Mutex<F>>,
+    ) -> Result<Result<Generation, String>, HostError>
     where
-        F: FnMut(&str) + Send + 'static,
+        F: FnMut(TurnEvent) + Send + 'static,
     {
         let backend = self.backend();
         tauri::async_runtime::spawn_blocking(move || {
-            let mut emit = |piece: &str| {
-                if let Ok(mut f) = on_token.lock() {
-                    f(piece);
+            let mut on_token = |piece: &str| {
+                if let Ok(mut emit) = on_event.lock() {
+                    emit(TurnEvent::Token {
+                        text: piece.to_string(),
+                    });
                 }
             };
-            backend.generate(&request, &mut emit)
+            backend.generate(&request, &mut on_token)
         })
         .await
         .map_err(|e| HostError::Host(format!("inference worker failed: {e}")))
@@ -178,7 +287,11 @@ impl Backend for LoadingBackend {
         format!("loading {}…", self.model)
     }
 
-    fn generate(&self, _: &InferenceRequest, _: &mut dyn FnMut(&str)) -> Result<String, String> {
+    fn generate(
+        &self,
+        _: &InferenceRequest,
+        _: &mut dyn FnMut(&str),
+    ) -> Result<Generation, String> {
         Err(format!(
             "{} is still loading; try again in a moment.",
             self.model
@@ -223,7 +336,7 @@ impl Backend for MockBackend {
         &self,
         request: &InferenceRequest,
         on_token: &mut dyn FnMut(&str),
-    ) -> Result<String, String> {
+    ) -> Result<Generation, String> {
         let last_user = request
             .messages
             .iter()
@@ -237,7 +350,15 @@ impl Backend for MockBackend {
         for word in answer.split_inclusive(' ') {
             on_token(word);
         }
-        Ok(answer)
+        Ok(Generation {
+            content: answer,
+            tool_calls: Vec::new(),
+            info: GenerationInfo {
+                model: "mock".to_string(),
+                engine: "mock".to_string(),
+                ..GenerationInfo::default()
+            },
+        })
     }
 }
 
@@ -251,30 +372,110 @@ fn now() -> Timestamp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pr3_core::{Outcome, StepType};
 
-    fn host() -> Host {
-        Host::new(Arc::new(MockBackend::default()))
+    fn host(backend: impl Backend + 'static) -> Host {
+        Host::new(Arc::new(backend), pr3_tools::builtin()).unwrap()
+    }
+
+    fn run(host: &Host, text: &str) -> (Result<Vec<Action>, HostError>, Vec<TurnEvent>) {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&events);
+        let result = tauri::async_runtime::block_on(host.send(text.to_string(), 0, move |e| {
+            sink.lock().unwrap().push(e);
+        }));
+        let events = events.lock().unwrap().clone();
+        (result, events)
     }
 
     #[test]
     fn a_turn_streams_tokens_and_returns_one_reply() {
-        let streamed = Arc::new(Mutex::new(String::new()));
-        let sink = Arc::clone(&streamed);
-        let actions = tauri::async_runtime::block_on(host().send("hello".to_string(), move |t| {
-            sink.lock().unwrap().push_str(t);
-        }))
-        .unwrap();
-
+        let (result, events) = run(&host(MockBackend::default()), "hello");
+        let actions = result.unwrap();
         let [Action::Reply { content, .. }] = actions.as_slice() else {
             panic!("expected one reply, got {actions:?}");
         };
-        assert!(content.contains("hello"));
-        assert_eq!(*streamed.lock().unwrap(), *content);
+        let streamed: String = events
+            .iter()
+            .map(|e| match e {
+                TurnEvent::Token { text } => text.as_str(),
+                TurnEvent::Tool { .. } => "",
+            })
+            .collect();
+        assert_eq!(streamed, *content);
+    }
+
+    /// First asks for a calculation, then answers with the tool's result.
+    struct CalculatingBackend;
+
+    impl Backend for CalculatingBackend {
+        fn label(&self) -> String {
+            "scripted".to_string()
+        }
+        fn generate(
+            &self,
+            request: &InferenceRequest,
+            _: &mut dyn FnMut(&str),
+        ) -> Result<Generation, String> {
+            let last = request.messages.last().unwrap();
+            if last.role == Role::Tool {
+                return Ok(Generation {
+                    content: format!("It is {}.", last.content),
+                    ..Generation::default()
+                });
+            }
+            Ok(Generation {
+                tool_calls: vec![ProposedToolCall {
+                    name: "calculate".to_string(),
+                    arguments: r#"{"expression":"1234*5678"}"#.to_string(),
+                }],
+                ..Generation::default()
+            })
+        }
+    }
+
+    #[test]
+    fn tool_calls_run_and_are_traced() {
+        let host = host(CalculatingBackend);
+        let traces = Arc::new(Mutex::new(Vec::new()));
+        let store = Arc::clone(&traces);
+        host.set_trace_sink(Arc::new(move |t: &Trace| {
+            store.lock().unwrap().push(t.clone())
+        }));
+
+        let (result, events) = run(&host, "what is 1234*5678?");
+        let actions = result.unwrap();
+        assert!(matches!(
+            actions.as_slice(),
+            [Action::Reply { content, .. }] if content == "It is 7006652."
+        ));
+        assert!(events.contains(&TurnEvent::Tool {
+            name: "calculate".to_string(),
+            arguments: r#"{"expression":"1234*5678"}"#.to_string(),
+            success: true,
+            output: "7006652".to_string(),
+        }));
+
+        let traces = traces.lock().unwrap();
+        let [trace] = traces.as_slice() else {
+            panic!("expected one trace")
+        };
+        assert_eq!(trace.outcome, Outcome::Success);
+        let steps: Vec<StepType> = trace.steps.iter().map(|s| s.step_type).collect();
+        assert_eq!(
+            steps,
+            vec![
+                StepType::Generate,
+                StepType::ToolCall,
+                StepType::Generate,
+                StepType::Respond
+            ]
+        );
     }
 
     #[test]
     fn core_errors_pass_through() {
-        let result = tauri::async_runtime::block_on(host().send("   ".to_string(), |_| {}));
+        let (result, _) = run(&host(MockBackend::default()), "   ");
         assert!(matches!(
             result,
             Err(HostError::Core(CoreError::EmptyInput))
@@ -291,17 +492,16 @@ mod tests {
             &self,
             _: &InferenceRequest,
             _: &mut dyn FnMut(&str),
-        ) -> Result<String, String> {
+        ) -> Result<Generation, String> {
             Err("model unavailable".to_string())
         }
     }
 
     #[test]
     fn backend_failure_becomes_a_failed_action() {
-        let host = Host::new(Arc::new(FailingBackend));
-        let actions = tauri::async_runtime::block_on(host.send("hi".to_string(), |_| {})).unwrap();
+        let (result, _) = run(&host(FailingBackend), "hi");
         assert!(matches!(
-            actions.as_slice(),
+            result.unwrap().as_slice(),
             [Action::Failed { reason, .. }] if reason == "model unavailable"
         ));
     }

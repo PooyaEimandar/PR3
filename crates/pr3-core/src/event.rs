@@ -2,7 +2,10 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use serde::{Deserialize, Serialize};
 
-use crate::types::{Message, RequestId, SessionId, Timestamp};
+use crate::trace::Trace;
+use crate::types::{
+    GenerationInfo, Message, ProposedToolCall, RequestId, SessionId, Timestamp, ToolCall, ToolSpec,
+};
 
 /// Everything the host can tell the core.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -14,10 +17,13 @@ pub enum Input {
         content: String,
         at: Timestamp,
     },
-    /// The host finished an [`Action::Infer`].
+    /// The host finished an [`Action::Infer`]. `tool_calls` are the model's proposals,
+    /// already parsed from its output format but not yet trusted.
     ModelOutput {
         request: RequestId,
         content: String,
+        tool_calls: Vec<ProposedToolCall>,
+        info: GenerationInfo,
         at: Timestamp,
     },
     /// The host could not run an [`Action::Infer`].
@@ -26,18 +32,29 @@ pub enum Input {
         reason: String,
         at: Timestamp,
     },
+    /// The host ran an [`Action::CallTool`].
+    ToolOutcome {
+        call_id: String,
+        success: bool,
+        output: String,
+        at: Timestamp,
+    },
 }
 
 /// Everything the core asks the host to do.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Action {
     /// Run a model on this conversation and answer with `Input::ModelOutput`.
     Infer(InferenceRequest),
+    /// Run a validated tool call and answer with `Input::ToolOutcome`.
+    CallTool(ToolCall),
     /// Show or speak a reply.
     Reply { session: SessionId, content: String },
-    /// Tell the user a turn failed; nothing was done on their behalf.
+    /// Tell the user a turn failed; nothing more was done on their behalf.
     Failed { session: SessionId, reason: String },
+    /// The finished turn's trace, for the host to store or export.
+    Trace(Trace),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -45,4 +62,6 @@ pub struct InferenceRequest {
     pub id: RequestId,
     pub session: SessionId,
     pub messages: Vec<Message>,
+    /// Tools the model may call this turn.
+    pub tools: Vec<ToolSpec>,
 }

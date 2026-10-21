@@ -3,17 +3,16 @@
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use pr3_core::{InferenceRequest, Role};
-use pr3_llamacpp::{ChatMessage, ChatRole, Engine, EngineConfig, EngineError};
-use tauri::Manager;
+use pr3_core::{GenerationInfo, InferenceRequest, ProposedToolCall, Role};
+use pr3_llamacpp::{
+    ChatMessage, ChatRole, Engine, EngineConfig, EngineError, ToolCallText, ToolDef,
+};
 
-use crate::host::Backend;
-
-/// The development model fetched by `scripts/fetch-model.sh`.
-pub const MODEL_FILE: &str = "Qwen3-0.6B-Q8_0.gguf";
+use crate::host::{Backend, Generation};
 
 const SYSTEM_PROMPT: &str = "You are PR3, a private assistant running entirely on the \
-user's own device. Answer clearly and briefly.";
+user's own device. Answer clearly and briefly. Use the tools for calculations and the \
+current time instead of guessing.";
 
 pub struct LlamaBackend {
     engine: Engine,
@@ -48,44 +47,81 @@ impl Backend for LlamaBackend {
         &self,
         request: &InferenceRequest,
         on_token: &mut dyn FnMut(&str),
-    ) -> Result<String, String> {
+    ) -> Result<Generation, String> {
         let mut messages = Vec::with_capacity(request.messages.len() + 1);
-        messages.push(ChatMessage {
-            role: ChatRole::System,
-            content: SYSTEM_PROMPT.to_string(),
-        });
-        messages.extend(request.messages.iter().map(|m| ChatMessage {
-            role: match m.role {
+        messages.push(ChatMessage::new(ChatRole::System, SYSTEM_PROMPT));
+        messages.extend(request.messages.iter().map(|m| {
+            let role = match m.role {
                 Role::System => ChatRole::System,
                 Role::User => ChatRole::User,
                 Role::Assistant => ChatRole::Assistant,
-            },
-            content: m.content.clone(),
+                Role::Tool => ChatRole::Tool,
+            };
+            ChatMessage {
+                // The engine replays earlier calls in the model's own format.
+                tool_calls: m
+                    .tool_calls
+                    .iter()
+                    .map(|c| ToolCallText {
+                        name: c.name.clone(),
+                        arguments: c.arguments.clone(),
+                    })
+                    .collect(),
+                ..ChatMessage::new(role, m.content.clone())
+            }
         }));
-        self.engine
-            .chat(&messages, on_token)
-            .map_err(|e| e.to_string())
+        let tools: Vec<ToolDef> = request
+            .tools
+            .iter()
+            .map(|t| ToolDef {
+                name: t.name.clone(),
+                description: t.description.clone(),
+                parameters: t.parameters.clone(),
+            })
+            .collect();
+
+        let out = self
+            .engine
+            .chat_with_tools(&messages, &tools, on_token)
+            .map_err(|e| e.to_string())?;
+        Ok(Generation {
+            content: out.text,
+            tool_calls: out
+                .tool_calls
+                .into_iter()
+                .map(|c| ProposedToolCall {
+                    name: c.name,
+                    arguments: c.arguments,
+                })
+                .collect(),
+            info: GenerationInfo {
+                model: self.engine.label().to_string(),
+                engine: "llama.cpp".to_string(),
+                prompt_tokens: out.prompt_tokens,
+                completion_tokens: out.completion_tokens,
+            },
+        })
     }
 }
 
-/// Where to look for the model, in order: `PR3_MODEL`, the app's data folder, and —
-/// in debug builds only — the repository's `models/` folder.
-pub fn model_candidates(app: &tauri::AppHandle) -> Vec<PathBuf> {
+/// Where to look for the model `file`, in order: `PR3_MODEL`, the app's data folder,
+/// and — in debug builds only — the repository's `models/` folder.
+pub fn model_candidates(data_dir: Option<&Path>, file: &str) -> Vec<PathBuf> {
     let mut paths = Vec::new();
     if let Some(path) = std::env::var_os("PR3_MODEL") {
         paths.push(PathBuf::from(path));
     }
-    if let Ok(dir) = app.path().app_data_dir() {
-        paths.push(dir.join("models").join(MODEL_FILE));
+    if let Some(dir) = data_dir {
+        paths.push(dir.join("models").join(file));
     }
     if cfg!(debug_assertions) {
-        paths.push(
-            Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../../../models")
-                .join(MODEL_FILE),
-        );
+        paths.push(repo_models().join(file));
     }
     paths
+}
+
+fn repo_models() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../models")
 }
 
 /// Varies answers between launches; the core stays deterministic either way.
@@ -102,31 +138,82 @@ mod tests {
     use pr3_core::Action;
 
     use super::*;
-    use crate::host::Host;
+    use crate::config::Config;
+    use crate::host::{Host, TurnEvent};
 
-    /// Runs a real turn through core, host and Qwen. Opt-in because it needs the model:
-    /// scripts/fetch-model.sh && cargo test -p pr3-app -- --ignored
-    #[test]
-    #[ignore = "needs models/Qwen3-0.6B-Q8_0.gguf"]
-    fn real_model_turn_streams_and_replies() {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../models")
-            .join(MODEL_FILE);
-        let host = Host::new(Arc::new(LlamaBackend::load(&path).unwrap()));
+    fn host(path: &Path) -> Host {
+        Host::new(
+            Arc::new(LlamaBackend::load(path).unwrap()),
+            pr3_tools::builtin(),
+        )
+        .unwrap()
+    }
 
-        let streamed = Arc::new(Mutex::new(String::new()));
-        let sink = Arc::clone(&streamed);
-        let actions = tauri::async_runtime::block_on(host.send(
-            "What is the capital of France? Answer in one word.".to_string(),
-            move |t| sink.lock().unwrap().push_str(t),
-        ))
+    fn turn(host: &Host, text: &str) -> (String, Vec<TurnEvent>) {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&events);
+        let actions = tauri::async_runtime::block_on(
+            host.send(text.to_string(), 0, move |e| sink.lock().unwrap().push(e)),
+        )
         .unwrap();
-
         let [Action::Reply { content, .. }] = actions.as_slice() else {
             panic!("expected one reply, got {actions:?}");
         };
-        assert!(content.contains("Paris"), "unexpected answer: {content}");
-        assert!(!content.contains("<think>"));
-        assert_eq!(streamed.lock().unwrap().trim(), content.as_str());
+        let events = events.lock().unwrap().clone();
+        (content.clone(), events)
+    }
+
+    fn tool_names(events: &[TurnEvent]) -> Vec<&str> {
+        events
+            .iter()
+            .filter_map(|e| match e {
+                TurnEvent::Tool { name, .. } => Some(name.as_str()),
+                TurnEvent::Token { .. } => None,
+            })
+            .collect()
+    }
+
+    /// Runs real turns through core, host, Qwen and the built-in tools, for each model
+    /// config/pr3.toml selects (desktop, mobile, small mobile) that is in models/.
+    /// Opt-in because it needs them:
+    /// scripts/fetch-model.sh && cargo test -p pr3-app --release -- --ignored --nocapture
+    #[test]
+    #[ignore = "needs the selected models in models/"]
+    fn real_models_answer_and_use_the_tools() {
+        let config = Config::built_in().unwrap();
+        let choice = &config.model;
+        let mut tested = 0;
+        for id in [&choice.desktop, &choice.mobile, &choice.mobile_small] {
+            let path = repo_models().join(&config.models[id].file);
+            if !path.is_file() {
+                eprintln!("{id}: {} missing, skipped", path.display());
+                continue;
+            }
+            let host = host(&path);
+            let (answer, _) = turn(&host, "What is the capital of France? Answer in one word.");
+            assert!(answer.contains("Paris"), "{id}: {answer}");
+            assert!(!answer.contains("<think>") && !answer.contains("<tool_call>"));
+
+            let (answer, events) = turn(&host, "What is 1234 * 5678?");
+            let used_calculator = events.iter().any(|e| {
+                matches!(e, TurnEvent::Tool { name, output, success: true, .. }
+                    if name == "calculate" && output == "7006652")
+            });
+            assert!(used_calculator, "{id}: {events:?}");
+            assert!(
+                answer.replace(',', "").contains("7006652"),
+                "{id}: {answer}"
+            );
+
+            let (answer, events) = turn(&host, "What's today's date?");
+            assert_eq!(tool_names(&events), ["get_time"], "{id}: {answer}");
+            eprintln!("{id}: ok ({answer})");
+            tested += 1;
+        }
+        assert!(
+            tested > 0,
+            "no selected model in {}",
+            repo_models().display()
+        );
     }
 }

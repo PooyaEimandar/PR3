@@ -1,0 +1,55 @@
+# PR3 configuration, built into the app. To change it without rebuilding, put an edited
+# copy named pr3.toml in the app's data folder (on macOS:
+# ~/Library/Application Support/ai.pooya.pr3/pr3.toml). The PR3_MODEL environment
+# variable, a path to a .gguf file, overrides the model choice below.
+
+# Which model each kind of device runs. Values are ids from [models] below.
+[model]
+desktop = "qwen3.8-27b"
+mobile = "qwen3.5-4b"
+# Phones with less memory than this run `mobile_small` instead of `mobile`.
+mobile_small = "qwen3.5-2b"
+mobile_min_memory_gb = 7
+
+# The models PR3 knows, each pinned to a repository revision and SHA-256 so a download
+# is exactly the file that was tested. scripts/fetch-model.sh downloads them into models/.
+
+# Desktop: the strongest open model that runs locally. Needs a Mac with 32 GB or more.
+[models."qwen3.8-27b"]
+repo = "ggml-org/Qwen3.8-27B-GGUF"
+revision = "a316ea527fde32c12487be7574e2db5ac2ad2a7e"
+file = "Qwen3.8-27B-Q4_K_M.gguf"
+sha256 = "c600de0300ae8a0eb3a6c0b8b5561b8b96f16bd2c863c2a66c42de29d391a747"
+size = 18973870528
+
+# Desktop, near-lossless but about half as fast. Needs 48 GB or more.
+[models."qwen3.8-27b-q8"]
+repo = "ggml-org/Qwen3.8-27B-GGUF"
+revision = "a316ea527fde32c12487be7574e2db5ac2ad2a7e"
+file = "Qwen3.8-27B-Q8_0.gguf"
+sha256 = "aab65c67ef0dad127960efef9247f1832bca105faa1c7a052cc039b223cf86a1"
+size = 28595763648
+
+# Phones with 8 GB of memory or more.
+[models."qwen3.5-4b"]
+repo = "unsloth/Qwen3.5-4B-GGUF"
+revision = "e87f176479d0855a907a41277aca2f8ee7a09523"
+file = "Qwen3.5-4B-Q4_K_M.gguf"
+sha256 = "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4"
+size = 2740937888
+
+# Phones with less memory.
+[models."qwen3.5-2b"]
+repo = "unsloth/Qwen3.5-2B-GGUF"
+revision = "f6d5376be1edb4d416d56da11e5397a961aca8ae"
+file = "Qwen3.5-2B-Q4_K_M.gguf"
+sha256 = "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223"
+size = 1280835840
+
+# The original spike model: tiny and fast, but it sometimes skips a tool it should call.
+[models."qwen3-0.6b"]
+repo = "Qwen/Qwen3-0.6B-GGUF"
+revision = "23749fefcc72300e3a2ad315e1317431b06b590a"
+file = "Qwen3-0.6B-Q8_0.gguf"
+sha256 = "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031"
+size = 639446688

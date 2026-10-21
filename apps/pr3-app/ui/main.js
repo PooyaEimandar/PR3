@@ -26,16 +26,27 @@ async function send(text) {
   const bubble = show("assistant pending", "…");
   let streamed = "";
 
-  const onToken = new Channel();
-  onToken.onmessage = (piece) => {
-    streamed += piece;
-    bubble.textContent = streamed;
+  const onEvent = new Channel();
+  onEvent.onmessage = (event) => {
+    if (event.type === "token") {
+      streamed += event.text;
+      bubble.textContent = streamed;
+    } else if (event.type === "tool") {
+      // Show what PR3 ran on the user's behalf, above the answer it leads to.
+      const line = document.createElement("div");
+      line.className = `msg tool${event.success ? "" : " failed"}`;
+      line.textContent = `⚙ ${event.name} ${event.arguments} → ${event.output}`;
+      log.insertBefore(line, bubble);
+      streamed = "";
+      bubble.textContent = "…";
+    }
     log.scrollTop = log.scrollHeight;
   };
 
   setBusy(true);
   try {
-    const actions = await invoke("send_message", { text, onToken });
+    const utcOffsetMinutes = -new Date().getTimezoneOffset();
+    const actions = await invoke("send_message", { text, utcOffsetMinutes, onEvent });
     bubble.classList.remove("pending");
     for (const action of actions) {
       // The final reply is canonical; it replaces whatever was streamed.

@@ -19,5 +19,12 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 pr3-core = { workspace = true, features = ["std"] }
 pr3-llamacpp = { path = "../../../crates/pr3-llamacpp" }
+pr3-tools = { path = "../../../crates/pr3-tools" }
 serde = { workspace = true, features = ["std"] }
+serde_json = { workspace = true, features = ["std"] }
 tauri = { version = "2", features = [] }
+toml = { version = "1", default-features = false, features = ["std", "serde", "parse"] }
+
+# Physical memory, to pick the phone model (config/pr3.toml).
+[target.'cfg(target_vendor = "apple")'.dependencies]
+libc = "0.2"

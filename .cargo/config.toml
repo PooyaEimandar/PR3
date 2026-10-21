@@ -1,0 +1,8 @@
+# llama.cpp on Android: build ggml's CPU kernels for ARMv8.2 with int8 dot products,
+# which every arm64 phone core since about 2018 has. The bindings' default, plain
+# ARMv8.0, made 4-bit models about 2.5 times slower. Only the Android arm64 build of
+# llama-cpp-sys-2 reads this (Roadmap ADR-003). Its CMake step does not reconfigure an
+# existing build, so after changing the value run:
+#   cargo clean -p llama-cpp-sys-2 --target aarch64-linux-android
+[env]
+GGML_CPU_ARM_ARCH = "armv8.2-a+dotprod"

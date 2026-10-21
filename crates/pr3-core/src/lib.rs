@@ -19,10 +19,17 @@ extern crate alloc;
 
 mod error;
 mod event;
+mod loop_guard;
 mod runtime;
+mod tools;
+mod trace;
 mod types;
 
 pub use crate::error::CoreError;
 pub use crate::event::{Action, InferenceRequest, Input};
 pub use crate::runtime::{Config, Core};
-pub use crate::types::{Message, RequestId, Role, SessionId, Timestamp};
+pub use crate::trace::{Outcome, StepType, Trace, TraceStep};
+pub use crate::types::{
+    GenerationInfo, Message, ProposedToolCall, RequestId, Role, SessionId, Timestamp, ToolCall,
+    ToolSpec,
+};

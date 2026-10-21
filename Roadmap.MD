@@ -1,14 +1,21 @@
 # PR3 — Portable Private Personal Intelligence
 
 **Technical Architecture, Open-Source Strategy & Benchmarking**  
-**Version:** 1.8 — Rust-first; sans-I/O `no_std` core; protocol-first reach; platform-model backends; trust-boundary schemas, trust tiers and verification lineage from the PR3/Samantha plan; application-neutral research roadmap; voice-first personal model  
-**Date:** 19 October 2026  
+**Version:** 1.9 — Rust-first; sans-I/O `no_std` core; protocol-first reach; platform-model backends; trust-boundary schemas, trust tiers and verification lineage from the PR3/Samantha plan; application-neutral research roadmap; voice-first personal model; a model per device class  
+**Date:** 20 October 2026  
 **Status:** Rust-first architectural direction confirmed (ADR-001); trust architecture adopted with seL4 as a preserved tier (ADR-002); pending proof-of-concept and engineering validation  
 **Working name:** PR3
 
 ---
 
 ## 0. Change log
+
+### v1.9 (20 October 2026) — a model per device class
+
+1. **Default models move to the Qwen3.5 generation** (§4.3): Qwen3.8-27B on desktops and the node; Qwen3.5-4B on phones with 8 GB or more and Qwen3.5-2B below that. Qwen3.8 has no small sizes, so phones stay on Qwen3.5. Both generations share one chat template and tool-call format. Qwen3-0.6B remains as a tiny test and fallback model.
+2. **`config/pr3.toml` chooses the model per device class** and pins every model to a repository revision and SHA-256; `scripts/fetch-model.sh` downloads and verifies them. A copy in the app's data folder overrides the built-in file.
+3. **Android builds llama.cpp's CPU kernels for ARMv8.2 with dot products** (ADR-003), which makes 4-bit models about 2.5 times faster than the bindings' ARMv8.0 default.
+4. **`pr3-llamacpp` reads the prompt format from the model's own chat template** (ADR-003): Hermes-style JSON tool calls for Qwen3, XML calls for Qwen3.5 and later, with the prompt rendered exactly as each template renders it. `ChatMessage` now carries an assistant turn's tool calls, so the engine replays them in the model's format.
 
 ### v1.8 (20 October 2026) — first model on device
 
@@ -263,6 +270,7 @@ Workspace (logical organization; consolidate crates if they do not justify the m
 pr3/
 ├── Cargo.toml                 # workspace, features, pinned toolchain
 ├── rust-toolchain.toml
+├── config/pr3.toml            # model per device class, each pinned by revision and SHA-256
 ├── crates/
 │   ├── pr3-core/              # sans-I/O step() state machine, pure types; trusted-side modules: intent, policy, capability, audit, identity
 │   ├── pr3-agent/             # structured tool calling, deterministic lifecycle
@@ -392,7 +400,7 @@ Three backend classes behind one trait. Routing is by **capability** (context, t
 - **Desktop:** `llama.cpp` as the portable default; optional MLX (Apple), ONNX Runtime or ExecuTorch where supported and advantageous.
 - **Research / export:** PyTorch and tools such as the ExecuTorch exporter remain possible *outside* production runtime.
 - **No model assumption:** models, chat templates, tokenizer and tool-calling formats are versioned per model. Never assume all GGUFs implement reliable structured tool calls. Platform models declare capabilities through the same `ModelCapabilities` struct.
-- **Default model family: Qwen3**, pinned at M0 (re-check then for a newer generation). Phone: 1.7B (mid-range) or 4B (flagship), 4-bit quantized, with 0.6B as a routing and classification helper. Node: 30B-A3B mixture-of-experts (about 3B active parameters, fast enough for spoken replies) or 14B/32B dense. One family on phone and node keeps the chat template and tool-call format identical; non-thinking mode serves fast replies, thinking mode harder node tasks. The M2 benchmark still decides per platform between Qwen and the platform model.
+- **Default models: the Qwen3.5 generation, chosen per device class** in `config/pr3.toml` and pinned by revision and SHA-256 (v1.9). Desktop and node: Qwen3.8-27B dense, 4-bit (about 19 GB, so 32 GB of memory or more), with the 8-bit file as the near-lossless option on larger machines and Qwen3.6-35B-A3B (mixture-of-experts, about 3B active parameters) as the faster option if spoken replies need it. Phone: Qwen3.5-4B, 4-bit (2.7 GB), on devices with 8 GB or more; Qwen3.5-2B (1.3 GB) below that. The 4B model is measured on an 8 GB iPhone before it becomes the default there, with iOS's increased-memory-limit entitlement as the fallback. Phone and desktop run different sizes but one chat template and tool-call format, so prompts and parsing stay identical; Qwen3-0.6B stays as a test and fallback model. Non-thinking mode serves fast replies, thinking mode harder node tasks. The M2 benchmark still decides per platform between Qwen and the platform model.
 
 **Disclosure policy — routing by privacy class.** Before any context leaves the deterministic layer for a backend, the router evaluates and records in the trace: which backend is selected; whether it is approved for this data class; whether local inference is required; what redaction applies; the minimum context needed; whether the backend may retain data; and whether user or deployment policy forbids sending it off-device. Platform-model vendors' retention and telemetry behavior are inputs to this table and are measured before a backend is enabled by default. The learning policy may change *which approved* backend is chosen; it may never change the approval itself (§4.5).
 
@@ -1072,7 +1080,9 @@ This arrangement gives PR3 a credible route to cross-platform deployment and ind
 - Rig: https://github.com/0xPlaygrounds/rig
 - Swiftide: https://github.com/bosun-ai/swiftide
 - Burn (optional ML): https://github.com/tracel-ai/burn
-- Qwen GGUF: https://huggingface.co/Qwen
+- Qwen models: https://huggingface.co/Qwen
+- Qwen3.8-27B GGUF (llama.cpp project): https://huggingface.co/ggml-org/Qwen3.8-27B-GGUF
+- Qwen3.5 small GGUFs (Unsloth): https://huggingface.co/unsloth/Qwen3.5-4B-GGUF, https://huggingface.co/unsloth/Qwen3.5-2B-GGUF
 - PyTorch/PEFT (optional offline training): https://pytorch.org/
 - ExecuTorch: https://github.com/pytorch/executorch
 - SQLite: https://sqlite.org/
@@ -1186,7 +1196,7 @@ Any one of: a studio with SDK access asks and co-funds the port; a next-generati
 
 ### ADR-003 — `pr3-llamacpp` wraps `llama-cpp-2` for the spike
 
-**Status:** Accepted, 20 October 2026. **Decision:** implement `pr3-llamacpp` on the maintained `llama-cpp-2` Rust bindings, pinned exactly (`=0.1.160`), behind PR3's own small API — `Engine::load`, `Engine::chat` and PR3's `ChatMessage` type — instead of the vendored llama.cpp plus hand-written frozen C shim planned in §4.3.
+**Status:** Accepted, 20 October 2026. **Decision:** implement `pr3-llamacpp` on the maintained `llama-cpp-2` Rust bindings, pinned exactly (`=0.1.160`), behind PR3's own small API — `Engine::load`, `Engine::chat`, `Engine::chat_with_tools` and PR3's `ChatMessage` and tool types — instead of the vendored llama.cpp plus hand-written frozen C shim planned in §4.3.
 
 **Context.** §4.3 plans a frozen C shim so llama.cpp's API churn never reaches PR3. The spike needs Qwen3 running on macOS, the iOS simulator and the Android emulator within days, and `llama-cpp-2` already builds llama.cpp from source with Metal on Apple targets and the NDK toolchain on Android.
 
@@ -1194,7 +1204,9 @@ Any one of: a studio with SDK access asks and co-funds the port; a next-generati
 
 **Costs accepted.** The llama.cpp version follows the binding's releases. Clean builds compile llama.cpp from source (about a minute on Apple silicon), and dev builds optimise `llama-cpp-sys-2` because unoptimised llama.cpp is unusable. The prebuilt libraries and checksummed fetch step of §4.3 item 3 are deferred.
 
-**Platform notes from the spike.** iOS links `Accelerate.framework` (llama.cpp's CPU kernels use vDSP), declared in the generated Xcode project. The iOS simulator's Metal gives wrong results for llama.cpp's kernels, so the simulator runs fully on the CPU (no layers, KV cache or operations offloaded); Macs and iPhones use Metal. Android links libc++ statically, so the APK needs no extra shared library, and runs on the CPU until a Vulkan build is measured. Models load on a background thread so the window appears at once on every platform.
+**Platform notes from the spike.** iOS links `Accelerate.framework` (llama.cpp's CPU kernels use vDSP), declared in the generated Xcode project. The iOS simulator's Metal gives wrong results for llama.cpp's kernels, so the simulator runs fully on the CPU (no layers, KV cache or operations offloaded); Macs and iPhones use Metal. Android links libc++ statically, so the APK needs no extra shared library, and runs on the CPU until a Vulkan build is measured. Its CPU kernels are built for ARMv8.2 with int8 dot products (`.cargo/config.toml`, v1.9): the bindings' ARMv8.0 default made 4-bit models about 2.5 times slower on the emulator. Every arm64 phone core since about 2018 has dot products; older devices are unsupported until llama.cpp's runtime CPU-variant dispatch is adopted. Models load on a background thread so the window appears at once on every platform.
+
+**Prompt formats (v1.9).** The crate renders prompts itself rather than through llama.cpp's built-in template engine, which cannot render tools. It recognises the model family from the chat template inside the GGUF — Qwen3's JSON tool calls or Qwen3.5's XML calls, and whether earlier turns keep their reasoning blocks (Qwen3.8) — and refuses other families, so a new model generation is a deliberate change with its own tests. Unit tests pin the rendered prompt to each official template, and XML arguments are typed by the tool's schema the way vLLM's `qwen3_coder` parser types them.
 
 **Revisit triggers.** The binding lags a llama.cpp feature PR3 needs; it cannot be made to build for a supported target; clean-build times hurt CI; or a security review prefers the narrower unsafe surface of PR3's own shim.
 

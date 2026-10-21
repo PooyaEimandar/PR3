@@ -1,11 +1,24 @@
+//! The agent loop. A turn runs: the model proposes → the core validates any tool calls
+//! → the host runs the valid ones → the model sees the results → … until the model
+//! answers without tools, or a limit stops the turn. Bounded like OpenJarvis's
+//! `NativeReActAgent` (max rounds plus `LoopGuard`), but with structured tool calls
+//! instead of parsed `Action:` text.
+
 use alloc::collections::{BTreeMap, VecDeque};
+use alloc::format;
 use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
 
 use crate::error::CoreError;
 use crate::event::{Action, InferenceRequest, Input};
-use crate::types::{Message, RequestId, Role, SessionId, Timestamp};
+use crate::loop_guard::LoopGuard;
+use crate::tools::ToolRegistry;
+use crate::trace::{Outcome, TraceBuilder};
+use crate::types::{
+    GenerationInfo, Message, ProposedToolCall, RequestId, Role, SessionId, Timestamp, ToolCall,
+    ToolSpec,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Config {
@@ -13,6 +26,13 @@ pub struct Config {
     pub max_input_bytes: usize,
     /// Messages kept per session; the oldest fall off first.
     pub max_history: usize,
+    /// Model rounds that may call tools in one turn before the core stops the turn.
+    pub max_tool_rounds: u32,
+    /// Calls accepted from one model message; extra calls are refused.
+    pub max_tool_calls_per_round: usize,
+    pub max_tool_args_bytes: usize,
+    /// Tool output beyond this is cut before the model sees it.
+    pub max_tool_output_bytes: usize,
 }
 
 impl Default for Config {
@@ -20,6 +40,10 @@ impl Default for Config {
         Self {
             max_input_bytes: 16 * 1024,
             max_history: 32,
+            max_tool_rounds: 4,
+            max_tool_calls_per_round: 4,
+            max_tool_args_bytes: 4 * 1024,
+            max_tool_output_bytes: 8 * 1024,
         }
     }
 }
@@ -29,24 +53,58 @@ struct Session {
     history: VecDeque<Message>,
 }
 
+#[derive(Debug)]
+enum Awaiting {
+    Model {
+        request: RequestId,
+        since: Timestamp,
+    },
+    Tools {
+        pending: BTreeMap<String, (ToolCall, Timestamp)>,
+    },
+}
+
+#[derive(Debug)]
+struct Turn {
+    trace: TraceBuilder,
+    rounds: u32,
+    guard: LoopGuard,
+    awaiting: Awaiting,
+}
+
 /// The PR3 runtime state. Deterministic: the same inputs always give the same actions.
 #[derive(Debug)]
 pub struct Core {
     config: Config,
+    tools: ToolRegistry,
     // BTreeMap, not HashMap: no hidden entropy dependency, HashDoS-immune (Roadmap §4.2).
     sessions: BTreeMap<SessionId, Session>,
-    pending: BTreeMap<RequestId, SessionId>,
+    turns: BTreeMap<SessionId, Turn>,
+    requests: BTreeMap<RequestId, SessionId>,
+    calls: BTreeMap<String, SessionId>,
     next_request: u64,
+    next_call: u64,
+    next_turn: u64,
 }
 
 impl Core {
     pub fn new(config: Config) -> Self {
         Self {
             config,
+            tools: ToolRegistry::default(),
             sessions: BTreeMap::new(),
-            pending: BTreeMap::new(),
+            turns: BTreeMap::new(),
+            requests: BTreeMap::new(),
+            calls: BTreeMap::new(),
             next_request: 1,
+            next_call: 1,
+            next_turn: 1,
         }
+    }
+
+    /// Offers a tool to the model. Its parameter schema is checked now, not per call.
+    pub fn register_tool(&mut self, spec: ToolSpec) -> Result<(), CoreError> {
+        self.tools.register(spec)
     }
 
     /// Advance the state machine by one input.
@@ -60,18 +118,21 @@ impl Core {
             Input::ModelOutput {
                 request,
                 content,
+                tool_calls,
+                info,
                 at,
-            } => {
-                let session = self.take_pending(request)?;
-                self.push_message(session, Role::Assistant, content.clone(), at)?;
-                Ok(vec![Action::Reply { session, content }])
-            }
+            } => self.on_model_output(request, content, tool_calls, &info, at),
             Input::ModelFailed {
-                request, reason, ..
-            } => {
-                let session = self.take_pending(request)?;
-                Ok(vec![Action::Failed { session, reason }])
-            }
+                request,
+                reason,
+                at,
+            } => self.on_model_failed(request, reason, at),
+            Input::ToolOutcome {
+                call_id,
+                success,
+                output,
+                at,
+            } => self.on_tool_outcome(call_id, success, output, at),
         }
     }
 
@@ -99,37 +160,265 @@ impl Core {
             return Err(CoreError::EmptyInput);
         }
         // One turn in flight per session, so replies can never interleave once
-        // inference runs asynchronously on the host.
-        if self.pending.values().any(|s| *s == session) {
+        // inference and tools run asynchronously on the host.
+        if self.turns.contains_key(&session) {
             return Err(CoreError::TurnInProgress(session));
         }
-        self.push_message(session, Role::User, content, at)?;
+        self.push_message(session, Message::new(Role::User, content.clone(), at))?;
 
-        let id = RequestId(self.next_request);
-        self.next_request = self.next_request.saturating_add(1);
-        self.pending.insert(id, session);
-
-        let messages = self.history(session).cloned().collect();
-        Ok(vec![Action::Infer(InferenceRequest {
-            id,
+        let turn_no = self.next_turn;
+        self.next_turn = self.next_turn.saturating_add(1);
+        let trace_id = format!("pr3-{}-{turn_no}", session.0);
+        self.turns.insert(
             session,
-            messages,
-        })])
+            Turn {
+                trace: TraceBuilder::new(trace_id, content, at),
+                rounds: 0,
+                guard: LoopGuard::default(),
+                awaiting: Awaiting::Tools {
+                    pending: BTreeMap::new(),
+                },
+            },
+        );
+        Ok(vec![self.infer(session, at)?])
     }
 
-    fn take_pending(&mut self, request: RequestId) -> Result<SessionId, CoreError> {
-        self.pending
-            .remove(&request)
-            .ok_or(CoreError::UnknownRequest(request))
+    fn on_model_output(
+        &mut self,
+        request: RequestId,
+        content: String,
+        tool_calls: Vec<ProposedToolCall>,
+        info: &GenerationInfo,
+        at: Timestamp,
+    ) -> Result<Vec<Action>, CoreError> {
+        let (session, since) = self.take_request(request)?;
+        self.turn_mut(session)?
+            .trace
+            .generate(since, at, info, &content, &tool_calls);
+
+        if tool_calls.is_empty() {
+            self.push_message(session, Message::new(Role::Assistant, content.clone(), at))?;
+            return Ok(self.finish(session, Outcome::Success, content, at));
+        }
+        self.on_tool_calls(session, content, &tool_calls, at)
     }
 
-    fn push_message(
+    fn on_model_failed(
+        &mut self,
+        request: RequestId,
+        reason: String,
+        at: Timestamp,
+    ) -> Result<Vec<Action>, CoreError> {
+        let (session, since) = self.take_request(request)?;
+        self.turn_mut(session)?
+            .trace
+            .generate_failed(since, at, &reason);
+        Ok(self.finish(session, Outcome::Failure, reason, at))
+    }
+
+    fn on_tool_calls(
         &mut self,
         session: SessionId,
-        role: Role,
+        content: String,
+        proposed: &[ProposedToolCall],
+        at: Timestamp,
+    ) -> Result<Vec<Action>, CoreError> {
+        let max_rounds = self.config.max_tool_rounds;
+        let turn = self.turn_mut(session)?;
+        turn.rounds += 1;
+        if turn.rounds > max_rounds {
+            let reason = format!("stopped: more than {max_rounds} rounds of tool calls");
+            return Ok(self.finish(session, Outcome::Failure, reason, at));
+        }
+
+        // Validate every proposal before issuing any, so a stopped turn never leaves
+        // half its calls running.
+        let max_calls = self.config.max_tool_calls_per_round;
+        let mut shown = Vec::new();
+        let mut valid = Vec::new();
+        let mut refused = Vec::new();
+        for (i, p) in proposed.iter().enumerate() {
+            let id = format!("call-{}", self.next_call);
+            self.next_call = self.next_call.saturating_add(1);
+            let verdict = if i < max_calls {
+                self.tools
+                    .validate(p, id.clone(), self.config.max_tool_args_bytes)
+            } else {
+                Err(format!("at most {max_calls} tool calls per message"))
+            };
+            match verdict {
+                Ok(call) => {
+                    shown.push(call.clone());
+                    valid.push(call);
+                }
+                Err(reason) => {
+                    let call = ToolCall {
+                        id,
+                        name: p.name.clone(),
+                        arguments: p.arguments.clone(),
+                    };
+                    shown.push(call.clone());
+                    refused.push((call, reason));
+                }
+            }
+        }
+
+        let turn = self.turn_mut(session)?;
+        if let Some(reason) = valid.iter().find_map(|c| turn.guard.check(c)) {
+            return Ok(self.finish(session, Outcome::Failure, format!("stopped: {reason}"), at));
+        }
+
+        let mut assistant = Message::new(Role::Assistant, content, at);
+        assistant.tool_calls = shown;
+        self.push_message(session, assistant)?;
+        for (call, reason) in &refused {
+            let error = format!("error: {reason}");
+            self.push_tool_result(session, call, error.clone(), at)?;
+            self.turn_mut(session)?.trace.tool_call(
+                at,
+                at,
+                &call.name,
+                &call.arguments,
+                false,
+                &error,
+            );
+        }
+
+        if valid.is_empty() {
+            // Nothing runnable: the model sees why and may try again (this round
+            // still counts toward `max_tool_rounds`).
+            return Ok(vec![self.infer(session, at)?]);
+        }
+        let mut pending = BTreeMap::new();
+        let mut actions = Vec::with_capacity(valid.len());
+        for call in valid {
+            self.calls.insert(call.id.clone(), session);
+            pending.insert(call.id.clone(), (call.clone(), at));
+            actions.push(Action::CallTool(call));
+        }
+        self.turn_mut(session)?.awaiting = Awaiting::Tools { pending };
+        Ok(actions)
+    }
+
+    fn on_tool_outcome(
+        &mut self,
+        call_id: String,
+        success: bool,
+        output: String,
+        at: Timestamp,
+    ) -> Result<Vec<Action>, CoreError> {
+        let session = self
+            .calls
+            .remove(&call_id)
+            .ok_or_else(|| CoreError::UnknownToolCall(call_id.clone()))?;
+        let turn = self.turn_mut(session)?;
+        let Awaiting::Tools { pending } = &mut turn.awaiting else {
+            return Err(CoreError::UnknownToolCall(call_id));
+        };
+        let (call, since) = pending
+            .remove(&call_id)
+            .ok_or_else(|| CoreError::UnknownToolCall(call_id.clone()))?;
+        let all_done = pending.is_empty();
+
+        let output = truncate(output, self.config.max_tool_output_bytes);
+        let content = if success {
+            output
+        } else {
+            format!("error: {output}")
+        };
+        self.push_tool_result(session, &call, content.clone(), at)?;
+        self.turn_mut(session)?.trace.tool_call(
+            since,
+            at,
+            &call.name,
+            &call.arguments,
+            success,
+            &content,
+        );
+
+        if all_done {
+            Ok(vec![self.infer(session, at)?])
+        } else {
+            Ok(Vec::new())
+        }
+    }
+
+    /// Asks the host for the next model step of this session's turn.
+    fn infer(&mut self, session: SessionId, at: Timestamp) -> Result<Action, CoreError> {
+        let id = RequestId(self.next_request);
+        self.next_request = self.next_request.saturating_add(1);
+        self.requests.insert(id, session);
+        self.turn_mut(session)?.awaiting = Awaiting::Model {
+            request: id,
+            since: at,
+        };
+        Ok(Action::Infer(InferenceRequest {
+            id,
+            session,
+            messages: self.history(session).cloned().collect(),
+            tools: self.tools.specs().cloned().collect(),
+        }))
+    }
+
+    /// Ends the turn: a reply or a failure, followed by its trace.
+    fn finish(
+        &mut self,
+        session: SessionId,
+        outcome: Outcome,
+        result: String,
+        at: Timestamp,
+    ) -> Vec<Action> {
+        self.calls.retain(|_, s| *s != session);
+        self.requests.retain(|_, s| *s != session);
+        let Some(turn) = self.turns.remove(&session) else {
+            return Vec::new();
+        };
+        let trace = turn
+            .trace
+            .finish(outcome, result.clone(), turn.rounds + 1, at);
+        let first = match outcome {
+            Outcome::Success => Action::Reply {
+                session,
+                content: result,
+            },
+            Outcome::Failure => Action::Failed {
+                session,
+                reason: result,
+            },
+        };
+        vec![first, Action::Trace(trace)]
+    }
+
+    fn take_request(&mut self, request: RequestId) -> Result<(SessionId, Timestamp), CoreError> {
+        let session = self
+            .requests
+            .remove(&request)
+            .ok_or(CoreError::UnknownRequest(request))?;
+        match self.turn_mut(session)?.awaiting {
+            Awaiting::Model { request: r, since } if r == request => Ok((session, since)),
+            _ => Err(CoreError::UnknownRequest(request)),
+        }
+    }
+
+    fn turn_mut(&mut self, session: SessionId) -> Result<&mut Turn, CoreError> {
+        self.turns
+            .get_mut(&session)
+            .ok_or(CoreError::NoTurn(session))
+    }
+
+    fn push_tool_result(
+        &mut self,
+        session: SessionId,
+        call: &ToolCall,
         content: String,
         at: Timestamp,
     ) -> Result<(), CoreError> {
+        let mut message = Message::new(Role::Tool, content, at);
+        message.tool_call_id = Some(call.id.clone());
+        self.push_message(session, message)
+    }
+
+    fn push_message(&mut self, session: SessionId, message: Message) -> Result<(), CoreError> {
         let max = self.config.max_history.max(1);
         let history = &mut self.sessions.entry(session).or_default().history;
         while history.len() >= max {
@@ -137,15 +426,30 @@ impl Core {
         }
         // Fallible allocation at an untrusted boundary (Roadmap §4.2).
         history.try_reserve(1).map_err(|_| CoreError::OutOfMemory)?;
-        history.push_back(Message { role, content, at });
+        history.push_back(message);
         Ok(())
     }
 }
 
+/// Cuts text to at most `max` bytes on a character boundary, marking the cut.
+fn truncate(mut text: String, max: usize) -> String {
+    if text.len() <= max {
+        return text;
+    }
+    let mut cut = max;
+    while cut > 0 && !text.is_char_boundary(cut) {
+        cut -= 1;
+    }
+    text.truncate(cut);
+    text.push_str(" …[truncated]");
+    text
+}
+
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing, clippy::panic)]
 mod tests {
     use super::*;
+    use crate::trace::StepType;
     use alloc::string::ToString;
 
     const S: SessionId = SessionId(1);
@@ -158,67 +462,196 @@ mod tests {
         }
     }
 
-    fn infer_id(actions: &[Action]) -> RequestId {
-        match actions {
-            [Action::Infer(req)] => req.id,
-            other => unreachable!("expected one Infer action, got {other:?}"),
+    fn answer(request: RequestId, text: &str, calls: &[(&str, &str)], at: u64) -> Input {
+        Input::ModelOutput {
+            request,
+            content: text.to_string(),
+            tool_calls: calls
+                .iter()
+                .map(|(name, args)| ProposedToolCall {
+                    name: name.to_string(),
+                    arguments: args.to_string(),
+                })
+                .collect(),
+            info: GenerationInfo {
+                model: "test-model".to_string(),
+                engine: "test".to_string(),
+                prompt_tokens: 10,
+                completion_tokens: 5,
+            },
+            at: Timestamp(at),
         }
     }
 
-    #[test]
-    fn user_message_asks_host_to_infer_then_replies() {
-        let mut core = Core::new(Config::default());
-        let actions = core.step(user("hello")).unwrap();
-        let id = infer_id(&actions);
+    fn tool_done(call_id: &str, output: &str) -> Input {
+        Input::ToolOutcome {
+            call_id: call_id.to_string(),
+            success: true,
+            output: output.to_string(),
+            at: Timestamp(30),
+        }
+    }
 
-        let actions = core
-            .step(Input::ModelOutput {
-                request: id,
-                content: "hi".to_string(),
-                at: Timestamp(11),
-            })
-            .unwrap();
-        assert_eq!(
-            actions,
-            vec![Action::Reply {
-                session: S,
-                content: "hi".to_string()
-            }]
-        );
+    fn infer_id(actions: &[Action]) -> RequestId {
+        match actions {
+            [Action::Infer(req)] => req.id,
+            other => panic!("expected one Infer action, got {other:?}"),
+        }
+    }
+
+    fn with_calculator() -> Core {
+        let mut core = Core::new(Config::default());
+        core.register_tool(ToolSpec {
+            name: "calculate".to_string(),
+            description: "Evaluate arithmetic".to_string(),
+            parameters: r#"{"type":"object","properties":{"expression":{"type":"string"}},"required":["expression"]}"#.to_string(),
+            requires_confirmation: false,
+            required_capabilities: Vec::new(),
+        })
+        .unwrap();
+        core
+    }
+
+    #[test]
+    fn plain_turn_replies_and_traces() {
+        let mut core = Core::new(Config::default());
+        let id = infer_id(&core.step(user("hello")).unwrap());
+        let actions = core.step(answer(id, "hi", &[], 20)).unwrap();
+
+        let [Action::Reply { content, .. }, Action::Trace(trace)] = actions.as_slice() else {
+            panic!("expected reply and trace, got {actions:?}");
+        };
+        assert_eq!(content, "hi");
+        assert_eq!(trace.outcome, Outcome::Success);
+        assert_eq!(trace.query, "hello");
+        assert_eq!(trace.total_tokens, 15);
+        let steps: Vec<StepType> = trace.steps.iter().map(|s| s.step_type).collect();
+        assert_eq!(steps, vec![StepType::Generate, StepType::Respond]);
+        assert_eq!(trace.steps[0].duration_ms, 10);
         let roles: Vec<Role> = core.history(S).map(|m| m.role).collect();
         assert_eq!(roles, vec![Role::User, Role::Assistant]);
     }
 
     #[test]
-    fn answering_unknown_or_repeated_request_is_rejected() {
-        let mut core = Core::new(Config::default());
-        let id = infer_id(&core.step(user("hello")).unwrap());
-        let answer = Input::ModelOutput {
-            request: id,
-            content: "hi".to_string(),
-            at: Timestamp(11),
+    fn tool_turn_runs_the_call_then_answers() {
+        let mut core = with_calculator();
+        let actions = core.step(user("what is 2+2?")).unwrap();
+        let [Action::Infer(req)] = actions.as_slice() else {
+            panic!("{actions:?}")
         };
-        assert!(core.step(answer.clone()).is_ok());
-        assert_eq!(core.step(answer), Err(CoreError::UnknownRequest(id)));
+        assert_eq!(req.tools.len(), 1, "tools are offered to the model");
+
+        let actions = core
+            .step(answer(
+                req.id,
+                "",
+                &[("calculate", r#"{"expression": "2+2"}"#)],
+                20,
+            ))
+            .unwrap();
+        let [Action::CallTool(call)] = actions.as_slice() else {
+            panic!("{actions:?}")
+        };
+        assert_eq!(call.arguments, r#"{"expression":"2+2"}"#);
+
+        let id = infer_id(&core.step(tool_done(&call.id, "4")).unwrap());
+        let tool_msg = core.history(S).last().unwrap();
+        assert_eq!(tool_msg.role, Role::Tool);
+        assert_eq!(tool_msg.tool_call_id.as_deref(), Some(call.id.as_str()));
+
+        let actions = core.step(answer(id, "2+2 is 4.", &[], 40)).unwrap();
+        let [Action::Reply { content, .. }, Action::Trace(trace)] = actions.as_slice() else {
+            panic!("{actions:?}")
+        };
+        assert_eq!(content, "2+2 is 4.");
+        let steps: Vec<StepType> = trace.steps.iter().map(|s| s.step_type).collect();
+        assert_eq!(
+            steps,
+            vec![
+                StepType::Generate,
+                StepType::ToolCall,
+                StepType::Generate,
+                StepType::Respond
+            ]
+        );
+        assert_eq!(trace.steps[1].output["result"], "4");
     }
 
     #[test]
-    fn oversized_and_empty_input_are_rejected() {
+    fn refused_calls_are_explained_to_the_model() {
+        let mut core = with_calculator();
+        let id = infer_id(&core.step(user("delete everything")).unwrap());
+        let actions = core
+            .step(answer(id, "", &[("rm_rf", r#"{"path":"/"}"#)], 20))
+            .unwrap();
+        // Nothing runs; the model is asked again with the refusal in its history.
+        let [Action::Infer(req)] = actions.as_slice() else {
+            panic!("{actions:?}")
+        };
+        let last = req.messages.last().unwrap();
+        assert_eq!(last.role, Role::Tool);
+        assert_eq!(last.content, "error: unknown tool 'rm_rf'");
+    }
+
+    #[test]
+    fn repeated_identical_call_stops_the_turn() {
+        let mut core = with_calculator();
+        let call = ("calculate", r#"{"expression":"1"}"#);
+        let id = infer_id(&core.step(user("loop")).unwrap());
+        let actions = core.step(answer(id, "", &[call], 20)).unwrap();
+        let [Action::CallTool(c)] = actions.as_slice() else {
+            panic!("{actions:?}")
+        };
+        let id = infer_id(&core.step(tool_done(&c.id, "1")).unwrap());
+        let actions = core.step(answer(id, "", &[call], 40)).unwrap();
+        let [Action::Failed { reason, .. }, Action::Trace(trace)] = actions.as_slice() else {
+            panic!("{actions:?}")
+        };
+        assert!(reason.contains("identical call"), "{reason}");
+        assert_eq!(trace.outcome, Outcome::Failure);
+        // The turn is over: the session accepts a new message.
+        assert!(core.step(user("next")).is_ok());
+    }
+
+    #[test]
+    fn tool_rounds_are_bounded() {
         let mut core = Core::new(Config {
-            max_input_bytes: 4,
-            max_history: 8,
+            max_tool_rounds: 2,
+            ..Config::default()
         });
-        assert_eq!(
-            core.step(user("too long")),
-            Err(CoreError::InputTooLarge { len: 8, max: 4 })
-        );
-        assert_eq!(core.step(user("  ")), Err(CoreError::EmptyInput));
+        let mut id = infer_id(&core.step(user("go")).unwrap());
+        for round in 0..2 {
+            // Unknown tools are refused and the model is asked again.
+            id = infer_id(
+                &core
+                    .step(answer(id, "", &[("nope", "{}")], 20 + round))
+                    .unwrap(),
+            );
+        }
+        let actions = core.step(answer(id, "", &[("nope", "{}")], 30)).unwrap();
+        assert!(matches!(
+            actions.as_slice(),
+            [Action::Failed { reason, .. }, Action::Trace(_)] if reason.contains("rounds")
+        ));
     }
 
     #[test]
     fn one_turn_at_a_time_per_session() {
-        let mut core = Core::new(Config::default());
+        let mut core = with_calculator();
         let id = infer_id(&core.step(user("first")).unwrap());
+        assert_eq!(core.step(user("second")), Err(CoreError::TurnInProgress(S)));
+        // Still busy while a tool runs.
+        let actions = core
+            .step(answer(
+                id,
+                "",
+                &[("calculate", r#"{"expression":"1"}"#)],
+                20,
+            ))
+            .unwrap();
+        let [Action::CallTool(call)] = actions.as_slice() else {
+            panic!("{actions:?}")
+        };
         assert_eq!(core.step(user("second")), Err(CoreError::TurnInProgress(S)));
         // Another session is unaffected.
         let other = Input::Utterance {
@@ -227,38 +660,28 @@ mod tests {
             at: Timestamp(10),
         };
         assert!(core.step(other).is_ok());
-        // Once answered, the session accepts the next message.
-        core.step(Input::ModelOutput {
-            request: id,
-            content: "ok".to_string(),
-            at: Timestamp(11),
-        })
-        .unwrap();
+        let id = infer_id(&core.step(tool_done(&call.id, "1")).unwrap());
+        core.step(answer(id, "done", &[], 40)).unwrap();
         assert!(core.step(user("second")).is_ok());
     }
 
     #[test]
-    fn history_is_bounded() {
-        let mut core = Core::new(Config {
-            max_input_bytes: 64,
-            max_history: 3,
-        });
-        for i in 0..5 {
-            let id = infer_id(&core.step(user(&i.to_string())).unwrap());
-            core.step(Input::ModelOutput {
-                request: id,
-                content: i.to_string(),
-                at: Timestamp(11),
-            })
-            .unwrap();
-        }
-        // Only the three newest remain: assistant "3", user "4", assistant "4".
-        let texts: Vec<&str> = core.history(S).map(|m| m.content.as_str()).collect();
-        assert_eq!(texts, vec!["3", "4", "4"]);
+    fn unknown_or_repeated_answers_are_rejected() {
+        let mut core = with_calculator();
+        let id = infer_id(&core.step(user("hello")).unwrap());
+        assert!(core.step(answer(id, "hi", &[], 20)).is_ok());
+        assert_eq!(
+            core.step(answer(id, "hi", &[], 20)),
+            Err(CoreError::UnknownRequest(id))
+        );
+        assert_eq!(
+            core.step(tool_done("call-99", "x")),
+            Err(CoreError::UnknownToolCall("call-99".to_string()))
+        );
     }
 
     #[test]
-    fn failed_inference_reports_failure() {
+    fn model_failure_fails_the_turn_with_a_trace() {
         let mut core = Core::new(Config::default());
         let id = infer_id(&core.step(user("hello")).unwrap());
         let actions = core
@@ -268,12 +691,44 @@ mod tests {
                 at: Timestamp(12),
             })
             .unwrap();
+        assert!(matches!(
+            actions.as_slice(),
+            [Action::Failed { reason, .. }, Action::Trace(t)]
+                if reason == "model unavailable" && t.outcome == Outcome::Failure
+        ));
+    }
+
+    #[test]
+    fn oversized_and_empty_input_are_rejected() {
+        let mut core = Core::new(Config {
+            max_input_bytes: 4,
+            ..Config::default()
+        });
         assert_eq!(
-            actions,
-            vec![Action::Failed {
-                session: S,
-                reason: "model unavailable".to_string()
-            }]
+            core.step(user("too long")),
+            Err(CoreError::InputTooLarge { len: 8, max: 4 })
         );
+        assert_eq!(core.step(user("  ")), Err(CoreError::EmptyInput));
+    }
+
+    #[test]
+    fn history_is_bounded() {
+        let mut core = Core::new(Config {
+            max_history: 3,
+            ..Config::default()
+        });
+        for i in 0..5 {
+            let id = infer_id(&core.step(user(&i.to_string())).unwrap());
+            core.step(answer(id, &i.to_string(), &[], 11)).unwrap();
+        }
+        // Only the three newest remain: assistant "3", user "4", assistant "4".
+        let texts: Vec<&str> = core.history(S).map(|m| m.content.as_str()).collect();
+        assert_eq!(texts, vec!["3", "4", "4"]);
+    }
+
+    #[test]
+    fn long_tool_output_is_truncated_on_a_char_boundary() {
+        assert_eq!(truncate("héllo".to_string(), 2), "h …[truncated]");
+        assert_eq!(truncate("ok".to_string(), 8), "ok");
     }
 }

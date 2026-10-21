@@ -1,11 +1,13 @@
 //! PR3 reference app. The Rust side owns the runtime; the webview only renders.
 
+mod config;
 mod host;
 mod llama;
+mod trace_export;
 
 use std::sync::Arc;
 
-use host::{Backend, Host, LoadingBackend, MockBackend};
+use host::{Backend, Host, LoadingBackend, MockBackend, TurnEvent};
 use serde::Serialize;
 use tauri::ipc::Channel;
 use tauri::{Emitter, Manager};
@@ -32,25 +34,46 @@ fn platform_info(host: tauri::State<'_, Host>) -> PlatformInfo {
 }
 
 /// Runs one user turn through the core. Async, so Tauri runs it off the main thread;
-/// visible tokens stream through `on_token` while the model runs.
+/// tokens and tool activity stream through `on_event` while the turn runs. The UI
+/// passes the device's UTC offset so tools can tell local time without a tz database.
 #[tauri::command]
 async fn send_message(
     text: String,
-    on_token: Channel<String>,
+    utc_offset_minutes: i32,
+    on_event: Channel<TurnEvent>,
     host: tauri::State<'_, Host>,
 ) -> Result<Vec<pr3_core::Action>, String> {
-    host.send(text, move |piece| {
+    host.send(text, utc_offset_minutes, move |event| {
         // A closed channel only means the window went away; the turn still completes.
-        let _ = on_token.send(piece.to_string());
+        let _ = on_event.send(event);
     })
     .await
     .map_err(|e| e.to_string())
 }
 
-/// Loads the bundled model in the background so the window appears at once; until it
-/// is ready the UI shows "loading…", and if none is found it says where it looked.
+/// Loads this device's model (config/pr3.toml) in the background so the window appears
+/// at once; until it is ready the UI shows "loading…", and if none is found it says
+/// where it looked.
 fn start_model_loading(app: &tauri::AppHandle) {
-    let candidates = llama::model_candidates(app);
+    let data_dir = app.path().app_data_dir().ok();
+    let device = config::Device::current();
+    let chosen = config::Config::load(data_dir.as_deref()).and_then(|config| {
+        config
+            .model_for(device)
+            .map(|(id, entry)| (id.to_string(), entry.file.clone()))
+            .ok_or_else(|| "no model chosen for this device".to_string())
+    });
+    let (id, file) = match chosen {
+        Ok(chosen) => chosen,
+        Err(e) => {
+            eprintln!("PR3: config: {e}");
+            set_backend(app, Arc::new(MockBackend::failed_model(&e)));
+            return;
+        }
+    };
+    eprintln!("PR3: {device:?} runs {id} ({file})");
+
+    let candidates = llama::model_candidates(data_dir.as_deref(), &file);
     let Some(path) = candidates.iter().find(|p| p.is_file()).cloned() else {
         // Phones have no terminal, so the UI says where the model was expected.
         let expected = candidates
@@ -58,21 +81,14 @@ fn start_model_loading(app: &tauri::AppHandle) {
             .find(|p| !p.starts_with(env!("CARGO_MANIFEST_DIR")))
             .and_then(|p| p.parent())
             .map(|dir| dir.display().to_string());
-        eprintln!(
-            "PR3: no {} found; using the mock model (run scripts/fetch-model.sh)",
-            llama::MODEL_FILE
-        );
-        set_backend(
-            app,
-            Arc::new(MockBackend::missing_model(llama::MODEL_FILE, expected)),
-        );
+        eprintln!("PR3: no {file} found; using the mock model (run scripts/fetch-model.sh)");
+        set_backend(app, Arc::new(MockBackend::missing_model(&file, expected)));
         return;
     };
 
-    let model = path.file_stem().map_or_else(
-        || llama::MODEL_FILE.to_string(),
-        |s| s.to_string_lossy().into_owned(),
-    );
+    let model = path
+        .file_stem()
+        .map_or_else(|| file.clone(), |s| s.to_string_lossy().into_owned());
     set_backend(app, Arc::new(LoadingBackend { model }));
 
     let app = app.clone();
@@ -95,18 +111,47 @@ fn set_backend(app: &tauri::AppHandle, backend: Arc<dyn Backend>) {
     let _ = app.emit(MODEL_CHANGED, label);
 }
 
+/// Finished turns are appended as OpenJarvis trace records to `traces.jsonl` in the app's
+/// data folder, where OpenJarvis's analysis and learning tools can read them.
+fn start_tracing(app: &tauri::AppHandle) {
+    let Ok(dir) = app.path().app_data_dir() else {
+        return;
+    };
+    let path = dir.join("traces.jsonl");
+    app.state::<Host>().set_trace_sink(Arc::new(move |trace| {
+        if let Err(e) = trace_export::append(&path, trace) {
+            eprintln!("PR3: could not write trace to {}: {e}", path.display());
+        }
+    }));
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let result = tauri::Builder::default()
+    let app = tauri::Builder::default()
         .setup(|app| {
-            app.manage(Host::new(Arc::new(MockBackend::default())));
+            app.manage(Host::new(
+                Arc::new(MockBackend::default()),
+                pr3_tools::builtin(),
+            )?);
+            start_tracing(app.handle());
             start_model_loading(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![platform_info, send_message])
-        .run(tauri::generate_context!());
-    if let Err(e) = result {
-        eprintln!("PR3 failed to start: {e}");
-        std::process::exit(1);
+        .build(tauri::generate_context!());
+    match app {
+        Ok(app) => app.run(|handle, event| {
+            // Free the model before the process exits: llama.cpp's Metal backend aborts
+            // if its device is torn down while model buffers are still alive.
+            if let tauri::RunEvent::Exit = event
+                && let Some(host) = handle.try_state::<Host>()
+            {
+                host.set_backend(Arc::new(MockBackend::default()));
+            }
+        }),
+        Err(e) => {
+            eprintln!("PR3 failed to start: {e}");
+            std::process::exit(1);
+        }
     }
 }

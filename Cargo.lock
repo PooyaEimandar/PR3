@@ -2349,11 +2349,15 @@ checksum = "4a6394b9e965e73d0a289ee54f589087e2c676aedf60885baf52c76b771e4958"
 name = "pr3-app"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "pr3-core",
  "pr3-llamacpp",
+ "pr3-tools",
  "serde",
+ "serde_json",
  "tauri",
  "tauri-build",
+ "toml 1.1.8+spec-1.1.0",
 ]
 
 [[package]]
@@ -2361,6 +2365,7 @@ name = "pr3-core"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2368,6 +2373,15 @@ name = "pr3-llamacpp"
 version = "0.1.0"
 dependencies = [
  "llama-cpp-2",
+ "serde_json",
+]
+
+[[package]]
+name = "pr3-tools"
+version = "0.1.0"
+dependencies = [
+ "pr3-core",
+ "serde_json",
 ]
 
 [[package]]
