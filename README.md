@@ -34,6 +34,9 @@ crates/pr3-core        sans-I/O core and trusted-side modules (intent, policy, c
 crates/pr3-protocol    versioned wire contract
 crates/pr3-inference   model-neutral inference traits
 crates/pr3-llamacpp    bundled GGUF backend
+crates/pr3-memory      user memory with provenance (no_std types and store interface)
+crates/pr3-memory-sqlite  SQLite/FTS5 memory store
+crates/pr3-tools       built-in tools: calculator, clock, memory
 crates/pr3-speech      on-device speech-to-text and text-to-speech
 crates/pr3-ffi         C ABI and UniFFI bindings
 client-c/              C11 protocol client for non-Rust hosts

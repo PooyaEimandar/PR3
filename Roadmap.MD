@@ -1,7 +1,7 @@
 # PR3 — Portable Private Personal Intelligence
 
 **Technical Architecture, Open-Source Strategy & Benchmarking**  
-**Version:** 1.10 — Rust-first; sans-I/O `no_std` core; protocol-first reach; platform-model backends; trust-boundary schemas, trust tiers and verification lineage from the PR3/Samantha plan; application-neutral research roadmap; voice-first personal model; a model per device class  
+**Version:** 1.11 — Rust-first; sans-I/O `no_std` core; protocol-first reach; platform-model backends; trust-boundary schemas, trust tiers and verification lineage from the PR3/Samantha plan; application-neutral research roadmap; voice-first personal model; a model per device class  
 **Date:** 21 October 2026  
 **Status:** Rust-first architectural direction confirmed (ADR-001); trust architecture adopted with seL4 as a preserved tier (ADR-002); pending proof-of-concept and engineering validation  
 **Working name:** PR3
@@ -9,6 +9,12 @@
 ---
 
 ## 0. Change log
+
+### v1.11 (21 October 2026) — memory with provenance
+
+1. **`pr3-memory` and `pr3-memory-sqlite`** (§4.4, M1-E5): every memory carries the §4.4 provenance — source, principal, created and valid times, confidence, privacy class, consent scope and retention. The model can only propose memories, each traced to the words the user said that turn; the user's own entries and corrections are confirmed and supersede proposals. SQLite (bundled, so iOS and Android run the same engine) with FTS5 search ranked by bm25, versioned migrations, and forgetting that erases a memory's text, its earlier versions and its source words, leaving a tombstone; deleted pages are overwritten.
+2. **Memory reaches the model two ways:** `remember` and `recall` tools, and a lookup the host runs for every message, passed to the core as notes and shown to the model ahead of the user's words (§3, deterministic first). Traces record it as an OpenJarvis `retrieve` step. With the lookup, Qwen3.5-2B recalled a fact from an earlier conversation in 8 of 8 runs, against about half when it had to call `recall` itself.
+3. **Not yet:** forgetting and correcting memories from the app (user actions, built with the trusted side in spike step 5), encryption at rest (M3), and extracting memories the user did not ask PR3 to keep.
 
 ### v1.10 (21 October 2026) — prompt cache reuse
 
