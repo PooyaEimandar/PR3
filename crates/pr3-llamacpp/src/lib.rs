@@ -19,8 +19,9 @@ mod text;
 mod tools;
 
 use std::path::Path;
-use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
+use std::sync::{Arc, OnceLock};
 use std::thread::JoinHandle;
 
 use llama_cpp_2::llama_backend::LlamaBackend;
@@ -133,6 +134,8 @@ pub enum EngineError {
         n_ctx: u32,
     },
     Decode(String),
+    /// The engine was stopped, for example because the app is quitting.
+    Stopped,
 }
 
 impl std::fmt::Display for EngineError {
@@ -149,6 +152,7 @@ impl std::fmt::Display for EngineError {
                 "message too long for the model ({prompt_tokens} tokens; context is {n_ctx})"
             ),
             Self::Decode(e) => write!(f, "model failed while generating: {e}"),
+            Self::Stopped => write!(f, "the model was stopped"),
         }
     }
 }
@@ -161,6 +165,7 @@ pub struct Engine {
     format: PromptFormat,
     requests: Option<mpsc::Sender<Request>>,
     thread: Option<JoinHandle<()>>,
+    stop: Arc<AtomicBool>,
 }
 
 impl Engine {
@@ -176,9 +181,11 @@ impl Engine {
         let (ready, loaded) = mpsc::channel();
         let (requests, inbox) = mpsc::channel();
         let path = path.to_path_buf();
+        let stop = Arc::new(AtomicBool::new(false));
+        let stop_flag = Arc::clone(&stop);
         let thread = std::thread::Builder::new()
             .name("pr3-llamacpp".to_string())
-            .spawn(move || session::run(&path, config, &ready, &inbox))
+            .spawn(move || session::run(&path, config, &ready, &inbox, &stop_flag))
             .map_err(|e| EngineError::Backend(e.to_string()))?;
         match loaded.recv() {
             Ok(Ok(format)) => Ok(Self {
@@ -186,6 +193,7 @@ impl Engine {
                 format,
                 requests: Some(requests),
                 thread: Some(thread),
+                stop,
             }),
             Ok(Err(e)) => {
                 let _ = thread.join();
@@ -206,6 +214,13 @@ impl Engine {
     /// The prompt format read from the model's chat template.
     pub fn format(&self) -> PromptFormat {
         self.format
+    }
+
+    /// Ends the answer in progress at its next token, and makes every later call
+    /// return [`EngineError::Stopped`]: for shutting down without waiting out a long
+    /// generation.
+    pub fn stop(&self) {
+        self.stop.store(true, Ordering::Relaxed);
     }
 
     /// Answers the conversation. `on_text` receives visible text as it is generated;
@@ -254,6 +269,7 @@ impl Drop for Engine {
     /// before this returns: llama.cpp's Metal backend aborts at process exit if model
     /// buffers are still alive.
     fn drop(&mut self) {
+        self.stop();
         drop(self.requests.take());
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();

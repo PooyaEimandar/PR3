@@ -82,8 +82,14 @@ fn conversation_stays_correct_while_reusing_the_cache() {
         });
         messages.push(ChatMessage::new(ChatRole::Tool, "7006652"));
 
-        // Turn 1, call 2: the answer, after the tool result.
+        // Turn 1, call 2: the answer, after the tool result. Everything up to the tool
+        // result was processed by call 1.
         let out = call(&engine, &messages, "answer");
+        assert!(
+            out.reused_tokens > out.prompt_tokens / 2,
+            "{}: {out:?}",
+            engine.label()
+        );
         assert!(
             out.text.replace(',', "").contains("7006652"),
             "{}: {out:?}",
@@ -94,6 +100,11 @@ fn conversation_stays_correct_while_reusing_the_cache() {
         // Turn 2: needs the start of the conversation.
         messages.push(ChatMessage::new(ChatRole::User, "What is my name?"));
         let out = call(&engine, &messages, "next turn");
+        assert!(
+            out.reused_tokens > out.prompt_tokens / 2,
+            "{}: {out:?}",
+            engine.label()
+        );
         assert!(out.text.contains("Ada"), "{}: {out:?}", engine.label());
         assert!(out.tool_calls.is_empty(), "{}: {out:?}", engine.label());
     }

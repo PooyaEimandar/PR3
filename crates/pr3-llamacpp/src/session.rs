@@ -6,6 +6,7 @@
 
 use std::num::NonZeroU32;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
 
 use llama_cpp_2::context::LlamaContext;
@@ -38,12 +39,14 @@ pub(crate) enum Event {
 }
 
 /// The thread's body: loads the model, reports the prompt format (or the error) on
-/// `ready`, then answers requests until the engine closes the queue.
+/// `ready`, then answers requests until the engine closes the queue. Once `stop` is set
+/// every answer ends at the next token.
 pub(crate) fn run(
     path: &Path,
     config: EngineConfig,
     ready: &Sender<Result<PromptFormat, EngineError>>,
     requests: &Receiver<Request>,
+    stop: &AtomicBool,
 ) {
     let model = match load(path, &config) {
         Ok(model) => model,
@@ -64,10 +67,10 @@ pub(crate) fn run(
     }
     for request in requests {
         let events = request.events;
-        let result = session.answer(&request.messages, &request.tools, &mut |text| {
-            let _ = events.send(Event::Text(text.to_string()));
-        });
-        if result.is_err() {
+        // A caller that stopped listening ends its answer early.
+        let mut on_text = |text: &str| events.send(Event::Text(text.to_string())).is_ok();
+        let result = session.answer(&request.messages, &request.tools, &mut on_text, stop);
+        if matches!(result, Err(EngineError::Decode(_) | EngineError::Stopped)) {
             // The context may be part-way through a batch; start clean next time.
             session.reset();
         }
@@ -202,11 +205,14 @@ impl<'m> Session<'m> {
         Ok(())
     }
 
+    /// Answers `messages`. `on_text` gets visible text as it is generated and returns
+    /// false to end the answer early.
     fn answer(
         &mut self,
         messages: &[ChatMessage],
         tools: &[ToolDef],
-        on_text: &mut dyn FnMut(&str),
+        on_text: &mut dyn FnMut(&str) -> bool,
+        stop: &AtomicBool,
     ) -> Result<ChatOutput, EngineError> {
         let model = self.model;
         let vocab = model.vocab();
@@ -252,11 +258,12 @@ impl<'m> Session<'m> {
         };
         let mut calls = BlockExtractor::new(CALL_OPEN, CALL_CLOSE);
         let mut answer = String::new();
-        let mut emit = |visible: String, answer: &mut String| {
-            if !visible.is_empty() {
-                on_text(&visible);
-                answer.push_str(&visible);
+        let mut emit = |visible: String, answer: &mut String| -> bool {
+            if visible.is_empty() {
+                return true;
             }
+            answer.push_str(&visible);
+            on_text(&visible)
         };
 
         let budget = n_ctx
@@ -264,21 +271,32 @@ impl<'m> Session<'m> {
             .min(self.config.max_new_tokens as usize);
         let mut completion_tokens = 0u32;
         for _ in 0..budget {
+            if stop.load(Ordering::Relaxed) {
+                return Err(EngineError::Stopped);
+            }
+            // `sample` also records the token for the repetition penalty.
             let token = sampler.sample(&self.ctx, batch.n_tokens() - 1);
-            sampler.accept(token);
-            if vocab.is_eog(token) {
+            // A turn marker the model writes ends its answer; control tokens never
+            // reach the text, so they cannot reappear as structure in the history.
+            if vocab.is_eog(token) || vocab.is_control(token) {
                 break;
             }
             completion_tokens += 1;
-            // `special = true` so `<think>` and `<tool_call>` tags reach the filters.
-            let piece = vocab.token_to_piece(token, true, None);
-            emit(calls.push(&think.push(&utf8.push(&piece))), &mut answer);
+            // Without `special`, control tokens print as nothing; `<think>` and
+            // `<tool_call>` are ordinary added tokens and still reach the filters.
+            let piece = vocab.token_to_piece(token, false, None);
+            let more = emit(calls.push(&think.push(&utf8.push(&piece))), &mut answer);
             let position = self.cache.tokens.len();
             self.decode(&mut batch, &[token], position, true)?;
+            if !more {
+                break;
+            }
         }
-        let tail = calls.push(&think.finish());
-        emit(tail, &mut answer);
-        emit(calls.finish(), &mut answer);
+        let flushed = think.push(&utf8.finish());
+        let _ = emit(calls.push(&flushed), &mut answer);
+        let tail = think.finish();
+        let _ = emit(calls.push(&tail), &mut answer);
+        let _ = emit(calls.finish(), &mut answer);
 
         Ok(ChatOutput {
             text: answer.trim().to_string(),
@@ -293,70 +311,91 @@ impl<'m> Session<'m> {
         })
     }
 
-    /// Token positions to checkpoint at, for models that need checkpoints: after the
-    /// system turn, and after the last question if the template rewrites the history
-    /// that follows it. A boundary counts only if the prompt's tokens split there.
-    fn checkpoints(&self, rendered: &prompt::Rendered, tokens: &[LlamaToken]) -> Vec<usize> {
-        if !self.needs_checkpoints {
-            return Vec::new();
-        }
-        let query_end = rendered
-            .query_end
-            .filter(|_| self.format.rewrites_history());
+    /// Tokenizes a rendered prompt. Only the template's turn markers may become control
+    /// tokens; message text is tokenized as text, so a message containing
+    /// `<|im_start|>` cannot open a turn. Hybrid models also get their checkpoint
+    /// positions: after the system turn and after the last question.
+    fn tokenize(&self, rendered: &prompt::Rendered) -> Prompt {
         let vocab = self.model.vocab();
-        let mut positions: Vec<usize> = [rendered.system_end, query_end]
-            .into_iter()
-            .flatten()
-            .filter_map(|end| {
-                let head = vocab.tokenize(rendered.text.get(..end)?.as_bytes(), true, true);
-                tokens.starts_with(&head).then_some(head.len())
-            })
-            .collect();
-        positions.dedup();
-        positions
+        let mut tokens = Vec::new();
+        let mut ends = vec![0];
+        for (i, piece) in rendered.pieces.iter().enumerate() {
+            tokens.extend(vocab.tokenize(piece.text.as_bytes(), i == 0, piece.control));
+            ends.push(tokens.len());
+        }
+        let mut checkpoints: Vec<usize> = if self.needs_checkpoints {
+            [rendered.system_end, rendered.query_end]
+                .into_iter()
+                .flatten()
+                .filter_map(|n| ends.get(n).copied())
+                .collect()
+        } else {
+            Vec::new()
+        };
+        checkpoints.dedup();
+        Prompt {
+            tokens,
+            checkpoints,
+        }
     }
 
-    /// Builds and tokenizes the prompt. If it would not leave room for an answer, the
-    /// oldest messages are dropped — never the system prompt, and never so that the
-    /// window starts with an orphaned tool result.
+    /// Builds and tokenizes the prompt. If it would not leave room for an answer, whole
+    /// exchanges are dropped from the start — never the system prompt and never the
+    /// last question; if even that does not fit, the message is too long.
     fn prompt_tokens(
         &self,
         messages: &[ChatMessage],
         tools: &[ToolDef],
     ) -> Result<Prompt, EngineError> {
-        let vocab = self.model.vocab();
+        let n_ctx = self.config.n_ctx as usize;
         let room_for_answer = self.config.max_new_tokens.min(self.config.n_ctx / 2) as usize;
         let (system, rest) = match messages.split_first() {
             Some((first, rest)) if first.role == ChatRole::System => (Some(first), rest),
             _ => (None, messages),
         };
-        let mut start = 0;
-        loop {
-            while rest.get(start).is_some_and(|m| m.role == ChatRole::Tool) {
-                start += 1;
-            }
+        let roles: Vec<ChatRole> = rest.iter().map(|m| m.role).collect();
+        let mut longest = 0;
+        for start in window_starts(&roles) {
             let window: Vec<&ChatMessage> = system
                 .into_iter()
                 .chain(rest.get(start..).unwrap_or_default())
                 .collect();
-            let rendered = prompt::render(self.format, &window, tools, self.config.thinking);
-            let tokens = vocab.tokenize(rendered.text.as_bytes(), true, true);
-            if tokens.len() + room_for_answer <= self.config.n_ctx as usize {
-                let checkpoints = self.checkpoints(&rendered, &tokens);
-                return Ok(Prompt {
-                    tokens,
-                    checkpoints,
-                });
+            let prompt = self.tokenize(&prompt::render(
+                self.format,
+                &window,
+                tools,
+                self.config.thinking,
+            ));
+            if prompt.tokens.len() + room_for_answer <= n_ctx {
+                return Ok(prompt);
             }
-            if start + 1 >= rest.len() {
-                return Err(EngineError::ContextFull {
-                    prompt_tokens: tokens.len(),
-                    n_ctx: self.config.n_ctx,
-                });
-            }
-            start += 1;
+            longest = longest.max(prompt.tokens.len());
         }
+        Err(EngineError::ContextFull {
+            prompt_tokens: longest,
+            n_ctx: self.config.n_ctx,
+        })
     }
+}
+
+/// Where the prompt window may start among the messages after the system prompt, longest
+/// window first: the whole conversation (minus leading tool results, which would have
+/// lost their call), then from each later question. Never past the last question.
+fn window_starts(roles: &[ChatRole]) -> Vec<usize> {
+    let first = roles
+        .iter()
+        .position(|r| *r != ChatRole::Tool)
+        .unwrap_or(roles.len());
+    let mut starts = vec![first];
+    starts.extend(
+        roles
+            .iter()
+            .enumerate()
+            .skip(first + 1)
+            .filter(|(_, r)| **r == ChatRole::User)
+            .map(|(i, _)| i),
+    );
+    starts
 }
 
 fn pos(i: usize) -> Result<i32, EngineError> {
@@ -365,4 +404,20 @@ fn pos(i: usize) -> Result<i32, EngineError> {
 
 fn count(n: usize) -> u32 {
     u32::try_from(n).unwrap_or(u32::MAX)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ChatRole::{Assistant as A, Tool as T, User as U};
+
+    #[test]
+    fn windows_drop_whole_exchanges_but_never_the_last_question() {
+        assert_eq!(window_starts(&[U, A, T, A, U, A, U]), [0, 4, 6]);
+        // Leading tool results lost their call; the long tool result never becomes
+        // the start of a window without its question.
+        assert_eq!(window_starts(&[T, T, A, U]), [2, 3]);
+        assert_eq!(window_starts(&[U, A, T]), [0]);
+        assert_eq!(window_starts(&[]), [0]);
+    }
 }

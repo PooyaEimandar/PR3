@@ -39,6 +39,17 @@ impl Utf8Stream {
             }
         }
     }
+
+    /// Ends the stream: a character cut off at the end becomes U+FFFD instead of
+    /// disappearing.
+    pub(crate) fn finish(&mut self) -> String {
+        if self.pending.is_empty() {
+            String::new()
+        } else {
+            self.pending.clear();
+            char::REPLACEMENT_CHARACTER.to_string()
+        }
+    }
 }
 
 const THINK_OPEN: &str = "<think>";
@@ -224,6 +235,15 @@ mod tests {
     fn invalid_utf8_is_replaced_not_fatal() {
         let mut stream = Utf8Stream::default();
         assert_eq!(stream.push(&[b'a', 0xFF, b'b']), "a\u{FFFD}b");
+    }
+
+    #[test]
+    fn a_character_cut_off_at_the_end_is_not_lost() {
+        let mut stream = Utf8Stream::default();
+        let bytes = "ok👋".as_bytes();
+        assert_eq!(stream.push(&bytes[..bytes.len() - 1]), "ok");
+        assert_eq!(stream.finish(), "\u{FFFD}");
+        assert_eq!(stream.finish(), "");
     }
 
     fn run(pieces: &[&str]) -> String {
