@@ -24,6 +24,8 @@ jobs:
         run: rustup show
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
+      - name: The trusted side does not depend on the agent side
+        run: scripts/check-trusted-side.sh
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
       - name: no_std builds
