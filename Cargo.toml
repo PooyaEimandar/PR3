@@ -1,6 +1,13 @@
 [workspace]
 resolver = "3"
-members = ["crates/pr3-core", "crates/pr3-llamacpp", "crates/pr3-tools", "apps/pr3-app/src-tauri"]
+members = [
+    "crates/pr3-core",
+    "crates/pr3-llamacpp",
+    "crates/pr3-memory",
+    "crates/pr3-memory-sqlite",
+    "crates/pr3-tools",
+    "apps/pr3-app/src-tauri",
+]
 
 [workspace.package]
 version = "0.1.0"
@@ -12,6 +19,7 @@ rust-version = "1.85"
 [workspace.dependencies]
 # `pr3-core` is `no_std + alloc`; hosts opt into `std` explicitly (Roadmap §4.2).
 pr3-core = { path = "crates/pr3-core", default-features = false }
+pr3-memory = { path = "crates/pr3-memory", default-features = false }
 serde = { version = "1", default-features = false, features = ["alloc", "derive"] }
 # No "preserve_order": maps stay sorted, so serialized tool arguments are canonical.
 serde_json = { version = "1", default-features = false, features = ["alloc"] }

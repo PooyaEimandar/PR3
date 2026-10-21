@@ -1,0 +1,14 @@
+[package]
+name = "pr3-memory-sqlite"
+description = "PR3 memory on SQLite: provenance, FTS5 search, migrations"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+pr3-memory = { workspace = true, features = ["std"] }
+# Bundled: the same SQLite, with FTS5, on every platform including iOS and Android.
+rusqlite = { version = "0.40", features = ["bundled"] }

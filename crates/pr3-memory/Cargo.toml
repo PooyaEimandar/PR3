@@ -1,0 +1,15 @@
+[package]
+name = "pr3-memory"
+description = "PR3 user memory with provenance: types and the store interface, no_std"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["std"]
+std = ["pr3-core/std"]
+
+[dependencies]
+pr3-core.workspace = true
