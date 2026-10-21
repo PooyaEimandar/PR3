@@ -21,6 +21,26 @@ mobile_min_memory_gb = 7
 enabled = false
 max_mb = 8
 
+# Consequential actions (Roadmap §4.6). The spike has one: sending email through a
+# sandbox connector that delivers to outbox.jsonl in the app's data folder, never to
+# the internet. Every email waits for the user's approval on a confirmation card.
+[actions]
+# The kill switch: false refuses every consequential action.
+enabled = true
+max_recipients = 3
+max_per_day = 20
+approval_seconds = 120
+
+# The sandbox address book: the only people PR3 can email. The model names them; the
+# addresses come only from here.
+[[actions.contacts]]
+name = "Alex Rivera"
+address = "alex@example.com"
+
+[[actions.contacts]]
+name = "Sam Chen"
+address = "sam@example.com"
+
 # The models PR3 knows, each pinned to a repository revision and SHA-256 so a download
 # is exactly the file that was tested. scripts/fetch-model.sh downloads them into models/.
 

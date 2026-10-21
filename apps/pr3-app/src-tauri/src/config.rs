@@ -1,10 +1,12 @@
-//! PR3's configuration (config/pr3.toml): which model each kind of device runs, and the
-//! pinned models it can choose from. The repository's file is built into the app; a
-//! `pr3.toml` in the app's data folder replaces it at runtime.
+//! PR3's configuration (config/pr3.toml): which model each kind of device runs, the
+//! pinned models it can choose from, and the limits on consequential actions. The
+//! repository's file is built into the app; a `pr3.toml` in the app's data folder
+//! replaces it at runtime.
 
 use std::collections::BTreeMap;
 use std::path::Path;
 
+use pr3_core::trusted::{Contact, Directory, Limits};
 use serde::Deserialize;
 
 const BUILT_IN: &str = include_str!("../../../../config/pr3.toml");
@@ -16,6 +18,70 @@ pub struct Config {
     pub models: BTreeMap<String, ModelEntry>,
     #[serde(default)]
     pub traces: Traces,
+    #[serde(default)]
+    pub actions: Actions,
+}
+
+/// Consequential actions (Roadmap §4.6) and the user's limits on them (§9.1).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Actions {
+    /// The kill switch: false refuses every consequential action.
+    pub enabled: bool,
+    pub max_recipients: usize,
+    pub max_per_day: usize,
+    /// How long the confirmation card waits for the user's answer.
+    pub approval_seconds: u64,
+    /// The sandbox address book: the only people PR3 can email.
+    pub contacts: Vec<Contact>,
+}
+
+impl Default for Actions {
+    fn default() -> Self {
+        let limits = Limits::default();
+        Self {
+            enabled: limits.enabled,
+            max_recipients: limits.max_recipients,
+            max_per_day: limits.max_per_day,
+            approval_seconds: limits.approval_ms / 1000,
+            contacts: Vec::new(),
+        }
+    }
+}
+
+impl Actions {
+    pub fn limits(&self) -> Limits {
+        Limits {
+            enabled: self.enabled,
+            max_recipients: self.max_recipients,
+            max_per_day: self.max_per_day,
+            approval_ms: self.approval_seconds.saturating_mul(1000),
+            ..Limits::default()
+        }
+    }
+
+    pub fn directory(&self) -> Directory {
+        Directory {
+            contacts: self.contacts.clone(),
+        }
+    }
+
+    fn check(&self) -> Result<(), String> {
+        for contact in &self.contacts {
+            let address = &contact.address;
+            let plausible = address.split('@').count() == 2
+                && !address.starts_with('@')
+                && !address.ends_with('@')
+                && !address.chars().any(|c| c.is_whitespace() || c.is_control());
+            if contact.name.trim().is_empty() || contact.name.contains(',') || !plausible {
+                return Err(format!(
+                    "[[actions.contacts]] '{}' <{address}> needs a name without commas and one address",
+                    contact.name
+                ));
+            }
+        }
+        Ok(())
+    }
 }
 
 /// OpenJarvis-format traces of every turn. Off unless the config turns them on: they
@@ -116,6 +182,7 @@ impl Config {
                 ));
             }
         }
+        config.actions.check()?;
         Ok(config)
     }
 
@@ -213,6 +280,21 @@ mod tests {
         for entry in config.models.values() {
             assert!(entry.file.ends_with(".gguf"));
         }
+    }
+
+    #[test]
+    fn built_in_actions_have_limits_and_sandbox_contacts() {
+        let actions = Config::built_in().unwrap().actions;
+        assert!(actions.enabled);
+        assert_eq!(actions.limits().approval_ms, 120_000);
+        assert!(
+            actions
+                .contacts
+                .iter()
+                .all(|c| c.address.ends_with("@example.com"))
+        );
+        let bad = BUILT_IN.replace("alex@example.com", "alex example.com");
+        assert!(Config::parse(&bad).unwrap_err().contains("Alex Rivera"));
     }
 
     #[test]

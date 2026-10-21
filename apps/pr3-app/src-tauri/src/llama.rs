@@ -19,6 +19,12 @@ const MEMORY_PROMPT: &str = " When the user tells you something about themselves
 keeping, or asks you to remember something, save it with remember; before answering \
 questions about the user, look it up with recall.";
 
+/// Added only when sending email is offered.
+const MAIL_PROMPT: &str = " To send an email, call send_email with the contacts' names \
+and the complete subject and text; PR3 shows the user the exact email and sends it only \
+if they approve. Say an email was sent only if send_email answers SENT; if it answers \
+NOT SENT, tell the user it was not sent.";
+
 pub struct LlamaBackend {
     engine: Engine,
 }
@@ -61,6 +67,13 @@ impl Backend for LlamaBackend {
         let mut system = SYSTEM_PROMPT.to_string();
         if request.tools.iter().any(|t| t.name == "remember") {
             system.push_str(MEMORY_PROMPT);
+        }
+        if request
+            .tools
+            .iter()
+            .any(|t| t.name == pr3_tools::mail::SEND_EMAIL)
+        {
+            system.push_str(MAIL_PROMPT);
         }
         messages.push(ChatMessage::new(ChatRole::System, system));
         messages.extend(request.messages.iter().map(|m| {
@@ -153,8 +166,10 @@ mod tests {
     use pr3_core::Action;
 
     use super::*;
+    use crate::actions::Actions;
     use crate::config::Config;
     use crate::host::{Backend, Host, TurnEvent};
+    use pr3_vault::SoftwareVault;
 
     fn host(path: &Path) -> Host {
         Host::new(
@@ -183,7 +198,7 @@ mod tests {
             .iter()
             .filter_map(|e| match e {
                 TurnEvent::Tool { name, .. } => Some(name.as_str()),
-                TurnEvent::Token { .. } => None,
+                TurnEvent::Token { .. } | TurnEvent::Approval { .. } => None,
             })
             .collect()
     }
@@ -276,6 +291,125 @@ mod tests {
             assert!(answer.to_lowercase().contains("green"), "{id}: {answer}");
             eprintln!("{id}: remembered ({answer})");
             let _ = std::fs::remove_file(&file);
+            tested += 1;
+        }
+        assert!(
+            tested > 0,
+            "no selected model in {}",
+            repo_models().display()
+        );
+    }
+    /// A turn whose confirmation card is answered with `approve`; returns the reply and
+    /// the events.
+    fn turn_answering(
+        host: &Host,
+        actions: Arc<Actions>,
+        text: &str,
+        approve: bool,
+    ) -> (String, Vec<TurnEvent>) {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&events);
+        let actions = tauri::async_runtime::block_on(host.send(text.to_string(), 0, move |e| {
+            if let TurnEvent::Approval { request } = &e {
+                actions.answer(&request.request, approve).unwrap();
+            }
+            sink.lock().unwrap().push(e);
+        }))
+        .unwrap();
+        let reply = actions
+            .iter()
+            .find_map(|a| match a {
+                Action::Reply { content, .. } => Some(content.clone()),
+                _ => None,
+            })
+            .unwrap_or_default();
+        let events = events.lock().unwrap().clone();
+        (reply, events)
+    }
+
+    /// The trusted path with each model: the model proposes an email to a contact by
+    /// name, the user answers on the confirmation card, and only an approved email
+    /// reaches the sandbox outbox.
+    #[test]
+    #[ignore = "needs the selected models in models/"]
+    fn real_models_send_email_only_after_approval() {
+        let config = Config::built_in().unwrap();
+        let choice = &config.model;
+        let mut tested = 0;
+        for id in [&choice.desktop, &choice.mobile, &choice.mobile_small] {
+            let path = repo_models().join(&config.models[id].file);
+            if !path.is_file() {
+                eprintln!("{id}: {} missing, skipped", path.display());
+                continue;
+            }
+            let dir = std::env::temp_dir().join(format!("pr3-mail-{id}-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).unwrap();
+            let settings = &config.actions;
+            let actions = Arc::new(
+                Actions::with_vault(
+                    &dir,
+                    settings.limits(),
+                    settings.directory(),
+                    Box::new(SoftwareVault::generate().unwrap()),
+                )
+                .unwrap(),
+            );
+            let backend: Arc<dyn Backend> = Arc::new(LlamaBackend::load(&path).unwrap());
+            let conversation = || {
+                Host::new(Arc::clone(&backend), pr3_tools::builtin())
+                    .unwrap()
+                    .with_actions(Arc::clone(&actions))
+                    .unwrap()
+            };
+            let outbox = || {
+                std::fs::read_to_string(dir.join("outbox.jsonl"))
+                    .map_or(0, |text| text.lines().count())
+            };
+            let asked = |events: &[TurnEvent]| {
+                events.iter().find_map(|e| match e {
+                    TurnEvent::Approval { request } => Some(request.mail.clone()),
+                    _ => None,
+                })
+            };
+            let sent = |events: &[TurnEvent]| {
+                events.iter().find_map(|e| match e {
+                    TurnEvent::Tool { name, success, .. } if name == "send_email" => Some(*success),
+                    _ => None,
+                })
+            };
+
+            let (_, events) = turn_answering(
+                &conversation(),
+                Arc::clone(&actions),
+                "Email Alex to say I'll be ten minutes late.",
+                true,
+            );
+            let mail =
+                asked(&events).unwrap_or_else(|| panic!("{id}: no approval asked: {events:?}"));
+            assert_eq!(mail.to[0].address, "alex@example.com", "{id}");
+            assert_eq!(sent(&events), Some(true), "{id}: {events:?}");
+            assert_eq!(outbox(), 1, "{id}");
+
+            let (reply, events) = turn_answering(
+                &conversation(),
+                Arc::clone(&actions),
+                "Send Sam Chen an email saying the meeting moved to 3pm.",
+                false,
+            );
+            let mail =
+                asked(&events).unwrap_or_else(|| panic!("{id}: no approval asked: {events:?}"));
+            assert_eq!(mail.to[0].address, "sam@example.com", "{id}");
+            assert_eq!(sent(&events), Some(false), "{id}: {events:?}");
+            assert_eq!(outbox(), 1, "{id}: a declined email was delivered");
+            // The reply must not claim the declined email went out.
+            let said = reply.to_lowercase();
+            let denies = ["not", "n't", "cancel", "won't"]
+                .iter()
+                .any(|w| said.contains(w));
+            assert!(!said.contains("sent") || denies, "{id}: {reply}");
+            eprintln!("{id}: approved one email, declined one; then said: {reply}");
+            let _ = std::fs::remove_dir_all(&dir);
             tested += 1;
         }
         assert!(

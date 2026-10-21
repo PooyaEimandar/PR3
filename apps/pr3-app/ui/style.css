@@ -148,3 +148,63 @@ button:disabled {
 .msg.tool.failed {
   color: var(--error);
 }
+
+.msg.approval {
+  align-self: stretch;
+  max-width: 100%;
+  white-space: normal;
+  background: var(--panel);
+  border: 1px solid var(--accent);
+}
+
+.approval h2 {
+  margin: 0 0 8px;
+  color: var(--accent);
+  font-size: 15px;
+}
+
+.approval dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  margin: 0 0 8px;
+}
+
+.approval dt {
+  color: var(--muted);
+}
+
+.approval dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.approval .body {
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.approval .meta {
+  margin: 8px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.approval .choices {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--line);
+}
+
+.msg.approval.answered {
+  border-color: var(--line);
+}

@@ -1,5 +1,6 @@
 //! PR3 reference app. The Rust side owns the runtime; the webview only renders.
 
+mod actions;
 mod backup;
 mod config;
 mod host;
@@ -10,6 +11,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
+use actions::Actions;
 use host::{Backend, Host, LoadingBackend, MockBackend, TurnEvent};
 use serde::Serialize;
 use tauri::ipc::Channel;
@@ -52,6 +54,16 @@ async fn send_message(
     })
     .await
     .map_err(|e| e.to_string())
+}
+
+/// The user's answer on the confirmation card for a consequential action.
+#[tauri::command]
+fn answer_approval(
+    request: String,
+    approve: bool,
+    host: tauri::State<'_, Host>,
+) -> Result<(), String> {
+    host.answer_approval(&request, approve)
 }
 
 /// Loads this device's model (config/pr3.toml) in the background so the window appears
@@ -166,17 +178,41 @@ fn open_memory(app: &tauri::AppHandle) -> Option<pr3_tools::SharedMemory> {
     }
 }
 
+/// The trusted path for consequential actions, with its vault, outbox and audit log
+/// in the app's data folder. Without it PR3 runs, but cannot act.
+fn open_actions(app: &tauri::AppHandle, settings: &config::Actions) -> Option<Arc<Actions>> {
+    let opened = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())
+        .and_then(|dir| Actions::open(&dir, settings.limits(), settings.directory()));
+    match opened {
+        Ok(actions) => Some(Arc::new(actions)),
+        Err(e) => {
+            eprintln!("PR3: actions unavailable: {e}");
+            None
+        }
+    }
+}
+
 /// The host with the built-in tools, plus memory tools and per-message recall when
-/// memory is available.
-fn host(app: &tauri::AppHandle) -> Result<Host, host::HostError> {
+/// memory is available, and consequential actions when they are configured.
+fn host(
+    app: &tauri::AppHandle,
+    actions: Option<&config::Actions>,
+) -> Result<Host, host::HostError> {
     let backend = Arc::new(MockBackend::default());
-    match open_memory(app) {
+    let host = match open_memory(app) {
         Some(memory) => {
             let mut tools = pr3_tools::builtin();
             tools.extend(pr3_tools::memory_tools(Arc::clone(&memory)));
-            Ok(Host::new(backend, tools)?.with_memory(memory))
+            Host::new(backend, tools)?.with_memory(memory)
         }
-        None => Host::new(backend, pr3_tools::builtin()),
+        None => Host::new(backend, pr3_tools::builtin())?,
+    };
+    match actions.and_then(|settings| open_actions(app, settings)) {
+        Some(actions) => host.with_actions(actions),
+        None => Ok(host),
     }
 }
 
@@ -219,7 +255,8 @@ pub fn run() {
             prepare_data_dir(app.handle());
             let data_dir = app.path().app_data_dir().ok();
             let config = config::Config::load(data_dir.as_deref());
-            app.manage(host(app.handle())?);
+            let actions = config.as_ref().ok().map(|c| &c.actions);
+            app.manage(host(app.handle(), actions)?);
             start_tracing(
                 app.handle(),
                 config.as_ref().map(|c| c.traces).unwrap_or_default(),
@@ -227,7 +264,11 @@ pub fn run() {
             start_model_loading(app.handle(), config);
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![platform_info, send_message])
+        .invoke_handler(tauri::generate_handler![
+            platform_info,
+            send_message,
+            answer_approval
+        ])
         .build(tauri::generate_context!());
     match app {
         Ok(app) => app.run(|handle, event| {

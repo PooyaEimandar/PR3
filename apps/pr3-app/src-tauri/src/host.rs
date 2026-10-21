@@ -11,11 +11,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use pr3_core::trusted::ApprovalRequest;
 use pr3_core::{
     Action, Config, Core, CoreError, GenerationInfo, InferenceRequest, Input, ProposedToolCall,
     Role, SessionId, Timestamp, ToolCall, Trace,
 };
 use pr3_tools::{SharedMemory, Tool, ToolContext};
+
+use crate::actions::Actions;
 use serde::Serialize;
 use serde_json::{Map, Value};
 
@@ -67,6 +70,11 @@ pub enum TurnEvent {
         success: bool,
         output: String,
     },
+    /// A consequential action waits for the user: show the confirmation card, built
+    /// from the validated intent, and send the answer with `answer_approval`.
+    Approval {
+        request: ApprovalRequest,
+    },
 }
 
 pub type TraceSink = Arc<dyn Fn(&Trace) + Send + Sync>;
@@ -111,6 +119,8 @@ pub struct Host {
     /// Searched for every message, so the model sees what it knows about the user
     /// without having to ask.
     memory: Option<SharedMemory>,
+    /// The trusted path for consequential tools; without it they are refused.
+    actions: Option<Arc<Actions>>,
     trace_sink: RwLock<Option<TraceSink>>,
     session: SessionId,
     /// Set once the app is quitting: a model that finishes loading afterwards is
@@ -133,6 +143,7 @@ impl Host {
             backend: RwLock::new(backend),
             tools: by_name,
             memory: None,
+            actions: None,
             trace_sink: RwLock::new(None),
             shutting_down: AtomicBool::new(false),
             // The launch time keeps trace ids (`pr3-{session}-{turn}`) unique across
@@ -145,6 +156,29 @@ impl Host {
     pub fn with_memory(mut self, memory: SharedMemory) -> Self {
         self.memory = Some(memory);
         self
+    }
+
+    /// Offers the consequential tools of `actions` and runs their calls through it.
+    pub fn with_actions(mut self, actions: Arc<Actions>) -> Result<Self, HostError> {
+        {
+            let mut core = self
+                .core
+                .lock()
+                .map_err(|_| HostError::Host("runtime state is unavailable".to_string()))?;
+            for spec in actions.tools() {
+                core.register_tool(spec)?;
+            }
+        }
+        self.actions = Some(actions);
+        Ok(self)
+    }
+
+    /// The user's answer from the confirmation card.
+    pub fn answer_approval(&self, request: &str, approve: bool) -> Result<(), String> {
+        self.actions
+            .as_ref()
+            .ok_or("actions are not available")?
+            .answer(request, approve)
     }
 
     pub fn backend_label(&self) -> String {
@@ -280,6 +314,35 @@ impl Host {
                         utterance: utterance.to_string(),
                     };
                     let (success, output) = self.run_tool(&call, &ctx);
+                    if let Ok(mut emit) = on_event.lock() {
+                        emit(TurnEvent::Tool {
+                            name: call.name.clone(),
+                            arguments: call.arguments.clone(),
+                            success,
+                            output: output.clone(),
+                        });
+                    }
+                    queue.extend(self.step(Input::ToolOutcome {
+                        call_id: call.id,
+                        success,
+                        output,
+                        at: now(),
+                    })?);
+                }
+                Action::Propose(call) => {
+                    let (success, output) = match &self.actions {
+                        Some(actions) => {
+                            let ask = |request: &ApprovalRequest| {
+                                if let Ok(mut emit) = on_event.lock() {
+                                    emit(TurnEvent::Approval {
+                                        request: request.clone(),
+                                    });
+                                }
+                            };
+                            actions.run(&call, ask).await
+                        }
+                        None => (false, "actions are not available".to_string()),
+                    };
                     if let Ok(mut emit) = on_event.lock() {
                         emit(TurnEvent::Tool {
                             name: call.name.clone(),
@@ -463,7 +526,7 @@ impl Backend for MockBackend {
     }
 }
 
-fn now() -> Timestamp {
+pub(crate) fn now() -> Timestamp {
     let millis = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX));
@@ -500,7 +563,7 @@ mod tests {
             .iter()
             .map(|e| match e {
                 TurnEvent::Token { text } => text.as_str(),
-                TurnEvent::Tool { .. } => "",
+                TurnEvent::Tool { .. } | TurnEvent::Approval { .. } => "",
             })
             .collect();
         assert_eq!(streamed, *content);
