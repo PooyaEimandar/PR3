@@ -166,13 +166,15 @@ pub trait MemoryStore {
     fn get(&self, id: MemoryId) -> Result<Option<Memory>, MemoryError>;
 
     /// The user's correction: stores `text` as a confirmed memory that supersedes
-    /// `id`, which stops being recalled.
+    /// `id`, which stops being recalled. A memory that was already corrected is
+    /// refused: correct its newest version instead.
     fn correct(&mut self, id: MemoryId, text: &str, at: Timestamp)
     -> Result<MemoryId, MemoryError>;
 
-    /// Erases a memory's text, and its source's words if nothing else needs them,
-    /// leaving only a record that something was forgotten. Returns false if there was
-    /// nothing to forget.
+    /// Erases a memory's text, the earlier versions it corrected, and its source's
+    /// words if no other memory still needs them, leaving only a record that something
+    /// was forgotten. Forgetting an earlier version leaves its correction, which is the
+    /// user's own text. Returns false if there was nothing to forget.
     fn forget(&mut self, id: MemoryId, at: Timestamp) -> Result<bool, MemoryError>;
 }
 

@@ -1,9 +1,11 @@
 //! PR3 memory on SQLite (Roadmap §4.4): provenance on every row, FTS5 search ranked by
 //! bm25, versioned migrations, and forgetting that erases rather than hides.
 //!
-//! SQLite is bundled, with FTS5, so every platform runs the same engine. Deleted pages
-//! are overwritten (`secure_delete`), so forgotten text does not linger in the file.
-//! Encryption at rest comes with the M3 personal-memory work.
+//! SQLite is bundled, with FTS5, so every platform runs the same engine. Forgotten text
+//! leaves the database file: deleted pages are overwritten (`secure_delete`) and the
+//! search index drops a forgotten memory's words (FTS5 `secure-delete`). A rollback
+//! journal can briefly hold old pages until the file system reuses its space; encryption
+//! at rest (the M3 personal-memory work) closes that gap.
 
 #![forbid(unsafe_code)]
 
@@ -64,6 +66,12 @@ const MIGRATIONS: &[&str] = &[
         deleted_at INTEGER NOT NULL
     );
     ",
+    // v2: the search index really removes forgotten words instead of only marking them
+    // deleted, and words already left behind by earlier forgets are purged.
+    "
+    INSERT INTO memories_fts(memories_fts, rank) VALUES ('secure-delete', 1);
+    INSERT INTO memories_fts(memories_fts) VALUES ('optimize');
+    ",
 ];
 
 const COLUMNS: &str = "m.id, m.text, m.status, m.principal, m.created_at, m.valid_at,
@@ -105,6 +113,8 @@ const STOPWORDS: &[&str] = &[
     "the",
     "this",
     "to",
+    "user",
+    "users",
     "was",
     "what",
     "when",
@@ -116,7 +126,7 @@ const STOPWORDS: &[&str] = &[
     "your",
 ];
 
-const MAX_TERMS: usize = 12;
+const MAX_TERMS: usize = 32;
 
 pub struct SqliteMemory {
     conn: Connection,
@@ -174,8 +184,13 @@ impl MemoryStore for SqliteMemory {
         let existing: Option<(i64, String)> = tx
             .query_row(
                 "SELECT id, status FROM memories
-                 WHERE normalized = ?1 AND deleted_at IS NULL AND superseded_by IS NULL",
-                params![normalized],
+                 WHERE normalized = ?1 AND principal = ?2 AND deleted_at IS NULL
+                 AND superseded_by IS NULL AND (retain_until IS NULL OR retain_until > ?3)",
+                params![
+                    normalized,
+                    new.provenance.principal,
+                    db_time(new.provenance.created_at)?
+                ],
                 |r| Ok((r.get(0)?, r.get(1)?)),
             )
             .optional()
@@ -261,6 +276,20 @@ impl MemoryStore for SqliteMemory {
         let old = self
             .get(id)?
             .ok_or_else(|| MemoryError(format!("no memory {id}")))?;
+        let newer: Option<i64> = self
+            .conn
+            .query_row(
+                "SELECT superseded_by FROM memories WHERE id = ?1",
+                params![id.0],
+                |r| r.get(0),
+            )
+            .map_err(error)?;
+        if let Some(newer) = newer {
+            return Err(MemoryError(format!(
+                "memory {id} was already corrected by {}; correct that one instead",
+                MemoryId(newer)
+            )));
+        }
         let provenance = Provenance {
             principal: old.provenance.principal,
             privacy: old.provenance.privacy,
@@ -303,8 +332,8 @@ impl MemoryStore for SqliteMemory {
                 .flatten();
             let erased = tx
                 .execute(
-                    "UPDATE memories SET text = '', normalized = '', deleted_at = ?2
-                     WHERE id = ?1 AND deleted_at IS NULL",
+                    "UPDATE memories SET text = '', normalized = '', principal = '',
+                     deleted_at = ?2 WHERE id = ?1 AND deleted_at IS NULL",
                     params![current, at],
                 )
                 .map_err(error)?;
@@ -374,12 +403,31 @@ fn insert(
         ),
         Source::User => ("user", None, None),
     };
-    tx.execute(
-        "INSERT INTO sources(kind, session, excerpt) VALUES (?1, ?2, ?3)",
-        params![kind, session, excerpt],
-    )
-    .map_err(error)?;
-    let source_id = tx.last_insert_rowid();
+    // Memories from the same turn share one source row, so forgetting one of them can
+    // tell whether the user's words are still needed.
+    let shared: Option<i64> = match (session, excerpt) {
+        (Some(session), Some(excerpt)) => tx
+            .query_row(
+                "SELECT id FROM sources
+                 WHERE kind = 'conversation' AND session = ?1 AND excerpt = ?2",
+                params![session, excerpt],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(error)?,
+        _ => None,
+    };
+    let source_id = match shared {
+        Some(id) => id,
+        None => {
+            tx.execute(
+                "INSERT INTO sources(kind, session, excerpt) VALUES (?1, ?2, ?3)",
+                params![kind, session, excerpt],
+            )
+            .map_err(error)?;
+            tx.last_insert_rowid()
+        }
+    };
     let retain_until = match p.retention {
         Retention::Keep => None,
         Retention::Until(t) => Some(db_time(t)?),
@@ -458,10 +506,11 @@ fn status_name(status: Status) -> &'static str {
 
 /// The form used to spot the same memory written twice.
 fn normalize(text: &str) -> String {
-    text.split_whitespace()
+    text.replace(['\u{2018}', '\u{2019}'], "'")
+        .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
-        .trim_end_matches(['.', '!'])
+        .trim_end_matches(|c: char| c == '.' || c == '!' || c.is_whitespace())
         .to_lowercase()
 }
 
@@ -474,9 +523,11 @@ fn search_terms(query: &str) -> Vec<String> {
         if word.chars().count() > 1 && !STOPWORDS.contains(&word.as_str()) && !terms.contains(&word)
         {
             terms.push(word);
+            if terms.len() == MAX_TERMS {
+                break;
+            }
         }
     }
-    terms.truncate(MAX_TERMS);
     terms
 }
 
@@ -697,5 +748,140 @@ mod tests {
         );
         assert!(m.get(other).unwrap().is_some());
         assert!(!m.forget(new, NOW).unwrap());
+    }
+
+    fn temp_db(name: &str) -> std::path::PathBuf {
+        let path =
+            std::env::temp_dir().join(format!("pr3-memory-{name}-{}.sqlite", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        path
+    }
+
+    /// Whether `needle` appears anywhere in the database file, case-insensitively.
+    fn file_contains(path: &std::path::Path, needle: &str) -> bool {
+        let bytes = std::fs::read(path).unwrap().to_ascii_lowercase();
+        let needle = needle.to_ascii_lowercase();
+        bytes.windows(needle.len()).any(|w| w == needle.as_bytes())
+    }
+
+    fn from_turn(text: &str, excerpt: &str) -> NewMemory {
+        NewMemory {
+            text: text.to_string(),
+            status: Status::Proposed,
+            provenance: Provenance::proposed(SessionId(7), excerpt.to_string(), NOW),
+        }
+    }
+
+    #[test]
+    fn forgotten_words_leave_the_file_including_the_search_index() {
+        let path = temp_db("erase");
+        let words = "My name is Quetzalina and my sister lives in Hobbitonshire.";
+        {
+            let mut m = SqliteMemory::open(&path).unwrap();
+            let name = m
+                .remember(from_turn("The user's name is Quetzalina.", words))
+                .unwrap();
+            let sister = m
+                .remember(from_turn(
+                    "The user's sister lives in Hobbitonshire.",
+                    words,
+                ))
+                .unwrap();
+            let fixed = m
+                .correct(sister, "The user's sister lives in Rivendellia.", NOW)
+                .unwrap();
+
+            // The other memory from that turn still needs the user's words.
+            assert!(m.forget(name, NOW).unwrap());
+            let excerpt = match m.get(sister).unwrap().unwrap().provenance.source {
+                Source::Conversation { excerpt, .. } => excerpt,
+                Source::User => String::new(),
+            };
+            assert_eq!(excerpt, words);
+
+            assert!(m.forget(fixed, NOW).unwrap());
+            let principals: i64 = m
+                .conn
+                .query_row(
+                    "SELECT COUNT(*) FROM memories WHERE deleted_at IS NOT NULL AND principal != ''",
+                    [],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            assert_eq!(principals, 0);
+        }
+        for word in ["quetzalina", "hobbiton", "rivendell"] {
+            assert!(!file_contains(&path, word), "{word} is still in the file");
+        }
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn the_v2_migration_purges_words_left_by_older_builds() {
+        let path = temp_db("legacy");
+        {
+            // A version-1 database where a memory was forgotten before FTS5 secure-delete.
+            let conn = Connection::open(&path).unwrap();
+            conn.pragma_update(None, "secure_delete", true).unwrap();
+            conn.execute_batch(MIGRATIONS[0]).unwrap();
+            conn.pragma_update(None, "user_version", 1).unwrap();
+            conn.execute_batch(
+                "INSERT INTO sources(kind) VALUES ('user');
+                 INSERT INTO memories(text, normalized, status, source_id, principal,
+                     created_at, valid_at, confidence, privacy, consent)
+                 VALUES ('The user owns Xylographica.', 'x', 'confirmed', 1, 'user', 1, 1,
+                     100, 'personal', 'device_only');
+                 UPDATE memories SET text = '', deleted_at = 2 WHERE id = 1;",
+            )
+            .unwrap();
+        }
+        assert!(
+            file_contains(&path, "xylograph"),
+            "precondition: residue exists"
+        );
+        let m = SqliteMemory::open(&path).unwrap();
+        assert_eq!(m.schema_version().unwrap(), MIGRATIONS.len());
+        drop(m);
+        assert!(!file_contains(&path, "xylograph"));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn dedupe_respects_retention_principal_and_apostrophes() {
+        let mut m = store();
+        let mut short = proposed("The user is in Paris.");
+        short.provenance.retention = Retention::Until(Timestamp(NOW.0 + 10));
+        let expired = m.remember(short).unwrap();
+        let mut later = proposed("The user is in Paris.");
+        later.provenance.created_at = Timestamp(NOW.0 + 20);
+        assert_ne!(m.remember(later).unwrap(), expired);
+
+        let user = m.remember(proposed("Likes tea.")).unwrap();
+        let mut mina = proposed("Likes tea.");
+        mina.provenance.principal = "Mina".to_string();
+        assert_ne!(m.remember(mina).unwrap(), user);
+
+        let straight = m.remember(proposed("The user's dog is Rex.")).unwrap();
+        assert_eq!(
+            m.remember(proposed("The user\u{2019}s dog is Rex ."))
+                .unwrap(),
+            straight
+        );
+    }
+
+    #[test]
+    fn a_memory_is_corrected_once_and_forgetting_the_old_version_keeps_the_correction() {
+        let mut m = store();
+        let old = m.remember(proposed("The user's name is Ava.")).unwrap();
+        let new = m.correct(old, "The user's name is Ada.", NOW).unwrap();
+        let refused = m.correct(old, "The user's name is Ida.", NOW).unwrap_err();
+        assert!(refused.0.contains("already corrected"), "{refused}");
+
+        assert!(m.forget(old, NOW).unwrap());
+        assert_eq!(
+            texts(&m.search("name", 5, NOW).unwrap()),
+            ["The user's name is Ada."]
+        );
+        assert!(m.get(new).unwrap().is_some());
     }
 }
