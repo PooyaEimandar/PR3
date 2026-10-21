@@ -109,3 +109,37 @@ fn conversation_stays_correct_while_reusing_the_cache() {
         assert!(out.tool_calls.is_empty(), "{}: {out:?}", engine.label());
     }
 }
+
+/// Cancelling one answer from its callback ends it early and leaves the engine ready:
+/// the next call answers normally.
+#[test]
+#[ignore = "needs the models in models/"]
+fn cancelling_one_answer_leaves_the_engine_ready() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../models/Qwen3-0.6B-Q8_0.gguf");
+    if !path.is_file() {
+        eprintln!("{} missing, skipped", path.display());
+        return;
+    }
+    let engine = Engine::load(&path, EngineConfig::default()).expect("loads");
+    let messages = [ChatMessage::new(
+        ChatRole::User,
+        "Count slowly from one to fifty in words.",
+    )];
+    let mut pieces = 0;
+    let cancelled = engine.chat_with_tools_until(&messages, &[], &mut |_| {
+        pieces += 1;
+        pieces < 3
+    });
+    assert!(
+        matches!(cancelled, Err(pr3_llamacpp::EngineError::Stopped)),
+        "{cancelled:?}"
+    );
+    assert_eq!(pieces, 3, "no text after the callback said stop");
+
+    let question = [ChatMessage::new(
+        ChatRole::User,
+        "What is the capital of France? Answer in one word.",
+    )];
+    let answer = engine.chat(&question, &mut |_| {}).expect("still answers");
+    assert!(answer.contains("Paris"), "{answer}");
+}

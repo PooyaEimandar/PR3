@@ -242,6 +242,22 @@ impl Engine {
         tools: &[ToolDef],
         on_text: &mut dyn FnMut(&str),
     ) -> Result<ChatOutput, EngineError> {
+        self.chat_with_tools_until(messages, tools, &mut |text| {
+            on_text(text);
+            true
+        })
+    }
+
+    /// Like [`Engine::chat_with_tools`], but `on_text` decides whether to go on:
+    /// returning `false` ends this answer at once with [`EngineError::Stopped`] and
+    /// leaves the engine ready for the next call. For cancelling one request — a
+    /// paired phone's, say — without stopping the engine.
+    pub fn chat_with_tools_until(
+        &self,
+        messages: &[ChatMessage],
+        tools: &[ToolDef],
+        on_text: &mut dyn FnMut(&str) -> bool,
+    ) -> Result<ChatOutput, EngineError> {
         let stopped = || EngineError::Decode("the model thread stopped".to_string());
         let (events, received) = mpsc::channel();
         let request = Request {
@@ -256,7 +272,10 @@ impl Engine {
             .map_err(|_| stopped())?;
         for event in received {
             match event {
-                Event::Text(text) => on_text(&text),
+                // Dropping `received` makes the engine's next send fail, which ends the
+                // answer at that token; the context stays consistent.
+                Event::Text(text) if !on_text(&text) => return Err(EngineError::Stopped),
+                Event::Text(_) => {}
                 Event::Done(result) => return result,
             }
         }
