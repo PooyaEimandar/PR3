@@ -9,9 +9,13 @@
   </head>
   <body>
     <header>
-      <h1>PR3</h1>
+      <div class="title">
+        <h1>PR3</h1>
+        <button id="devices-button" type="button" class="secondary small">Devices</button>
+      </div>
       <p id="platform">starting…</p>
     </header>
+    <section id="devices" hidden></section>
     <main id="log" aria-live="polite"></main>
     <form id="composer" autocomplete="off">
       <input id="text" type="text" placeholder="Message PR3" aria-label="Message" />

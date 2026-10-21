@@ -137,6 +137,8 @@ async function send(text) {
     show("error", String(err));
   } finally {
     setBusy(false);
+    // A paired phone may have answered here or on its computer; show which.
+    showPlatform();
   }
 }
 
@@ -156,6 +158,126 @@ function showPlatform() {
     })
     .catch((err) => show("error", String(err)));
 }
+
+// Devices: on a computer, pair phones and see them; on a phone, pair with a computer.
+// Everything shown here comes from the Rust side; pairing codes are typed, never sent
+// anywhere else.
+const panel = document.querySelector("#devices");
+let pairingTimer;
+
+function el(tag, text, className) {
+  const node = document.createElement(tag);
+  if (text !== undefined) node.textContent = text;
+  if (className) node.className = className;
+  return node;
+}
+
+function makeButton(text, onClick, className = "") {
+  const b = el("button", text, className);
+  b.type = "button";
+  b.addEventListener("click", onClick);
+  return b;
+}
+
+async function renderDevices() {
+  clearInterval(pairingTimer);
+  panel.replaceChildren();
+  let info;
+  try {
+    info = await invoke("devices_info");
+  } catch (err) {
+    panel.append(el("p", String(err), "error-text"));
+    return;
+  }
+  const close = makeButton("Close", () => (panel.hidden = true), "secondary small");
+  if (info.role === "node") {
+    panel.append(el("h2", `This computer lends its model to paired phones`));
+    panel.append(el("p", `${info.name} · listening on ${info.listen}`, "meta"));
+    const pairArea = el("div");
+    const pair = makeButton("Pair a phone", async () => {
+      try {
+        const p = await invoke("start_pairing");
+        pairArea.replaceChildren(
+          el("p", "On the phone, open Devices and enter:"),
+          el("p", p.code.replace(/(\d{3})(\d{3})/, "$1 $2"), "code"),
+          el("p", `Address: ${p.listen} (the Android emulator uses 10.0.2.2:${p.listen.split(":").pop()})`, "meta"),
+        );
+        const left = el("p", "", "meta");
+        pairArea.append(left);
+        const until = Date.now() + p.expires_in_s * 1000;
+        const tick = () => {
+          const s = Math.max(0, Math.round((until - Date.now()) / 1000));
+          left.textContent = s ? `Valid for one try, ${s}s` : "Expired";
+          if (!s) clearInterval(pairingTimer);
+        };
+        tick();
+        clearInterval(pairingTimer);
+        pairingTimer = setInterval(tick, 1000);
+      } catch (err) {
+        pairArea.replaceChildren(el("p", String(err), "error-text"));
+      }
+    });
+    panel.append(pair, pairArea, el("h3", "Paired phones"));
+    if (info.phones.length === 0) panel.append(el("p", "None yet.", "meta"));
+    for (const phone of info.phones) {
+      const row = el("div", undefined, "row");
+      row.append(
+        el("span", `${phone.name} · ${new Date(phone.paired_at).toLocaleString()}`),
+        makeButton("Forget", async () => {
+          await invoke("forget_phone", { id: phone.id }).catch((e) => show("error", String(e)));
+          renderDevices();
+        }, "secondary small"),
+      );
+      panel.append(row);
+    }
+  } else if (info.role === "phone" && info.node) {
+    panel.append(el("h2", `Paired with ${info.node.name}`));
+    panel.append(el("p", `${info.node.address} · this phone answers on its own when it cannot reach it`, "meta"));
+    panel.append(makeButton("Unpair", async () => {
+      await invoke("unpair").catch((e) => show("error", String(e)));
+      renderDevices();
+    }, "secondary"));
+  } else if (info.role === "phone") {
+    panel.append(el("h2", "Pair with your computer"));
+    panel.append(el("p", "Open Devices on the computer, tap Pair a phone, then enter its address and code.", "meta"));
+    const form = el("form");
+    const address = el("input");
+    address.placeholder = document.body.classList.contains("android") ? "10.0.2.2:7313" : "127.0.0.1:7313";
+    address.value = address.placeholder;
+    address.setAttribute("aria-label", "Computer address");
+    const code = el("input");
+    code.inputMode = "numeric";
+    code.placeholder = "6-digit code";
+    code.setAttribute("aria-label", "Pairing code");
+    const status = el("p", "", "meta");
+    const submit = el("button", "Pair");
+    submit.type = "submit";
+    form.append(address, code, submit);
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      submit.disabled = true;
+      status.textContent = "Pairing…";
+      try {
+        const node = await invoke("pair_with_node", { address: address.value.trim(), code: code.value });
+        status.textContent = `Paired with ${node.name}.`;
+        renderDevices();
+      } catch (err) {
+        status.textContent = String(err);
+        submit.disabled = false;
+      }
+    });
+    panel.append(form, status);
+  } else {
+    panel.append(el("p", "Pairing is off on this computer ([node] in pr3.toml).", "meta"));
+  }
+  panel.append(close);
+}
+
+document.querySelector("#devices-button").addEventListener("click", () => {
+  panel.hidden = !panel.hidden;
+  if (!panel.hidden) renderDevices();
+  else clearInterval(pairingTimer);
+});
 
 // The model loads in the background; refresh the header when it is ready.
 window.__TAURI__.event.listen("model-changed", showPlatform);

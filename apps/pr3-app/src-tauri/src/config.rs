@@ -20,6 +20,27 @@ pub struct Config {
     pub traces: Traces,
     #[serde(default)]
     pub actions: Actions,
+    #[serde(default)]
+    pub node: Node,
+}
+
+/// The private hybrid (Roadmap §6.3): a computer lends its model to paired phones.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Node {
+    /// On a computer: accept paired phones. Phones ignore it.
+    pub serve: bool,
+    /// Where to listen, `address:port`.
+    pub listen: String,
+}
+
+impl Default for Node {
+    fn default() -> Self {
+        Self {
+            serve: true,
+            listen: format!("127.0.0.1:{}", pr3_hybrid::DEFAULT_PORT),
+        }
+    }
 }
 
 /// Consequential actions (Roadmap §4.6) and the user's limits on them (§9.1).

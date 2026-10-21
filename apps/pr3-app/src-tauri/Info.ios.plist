@@ -5,6 +5,7 @@
   iOS 27 terminates apps built with its SDK unless they adopt the UIScene lifecycle;
   tao switches to its TaoSceneDelegate when this manifest enables multiple scenes.
   Face ID needs a usage description; pr3-vault asks for it before signing an approval.
+  Reaching the paired computer on the local network needs one too (pr3-hybrid).
 -->
 <plist version="1.0">
 <dict>
@@ -15,5 +16,7 @@
   </dict>
   <key>NSFaceIDUsageDescription</key>
   <string>PR3 asks for Face ID before it sends anything in your name.</string>
+  <key>NSLocalNetworkUsageDescription</key>
+  <string>PR3 connects to your own computer, once you pair them, to use its larger model.</string>
 </dict>
 </plist>

@@ -63,6 +63,17 @@ impl Backend for LlamaBackend {
         request: &InferenceRequest,
         on_token: &mut dyn FnMut(&str),
     ) -> Result<Generation, String> {
+        self.generate_until(request, &mut |text| {
+            on_token(text);
+            true
+        })
+    }
+
+    fn generate_until(
+        &self,
+        request: &InferenceRequest,
+        on_token: &mut dyn FnMut(&str) -> bool,
+    ) -> Result<Generation, String> {
         let mut messages = Vec::with_capacity(request.messages.len() + 1);
         let mut system = SYSTEM_PROMPT.to_string();
         if request.tools.iter().any(|t| t.name == "remember") {
@@ -108,7 +119,7 @@ impl Backend for LlamaBackend {
 
         let out = self
             .engine
-            .chat_with_tools(&messages, &tools, on_token)
+            .chat_with_tools_until(&messages, &tools, on_token)
             .map_err(|e| e.to_string())?;
         Ok(Generation {
             content: out.text,

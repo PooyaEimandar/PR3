@@ -41,6 +41,17 @@ address = "alex@example.com"
 name = "Sam Chen"
 address = "sam@example.com"
 
+# The private hybrid (Roadmap §6.3): a computer lends its model to the phones paired with
+# it; a paired phone uses it, and answers on its own when it cannot reach it. Only
+# generation crosses: memory, tools and approvals stay on the phone.
+[node]
+# On a computer: accept paired phones. Phones ignore this section.
+serve = true
+# 127.0.0.1 reaches only this computer: the iOS simulator, and the Android emulator as
+# 10.0.2.2. For a phone on your network use "0.0.0.0:7313"; macOS then asks whether PR3
+# may accept incoming connections.
+listen = "127.0.0.1:7313"
+
 # The models PR3 knows, each pinned to a repository revision and SHA-256 so a download
 # is exactly the file that was tested. scripts/fetch-model.sh downloads them into models/.
 

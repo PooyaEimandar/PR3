@@ -6,6 +6,7 @@ mod android_vault;
 mod backup;
 mod config;
 mod host;
+mod hybrid;
 mod llama;
 mod trace_export;
 
@@ -57,6 +58,112 @@ async fn send_message(
     })
     .await
     .map_err(|e| e.to_string())
+}
+
+/// On a computer: the node lending its model, if it runs, and where it listens.
+struct NodeHandle(Option<Arc<pr3_hybrid::Node>>, String);
+
+/// What the devices panel shows: on a computer, its node and paired phones; on a phone,
+/// the computer it is paired with.
+#[tauri::command]
+fn devices_info(app: tauri::AppHandle) -> hybrid::DevicesInfo {
+    if let Some(link) = app.try_state::<hybrid::Link>() {
+        return hybrid::DevicesInfo::Phone {
+            node: link.node().as_ref().map(Into::into),
+        };
+    }
+    match app.try_state::<NodeHandle>() {
+        Some(handle) => match &handle.0 {
+            Some(node) => hybrid::DevicesInfo::Node {
+                name: node.name().to_string(),
+                listen: handle.1.clone(),
+                phones: node.phones().iter().map(Into::into).collect(),
+            },
+            None => hybrid::DevicesInfo::Off,
+        },
+        None => hybrid::DevicesInfo::Off,
+    }
+}
+
+#[derive(Serialize)]
+struct PairingInfo {
+    code: String,
+    expires_in_s: u64,
+    listen: String,
+}
+
+/// On a computer: a fresh pairing code to type on the phone.
+#[tauri::command]
+fn start_pairing(app: tauri::AppHandle) -> Result<PairingInfo, String> {
+    let handle = app
+        .try_state::<NodeHandle>()
+        .ok_or("this device is not a node")?;
+    let node = handle
+        .0
+        .as_ref()
+        .ok_or("the node is off (see [node] in pr3.toml)")?;
+    let code = node.start_pairing().map_err(|e| e.to_string())?;
+    Ok(PairingInfo {
+        code: code.code,
+        expires_in_s: code.expires_in.as_secs(),
+        listen: handle.1.clone(),
+    })
+}
+
+/// On a computer: stops lending to a phone.
+#[tauri::command]
+fn forget_phone(app: tauri::AppHandle, id: String) -> Result<(), String> {
+    let handle = app
+        .try_state::<NodeHandle>()
+        .ok_or("this device is not a node")?;
+    let node = handle.0.as_ref().ok_or("the node is off")?;
+    node.forget(&id).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// On a phone: pairs with the computer at `address` using the code it shows.
+#[tauri::command]
+async fn pair_with_node(
+    app: tauri::AppHandle,
+    address: String,
+    code: String,
+) -> Result<hybrid::PeerInfo, String> {
+    let link = app
+        .try_state::<hybrid::Link>()
+        .ok_or("only a phone pairs with a computer")?
+        .inner()
+        .clone();
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let node = tauri::async_runtime::spawn_blocking(move || link.pair(&dir, &address, &code))
+        .await
+        .map_err(|e| e.to_string())??;
+    let _ = app.emit(MODEL_CHANGED, ());
+    Ok((&node).into())
+}
+
+/// On a phone: stops using the paired computer.
+#[tauri::command]
+fn unpair(app: tauri::AppHandle) -> Result<(), String> {
+    let link = app
+        .try_state::<hybrid::Link>()
+        .ok_or("this device is not paired")?;
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    link.unpair(&dir)?;
+    let _ = app.emit(MODEL_CHANGED, ());
+    Ok(())
+}
+
+/// A phone remembers the computer it paired with; a computer lends its model.
+fn start_hybrid(app: &tauri::AppHandle, settings: &config::Node) {
+    let Ok(dir) = app.path().app_data_dir() else {
+        return;
+    };
+    if cfg!(mobile) {
+        app.manage(hybrid::Link::open(&dir));
+    } else {
+        let node = hybrid::start_node(app, &dir, settings);
+        app.manage(NodeHandle(node, settings.listen.clone()));
+    }
 }
 
 /// The user's answer on the confirmation card for a consequential action.
@@ -149,6 +256,11 @@ fn shut_down(app: &tauri::AppHandle, host: &Host) {
 }
 
 fn set_backend(app: &tauri::AppHandle, backend: Arc<dyn Backend>) {
+    // A paired phone asks its computer first and falls back to this model.
+    let backend: Arc<dyn Backend> = match app.try_state::<hybrid::Link>() {
+        Some(link) => Arc::new(hybrid::Delegating::new(link.inner().clone(), backend)),
+        None => backend,
+    };
     let label = backend.label();
     app.state::<Host>().set_backend(backend);
     // The window may not be listening yet at startup; it also asks on load.
@@ -290,6 +402,8 @@ pub fn run() {
             let config = config::Config::load(data_dir.as_deref());
             let actions = config.as_ref().ok().map(|c| &c.actions);
             app.manage(host(app.handle(), actions)?);
+            let node = config.as_ref().map(|c| c.node.clone()).unwrap_or_default();
+            start_hybrid(app.handle(), &node);
             start_tracing(
                 app.handle(),
                 config.as_ref().map(|c| c.traces).unwrap_or_default(),
@@ -300,7 +414,12 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             platform_info,
             send_message,
-            answer_approval
+            answer_approval,
+            devices_info,
+            start_pairing,
+            forget_phone,
+            pair_with_node,
+            unpair
         ])
         .build(tauri::generate_context!());
     match app {

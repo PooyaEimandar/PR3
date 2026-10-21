@@ -52,6 +52,19 @@ pub trait Backend: Send + Sync {
         on_token: &mut dyn FnMut(&str),
     ) -> Result<Generation, String>;
 
+    /// Like `generate`, but `on_token` returns whether to go on; `false` ends this
+    /// answer early and leaves the backend ready for the next. For a paired phone that
+    /// cancels or goes away. Backends that cannot stop early finish the answer.
+    fn generate_until(
+        &self,
+        request: &InferenceRequest,
+        on_token: &mut dyn FnMut(&str) -> bool,
+    ) -> Result<Generation, String> {
+        self.generate(request, &mut |text| {
+            on_token(text);
+        })
+    }
+
     /// Ends a generation in progress soon, for shutting down.
     fn stop(&self) {}
 }
@@ -215,7 +228,7 @@ impl Host {
         }
     }
 
-    fn backend(&self) -> Arc<dyn Backend> {
+    pub(crate) fn backend(&self) -> Arc<dyn Backend> {
         match self.backend.read() {
             Ok(b) => Arc::clone(&b),
             Err(poisoned) => Arc::clone(&poisoned.into_inner()),

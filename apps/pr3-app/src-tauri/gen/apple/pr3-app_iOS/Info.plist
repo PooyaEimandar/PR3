@@ -47,5 +47,7 @@
 	</dict>
 	<key>NSFaceIDUsageDescription</key>
 	<string>PR3 asks for Face ID before it sends anything in your name.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>PR3 connects to your own computer, once you pair them, to use its larger model.</string>
 </dict>
 </plist>

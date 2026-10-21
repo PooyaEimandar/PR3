@@ -208,3 +208,83 @@ button.secondary {
 .msg.approval.answered {
   border-color: var(--line);
 }
+
+header .title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+button.small {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+#devices {
+  margin: 0;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#devices[hidden] {
+  display: none;
+}
+
+#devices h2,
+#devices h3 {
+  margin: 0;
+  font-size: 14px;
+  color: var(--accent);
+}
+
+#devices p {
+  margin: 0;
+}
+
+#devices .meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+#devices .code {
+  font-size: 32px;
+  letter-spacing: 0.15em;
+  color: var(--accent);
+}
+
+#devices .row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+#devices form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+#devices input {
+  flex: 1 1 140px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+}
+
+#devices .error-text {
+  color: var(--error);
+}
+
+#devices > button {
+  align-self: flex-start;
+}

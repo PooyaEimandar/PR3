@@ -22,11 +22,17 @@ pr3-llamacpp = { path = "../../../crates/pr3-llamacpp" }
 pr3-memory-sqlite = { path = "../../../crates/pr3-memory-sqlite" }
 pr3-tools = { path = "../../../crates/pr3-tools" }
 pr3-vault = { path = "../../../crates/pr3-vault" }
+pr3-hybrid = { path = "../../../crates/pr3-hybrid" }
+pr3-protocol = { workspace = true, features = ["std"] }
 getrandom = "0.3"
 serde = { workspace = true, features = ["std"] }
 serde_json = { workspace = true, features = ["std"] }
 tauri = { version = "2", features = [] }
 toml = { version = "1", default-features = false, features = ["std", "serde", "parse"] }
+
+# The computer's name, shown on paired phones.
+[target.'cfg(not(any(target_os = "ios", target_os = "android")))'.dependencies]
+gethostname = "1"
 
 # Physical memory, to pick the phone model (config/pr3.toml).
 [target.'cfg(target_vendor = "apple")'.dependencies]
