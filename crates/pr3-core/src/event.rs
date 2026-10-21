@@ -21,6 +21,14 @@ pub enum Input {
         notes: Vec<String>,
         at: Timestamp,
     },
+    /// The host gives up on the session's turn: it lost the model, a tool crashed, or
+    /// the app is shutting down. The turn ends as a failure with `reason`, so the
+    /// session can take the next message.
+    Abort {
+        session: SessionId,
+        reason: String,
+        at: Timestamp,
+    },
     /// The host finished an [`Action::Infer`]. `tool_calls` are the model's proposals,
     /// already parsed from its output format but not yet trusted.
     ModelOutput {
