@@ -4,6 +4,8 @@
 //! path (Roadmap §4.4, §4.6). Tools run on the host; the core only sees their specs and
 //! results.
 
+#![forbid(unsafe_code)]
+
 pub mod calculator;
 pub mod clock;
 pub mod memory;
