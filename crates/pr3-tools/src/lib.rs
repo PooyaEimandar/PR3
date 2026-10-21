@@ -2,12 +2,13 @@
 //! calculator and clock only read; the memory tools write proposals the user can
 //! review, never confirmed facts or deletions, so none needs the trusted confirmation
 //! path (Roadmap §4.4, §4.6). Tools run on the host; the core only sees their specs and
-//! results.
+//! results. The one exception is [`mail`], a sandbox connector for the trusted path.
 
 #![forbid(unsafe_code)]
 
 pub mod calculator;
 pub mod clock;
+pub mod mail;
 pub mod memory;
 
 use pr3_core::{SessionId, Timestamp, ToolSpec};
