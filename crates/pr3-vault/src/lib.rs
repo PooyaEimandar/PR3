@@ -1,4 +1,4 @@
-//! PR3's vault (Roadmap §4.1, §7.2 items 2 and 10): it holds the device's approval key
+//! PR3's vault (docs Sec. 4.1, Sec. 7.2 items 2 and 10): it holds the device's approval key
 //! and signs the receipts the user approves. It hands out signatures and the public
 //! key, never the private key.
 //!

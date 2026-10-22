@@ -1,7 +1,7 @@
-//! PR3's wire contract, version 0 (Roadmap §4.1, §4.2): what a phone says to its node and
+//! PR3's wire contract, version 0 (docs Sec. 4.1, Sec. 4.2): what a phone says to its node and
 //! what the node answers. The node is the user's own computer, lending its larger model;
 //! the phone keeps the conversation, its memory, its tools and the whole trusted side, so
-//! a node can propose an action but never approve or run one (§6.3).
+//! a node can propose an action but never approve or run one (Sec. 6.3).
 //!
 //! Messages travel as CBOR inside an authenticated, encrypted session (`pr3-hybrid`).
 //! The types are `no_std`; encoding needs the `std` feature.

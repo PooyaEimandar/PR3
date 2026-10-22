@@ -9,7 +9,7 @@ rust-version.workspace = true
 
 [features]
 default = ["std"]
-# Conveniences only, never behavior (Roadmap §3, §4.2).
+# Conveniences only, never behavior (docs Sec. 3, Sec. 4.2).
 std = ["serde/std", "serde_json/std"]
 
 [dependencies]

@@ -1,4 +1,4 @@
-//! PR3 memory on SQLite (Roadmap §4.4): provenance on every row, FTS5 search ranked by
+//! PR3 memory on SQLite (docs Sec. 4.4): provenance on every row, FTS5 search ranked by
 //! bm25, versioned migrations, and forgetting that erases rather than hides.
 //!
 //! SQLite is bundled, with FTS5, so every platform runs the same engine. Forgotten text

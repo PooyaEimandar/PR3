@@ -2853,7 +2853,7 @@ checksum = "4a6394b9e965e73d0a289ee54f589087e2c676aedf60885baf52c76b771e4958"
 
 [[package]]
 name = "pr3-app"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gethostname",
  "getrandom 0.3.4",
@@ -2875,8 +2875,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "pr3-bench-agentdojo"
+version = "0.1.1"
+dependencies = [
+ "pr3-core",
+ "pr3-llamacpp",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "pr3-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "p256",
  "proptest",
@@ -2887,7 +2897,7 @@ dependencies = [
 
 [[package]]
 name = "pr3-hybrid"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "getrandom 0.3.4",
  "pr3-core",
@@ -2900,7 +2910,7 @@ dependencies = [
 
 [[package]]
 name = "pr3-llamacpp"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "llama-cpp-2",
  "serde_json",
@@ -2908,14 +2918,14 @@ dependencies = [
 
 [[package]]
 name = "pr3-memory"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "pr3-core",
 ]
 
 [[package]]
 name = "pr3-memory-sqlite"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "pr3-memory",
  "rusqlite",
@@ -2923,7 +2933,7 @@ dependencies = [
 
 [[package]]
 name = "pr3-protocol"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "ciborium",
  "pr3-core",
@@ -2932,7 +2942,7 @@ dependencies = [
 
 [[package]]
 name = "pr3-tools"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "pr3-core",
  "pr3-memory",
@@ -2941,7 +2951,7 @@ dependencies = [
 
 [[package]]
 name = "pr3-vault"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "getrandom 0.3.4",
  "p256",

@@ -1,4 +1,4 @@
-//! The trusted side's state (Roadmap §4.6): each consequential action goes proposed →
+//! The trusted side's state (docs Sec. 4.6): each consequential action goes proposed →
 //! validated → decided → approved → capability → executed, and every step lands in the
 //! audit log. Sans-I/O like the agent core: the host supplies the time, the envelope's
 //! nonce, the user's answer and the vault's signature, and stores the audit entries
@@ -641,7 +641,7 @@ mod tests {
 
     proptest! {
         /// No capability without a receipt matching the request exactly and signed by
-        /// the approval key (Roadmap §12).
+        /// the approval key (docs Sec. 12).
         #[test]
         fn tampered_receipts_never_issue(field in 0u8..9, byte in 0usize..64) {
             let mut gate = gate();
@@ -675,7 +675,7 @@ mod tests {
             prop_assert!(gate.issued.is_empty());
         }
 
-        /// Expired approvals and capabilities never authorize (Roadmap §12).
+        /// Expired approvals and capabilities never authorize (docs Sec. 12).
         #[test]
         fn late_approvals_and_capabilities_never_authorize(extra in 1u64..10_000_000) {
             let limits = Limits::default();

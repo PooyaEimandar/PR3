@@ -1,9 +1,9 @@
-//! The trusted side (Roadmap §4.1, §4.6, §7.2): structured intents, a deterministic
+//! The trusted side (docs Sec. 4.1, Sec. 4.6, Sec. 7.2): structured intents, a deterministic
 //! policy, signed approval receipts, one-use capabilities and a hash-chained audit log.
 //!
 //! These modules depend on nothing in the agent loop, the tool registry or inference
 //! types — only on `Timestamp` — so they can move behind a platform-protected boundary
-//! later without an API change (§7.3). CI checks the direction
+//! later without an API change (Sec. 7.3). CI checks the direction
 //! (`scripts/check-trusted-side.sh`).
 
 mod audit;

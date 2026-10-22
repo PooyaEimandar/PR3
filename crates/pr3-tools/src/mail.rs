@@ -1,4 +1,4 @@
-//! The sandbox mail connector (Roadmap §4.7, M5-E1), the spike's one consequential
+//! The sandbox mail connector (docs Sec. 4.7, M5-E1), the spike's one consequential
 //! action. Delivering appends the message to an outbox file in the app's data folder;
 //! nothing leaves the device, so the whole trusted path can be exercised safely.
 //!
@@ -57,7 +57,7 @@ impl SandboxOutbox {
 
     /// Delivers `mail` under `capability`, whose id is the idempotency key: delivering
     /// under the same capability again reports the first delivery instead of sending
-    /// twice (Roadmap §7.2 item 6). The message must be exactly the one approved.
+    /// twice (docs Sec. 7.2 item 6). The message must be exactly the one approved.
     pub fn deliver(
         &self,
         capability: &Capability,

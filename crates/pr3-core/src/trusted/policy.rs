@@ -1,4 +1,4 @@
-//! The policy decision (Roadmap §4.6 steps 3–4, §9.1): deterministic rules over a
+//! The policy decision (docs Sec. 4.6 steps 3–4, Sec. 9.1): deterministic rules over a
 //! validated intent and limits the user sets. A model never decides.
 
 use alloc::format;
@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use super::intent::Intent;
 
-/// Limits the user configures; never inferred from conversation (§9.1).
+/// Limits the user configures; never inferred from conversation (Sec. 9.1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Limits {
     /// The kill switch: when false, every consequential action is denied.
@@ -46,7 +46,7 @@ pub enum Risk {
 pub enum Decision {
     Deny(String),
     /// Ask the user on the trusted confirmation screen. Nothing is sent in the user's
-    /// name without it (§7.1); the spike has no pre-approved scopes, so no intent is
+    /// name without it (Sec. 7.1); the spike has no pre-approved scopes, so no intent is
     /// allowed outright.
     Confirm(Risk),
 }

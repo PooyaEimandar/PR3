@@ -1,4 +1,4 @@
-# The toolchain PR3 is built and tested with (Roadmap §12). Bump deliberately, with a
+# The toolchain PR3 is built and tested with (docs Sec. 12). Bump deliberately, with a
 # full run on every target.
 [toolchain]
 channel = "1.99.0"

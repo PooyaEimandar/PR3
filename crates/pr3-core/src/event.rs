@@ -63,7 +63,7 @@ pub enum Action {
     CallTool(ToolCall),
     /// A validated call to a consequential tool (`requires_confirmation`). The host must
     /// not run it directly: it goes through the trusted side — validation, policy, the
-    /// user's approval, a one-use capability and the audit log (Roadmap §4.6, see
+    /// user's approval, a one-use capability and the audit log (docs Sec. 4.6, see
     /// [`crate::trusted`]) — and the host answers with `Input::ToolOutcome`, which says
     /// "declined" or "denied" as often as "done".
     Propose(ToolCall),

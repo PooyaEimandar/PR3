@@ -24,7 +24,7 @@ pub struct Config {
     pub node: Node,
 }
 
-/// The private hybrid (Roadmap §6.3): a computer lends its model to paired phones.
+/// The private hybrid (docs Sec. 6.3): a computer lends its model to paired phones.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Node {
@@ -43,7 +43,7 @@ impl Default for Node {
     }
 }
 
-/// Consequential actions (Roadmap §4.6) and the user's limits on them (§9.1).
+/// Consequential actions (docs Sec. 4.6) and the user's limits on them (Sec. 9.1).
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Actions {

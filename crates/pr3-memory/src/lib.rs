@@ -1,5 +1,5 @@
 //! What PR3 remembers about its user, where each memory came from, and how it may be
-//! used (Roadmap §4.4). Types and the store interface only; storage adapters such as
+//! used (docs Sec. 4.4). Types and the store interface only; storage adapters such as
 //! `pr3-memory-sqlite` implement [`MemoryStore`].
 //!
 //! The model never decides what is true about the user. Anything it writes is a
@@ -64,7 +64,7 @@ pub enum Privacy {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Consent {
     /// Stays on this device: not synced, not sent to a node. The only scope until
-    /// device sync exists (Roadmap §6.3).
+    /// device sync exists (docs Sec. 6.3).
     DeviceOnly,
 }
 
@@ -75,7 +75,7 @@ pub enum Retention {
     Until(Timestamp),
 }
 
-/// The provenance every memory carries (Roadmap §4.4).
+/// The provenance every memory carries (docs Sec. 4.4).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Provenance {
     pub source: Source,

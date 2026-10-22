@@ -1,5 +1,5 @@
 //! Tool registry: which tools exist, and strict validation of the model's proposed calls.
-//! Everything here treats model output as untrusted input (Roadmap §3, §7.1).
+//! Everything here treats model output as untrusted input (docs Sec. 3, Sec. 7.1).
 
 use alloc::collections::BTreeMap;
 use alloc::format;

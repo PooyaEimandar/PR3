@@ -1,4 +1,4 @@
-//! Approval receipts and one-use capabilities (Roadmap §7.2 item 5).
+//! Approval receipts and one-use capabilities (docs Sec. 7.2 item 5).
 //!
 //! The user approves an exact [`Object`]; the device's approval key signs a
 //! [`Receipt`] binding it to principal, actor, operation, provider, request and
@@ -82,7 +82,7 @@ pub struct SignedReceipt {
     pub signature: String,
 }
 
-/// The public half of the device key that approves actions (§6.3). Its private half
+/// The public half of the device key that approves actions (Sec. 6.3). Its private half
 /// stays in `pr3-vault`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ApprovalKey(VerifyingKey);

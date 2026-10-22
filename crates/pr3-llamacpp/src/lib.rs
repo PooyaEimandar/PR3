@@ -3,7 +3,7 @@
 //! This crate is the only place that knows llama.cpp and the model's prompt format. Its
 //! public API — [`Engine::load`], [`Engine::chat`] and [`Engine::chat_with_tools`] over
 //! PR3's own [`ChatMessage`] type — is deliberately small, so llama.cpp and binding
-//! upgrades stay inside this crate (Roadmap §4.3, ADR-003). It runs the Qwen3 and
+//! upgrades stay inside this crate (docs Sec. 4.3, ADR-003). It runs the Qwen3 and
 //! Qwen3.5-family (3.5, 3.6, 3.8) GGUFs, recognising which from the model's own chat
 //! template. It wraps the `llama-cpp-2` bindings and needs no `unsafe` itself.
 //!
@@ -96,7 +96,7 @@ pub struct EngineConfig {
     /// cache or individual operations go to the GPU.
     pub gpu_layers: u32,
     /// Allow the model's reasoning block. Off by default: answers stay short and fast,
-    /// and long reasoning belongs on the node (Roadmap §4.3).
+    /// and long reasoning belongs on the node (docs Sec. 4.3).
     pub thinking: bool,
     pub temperature: f32,
     pub top_p: f32,

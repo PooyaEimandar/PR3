@@ -37,7 +37,7 @@ class SignArgs {
 }
 
 /**
- * The Android half of pr3-vault (Roadmap §7.2 item 10). The approval key is a P-256 key
+ * The Android half of pr3-vault (docs Sec. 7.2 item 10). The approval key is a P-256 key
  * in the Android Keystore — StrongBox when the phone has it — that signs only after the
  * user passes BiometricPrompt (a strong biometric, or the screen lock on Android 11+).
  * The private key never leaves the Keystore; Rust gets the public key and signatures.

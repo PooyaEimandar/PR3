@@ -21,7 +21,7 @@ mobile_min_memory_gb = 7
 enabled = false
 max_mb = 8
 
-# Consequential actions (Roadmap §4.6). The spike has one: sending email through a
+# Consequential actions (docs Sec. 4.6). The spike has one: sending email through a
 # sandbox connector that delivers to outbox.jsonl in the app's data folder, never to
 # the internet. Every email waits for the user's approval on a confirmation card.
 [actions]
@@ -41,7 +41,7 @@ address = "alex@example.com"
 name = "Sam Chen"
 address = "sam@example.com"
 
-# The private hybrid (Roadmap §6.3): a computer lends its model to the phones paired with
+# The private hybrid (docs Sec. 6.3): a computer lends its model to the phones paired with
 # it; a paired phone uses it, and answers on its own when it cannot reach it. Only
 # generation crosses: memory, tools and approvals stay on the phone.
 [node]

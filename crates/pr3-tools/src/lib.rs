@@ -1,7 +1,7 @@
 //! Built-in tools PR3 offers the model. Each is deterministic and offline. The
 //! calculator and clock only read; the memory tools write proposals the user can
 //! review, never confirmed facts or deletions, so none needs the trusted confirmation
-//! path (Roadmap §4.4, §4.6). Tools run on the host; the core only sees their specs and
+//! path (docs Sec. 4.4, Sec. 4.6). Tools run on the host; the core only sees their specs and
 //! results. The one exception is [`mail`], a sandbox connector for the trusted path.
 
 #![forbid(unsafe_code)]

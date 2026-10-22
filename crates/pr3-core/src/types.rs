@@ -16,7 +16,7 @@ pub struct RequestId(pub u64);
 
 /// Names follow OpenJarvis's core types (`Role`, `Message{role, content}`,
 /// `ToolCall{id, name, arguments}`), so PR3 traces and matched benchmarks line up with
-/// OpenJarvis (Roadmap §5, §8.1).
+/// OpenJarvis (docs Sec. 5, Sec. 8.1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Role {
@@ -63,7 +63,7 @@ pub struct ToolSpec {
     pub parameters: String,
     /// Consequential tools (sending, paying, sharing) are never run directly: the core
     /// hands their calls to the host as [`crate::Action::Propose`], for the trusted
-    /// confirmation path (Roadmap §4.6).
+    /// confirmation path (docs Sec. 4.6).
     #[serde(default)]
     pub requires_confirmation: bool,
     #[serde(default)]

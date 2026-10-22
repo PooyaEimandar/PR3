@@ -2,7 +2,7 @@
 //! Secure Enclave and signs only after Face ID, Touch ID or the device passcode. Without
 //! a Secure Enclave, a software key signs after the same check.
 //!
-//! This is the crate's one audited `unsafe` boundary (Roadmap §4.2): plain C calls into
+//! This is the crate's one audited `unsafe` boundary (docs Sec. 4.2): plain C calls into
 //! Swift, with strings in and JSON strings out.
 
 #![allow(unsafe_code)]
@@ -159,7 +159,15 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("pr3-enclave-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let path = dir.join("vault.enclave");
-        let first = SecureEnclaveVault::open(&path).unwrap();
+        let first = match SecureEnclaveVault::open(&path) {
+            // errSecInteractionNotAllowed: the screen is locked, and these keys exist only
+            // for an unlocked device, as intended.
+            Err(VaultError::Platform(why)) if why.contains("-25308") => {
+                eprintln!("the screen is locked; skipped");
+                return;
+            }
+            other => other.unwrap(),
+        };
         let again = SecureEnclaveVault::open(&path).unwrap();
         assert_eq!(first.public_key().len(), 65);
         assert_eq!(first.public_key(), again.public_key());

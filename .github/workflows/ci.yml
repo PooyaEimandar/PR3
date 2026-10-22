@@ -1,4 +1,4 @@
-# Quality gates for every change (Roadmap §12): formatting, lints, tests, the no_std
+# Quality gates for every change (docs Sec. 12): formatting, lints, tests, the no_std
 # builds of the core crates, and known-vulnerability checks on the dependencies.
 # Real-model tests need multi-gigabyte models and stay manual (cargo test -- --ignored).
 name: CI

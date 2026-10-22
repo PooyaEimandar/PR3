@@ -10,7 +10,7 @@ publish = false
 
 [dependencies]
 serde_json = { workspace = true, features = ["std"] }
-# Pinned exactly: upgrades are deliberate, with a conformance run (Roadmap §4.3).
+# Pinned exactly: upgrades are deliberate, with a conformance run (docs Sec. 4.3).
 llama-cpp-2 = { version = "=0.1.160", default-features = false }
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]

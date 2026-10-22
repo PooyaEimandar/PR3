@@ -83,7 +83,7 @@ struct Turn {
 pub struct Core {
     config: Config,
     tools: ToolRegistry,
-    // BTreeMap, not HashMap: no hidden entropy dependency, HashDoS-immune (Roadmap §4.2).
+    // BTreeMap, not HashMap: no hidden entropy dependency, HashDoS-immune (docs Sec. 4.2).
     sessions: BTreeMap<SessionId, Session>,
     turns: BTreeMap<SessionId, Turn>,
     requests: BTreeMap<RequestId, SessionId>,
@@ -501,7 +501,7 @@ impl Core {
                 None => break,
             }
         }
-        // Fallible allocation at an untrusted boundary (Roadmap §4.2).
+        // Fallible allocation at an untrusted boundary (docs Sec. 4.2).
         history.try_reserve(1).map_err(|_| CoreError::OutOfMemory)?;
         history.push_back(message);
         Ok(())

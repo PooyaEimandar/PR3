@@ -31,3 +31,8 @@ BUSINESS.md
 
 # SwiftPM build output (crates/pr3-vault/swift builds into target/ normally)
 .build/
+
+# AgentDojo harness: its virtualenv and raw results
+benches/agentdojo/.venv/
+benches/agentdojo/results/
+__pycache__/

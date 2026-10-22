@@ -1,4 +1,4 @@
-//! The audit log (Roadmap §4.1, §4.6 step 8): append-only and hash-chained. Each entry
+//! The audit log (docs Sec. 4.1, Sec. 4.6 step 8): append-only and hash-chained. Each entry
 //! hashes its predecessor, so changing, removing or reordering any entry breaks every
 //! hash after it. Signed checkpoints, which also catch a log cut short at the end, come
 //! with the device key's platform storage.
@@ -179,7 +179,7 @@ mod tests {
 
     proptest! {
         /// Any change to any field of any entry, or removing or swapping entries,
-        /// breaks verification (Roadmap §12).
+        /// breaks verification (docs Sec. 12).
         #[test]
         fn any_rewrite_breaks_the_chain(n in 2usize..8, pick in 0usize..8, how in 0u8..7) {
             let mut entries = log(n);

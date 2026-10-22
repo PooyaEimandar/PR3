@@ -1,4 +1,4 @@
-//! Consequential actions: the host side of the trusted path (Roadmap §4.6). A call the
+//! Consequential actions: the host side of the trusted path (docs Sec. 4.6). A call the
 //! core proposes goes to the gate in `pr3_core::trusted`; the user answers on the
 //! confirmation card; the vault signs the receipt after the system's biometric or
 //! passcode prompt; the gate exchanges it for a one-use capability; the sandbox outbox
@@ -19,7 +19,7 @@ use pr3_core::{Timestamp, ToolCall, ToolSpec};
 use pr3_tools::mail::{self, SandboxOutbox};
 use pr3_vault::{Vault, VaultError};
 
-/// Who proposes and on whose behalf, from the session's binding (§4.6). One user and
+/// Who proposes and on whose behalf, from the session's binding (Sec. 4.6). One user and
 /// one agent until pairing (spike step 6) brings device identities.
 const ACTOR: &str = "agent:pr3";
 const PRINCIPAL: &str = "user:local";

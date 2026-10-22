@@ -1,4 +1,4 @@
-//! The private hybrid in the app (Roadmap §6.3): a computer lends its model to the
+//! The private hybrid in the app (docs Sec. 6.3): a computer lends its model to the
 //! phones it paired with, and a paired phone uses it, answering on its own whenever the
 //! computer cannot be reached.
 //!

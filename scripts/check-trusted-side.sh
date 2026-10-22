@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Keeps the trusted side separable (Roadmap §4.2): pr3-core's trusted modules may use
+# Keeps the trusted side separable (docs Sec. 4.2): pr3-core's trusted modules may use
 # each other and `types::Timestamp`, and nothing else in the crate — not the agent loop,
 # the tool registry, traces, events or inference types. The agent side may depend on
 # the trusted side; the reverse fails this check.

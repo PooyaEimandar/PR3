@@ -33,7 +33,7 @@ impl LlamaBackend {
     pub fn load(path: &Path) -> Result<Self, EngineError> {
         let config = EngineConfig {
             // Metal on Macs and iPhones. CPU on Android until a Vulkan build is measured
-            // per device class (Roadmap §4.3), and in the iOS simulator, whose Metal
+            // per device class (docs Sec. 4.3), and in the iOS simulator, whose Metal
             // produces wrong results for llama.cpp's kernels.
             gpu_layers: if cfg!(any(target_os = "android", target_abi = "sim")) {
                 0

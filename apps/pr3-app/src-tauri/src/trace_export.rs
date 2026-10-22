@@ -4,7 +4,7 @@
 //! (src/openjarvis/traces/analyzer.py at 6ae98f0): float seconds for times, the same
 //! `step_type` strings and step keys, `outcome` as "success"/"failure". OpenJarvis's
 //! trace analysis and learning can therefore read PR3 traces unchanged, which is what
-//! matched benchmarks need (Roadmap §8.1). PR3-only details go under `metadata.pr3`.
+//! matched benchmarks need (docs Sec. 8.1). PR3-only details go under `metadata.pr3`.
 
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};

@@ -3,7 +3,7 @@
 //! The host owns the loop. It feeds [`Input`]s into [`Core::step`] and performs the
 //! [`Action`]s that come back — running a model, showing a reply — then feeds the
 //! results back in. The core has no clock, entropy, I/O, threads or async runtime of
-//! its own (Roadmap §3, §4.2), so the same code runs in apps, browsers and
+//! its own (docs Sec. 3, Sec. 4.2), so the same code runs in apps, browsers and
 //! `no_std` targets.
 
 #![cfg_attr(not(feature = "std"), no_std)]

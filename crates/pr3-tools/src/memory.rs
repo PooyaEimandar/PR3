@@ -1,5 +1,5 @@
 //! Long-term memory for the model: it can propose memories and look them up. It cannot
-//! confirm, correct or delete them; those are the user's (Roadmap §4.4). Every memory it
+//! confirm, correct or delete them; those are the user's (docs Sec. 4.4). Every memory it
 //! writes keeps the user's words from that turn as its source.
 
 use std::sync::{Arc, Mutex};
@@ -122,7 +122,7 @@ impl Tool for Recall {
 
 /// Memories matching what the user just said, as notes for the turn. PR3 looks these
 /// up itself rather than relying on the model to call `recall`, which small models
-/// often skip (Roadmap §3: deterministic first). Only the memories' text: provenance
+/// often skip (docs Sec. 3: deterministic first). Only the memories' text: provenance
 /// labels made small models doubt them. Empty if nothing matches or memory is
 /// unavailable.
 pub fn notes_for(store: &SharedMemory, utterance: &str, now: Timestamp) -> Vec<String> {

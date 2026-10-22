@@ -1,4 +1,4 @@
-//! Structured intents and their validator (Roadmap §4.6).
+//! Structured intents and their validator (docs Sec. 4.6).
 //!
 //! The model proposes an operation with arguments; the runtime wraps the proposal in an
 //! [`Envelope`] carrying identity, a nonce and the time — values the model never

@@ -1,4 +1,4 @@
-//! Exact arithmetic for the model. "Deterministic first, LLM second" (Roadmap §3): the
+//! Exact arithmetic for the model. "Deterministic first, LLM second" (docs Sec. 3): the
 //! model decides *what* to compute; this code computes it.
 //!
 //! Grammar: `+ - * / % ^`, parentheses, unary minus, decimals and exponents

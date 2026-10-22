@@ -1,4 +1,4 @@
-//! PR3's private hybrid (Roadmap §6.3, M2-E2–E4): a phone pairs with the user's own
+//! PR3's private hybrid (docs Sec. 6.3, M2-E2–E4): a phone pairs with the user's own
 //! computer, which then lends it its larger model.
 //!
 //! - **Pairing.** The computer shows a six-digit code, valid once and for two minutes.
