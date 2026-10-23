@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Merged by Tauri into the macOS app's Info.plist, and embedded in `cargo tauri dev`
+  builds so the system can ask for these. Voice notes use the microphone and on-device
+  speech recognition (pr3-speech).
+-->
+<plist version="1.0">
+<dict>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>PR3 listens while you hold the talk button, to turn your voice note into text on this Mac.</string>
+  <key>NSSpeechRecognitionUsageDescription</key>
+  <string>PR3 turns your voice notes into text on this Mac; the audio never leaves it.</string>
+</dict>
+</plist>

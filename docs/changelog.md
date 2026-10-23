@@ -2,6 +2,18 @@
 
 Part of the [PR3 documentation](README.md). Newest first; each version records what changed in the design and why.
 
+## v1.17 (22 October 2026) - voice notes
+
+Spike step 7 ([Sec. 11](roadmap.md#11-delivery-roadmap-epics--issues), M2-E7): push-to-talk voice notes and spoken replies, on the device only ([Sec. 4.3](architecture.md#43-inference-strategy)).
+
+1. **`pr3-speech`.** A `Recognizer` and a `Voice` trait, so speech engines swap the way models do. On Apple devices the Speech framework, with on-device recognition required: where a language has no on-device model, PR3 tries the same language in its main region (English (UAE) falls back to English (US)) and otherwise offers no voice input rather than send audio to a server. Replies are spoken by the best installed system voice for that language, never a novelty voice or the user's Personal Voice. The Swift half is linked with swift-rs, as `pr3-vault`'s is, and called from the crate's one audited `unsafe` module; no callback crosses that boundary: a Rust thread reads each session's events.
+2. **Android.** A Kotlin plugin in the app uses only the on-device `SpeechRecognizer` (Android 12 and later) and a `TextToSpeech` voice that needs no network. Where the language's on-device model is missing, Android 13 and later download it on PR3's request; only the model is downloaded. The recognizer ends a segment after a pause; while the button is still held, PR3 starts another and the transcript grows.
+3. **App.** Hold the talk button, speak and let go; or tap it, speak and tap again. With **Send on pause** (on by default, beside **Speak replies**), a tapped note is sent once you stop talking for two seconds. Either way no Send button is needed. The transcript appears as you speak and is sent like typed text, so memories it leads to are proposals with your words as their source ([Sec. 4.4](architecture.md#44-memory-and-knowledge-architecture)). **Speak replies** reads each final reply aloud, with Markdown read as plain sentences; it is off by default and remembered. Starting a voice note stops a reply being spoken, and Send during a voice note ends it. If the recognizer fails mid-note, the app says so at once; a note that hears nothing for 30 seconds ends by itself, so the microphone never stays open unattended. The microphone and speech recognition prompts come with the first voice note. No audio is kept.
+
+Checked with a real voice on the Android emulator (API 36): live transcript, sending on release, spoken replies. On the Mac the voice and the language fallback were checked through `pr3-speech`. The iOS 27 simulator shows both permission prompts and opens the microphone, but its own on-device speech model is installed damaged, so transcription there waits for a Mac or an iPhone.
+
+This also delivers part of M4-E6 early: voice notes on iOS and spoken replies on iOS and Android. Still to come: whisper.cpp where no on-device recognizer exists (desktop Linux and Windows, older Android), choosing the language in settings, and low-latency spoken conversation through the node.
+
 ## v1.16 (21 October 2026) - the AgentDojo harness
 
 Spike step 8 ([Sec. 11](roadmap.md#11-delivery-roadmap-epics--issues), [Sec. 8.1](benchmarks.md#81-equal-conditions-openjarvis-comparison)): PR3 against a plain tool-calling loop on AgentDojo with the same model, plus a confirm-all control, in `benches/agentdojo`. On the banking suite no attack succeeded through PR3, against 6.9% (Qwen3.8-27B) and 27.1% (Qwen3.5-4B) through the plain loop; PR3 asked about half as many approvals as the control on the smaller model. Method, full results and limits: [Sec. 8.6](benchmarks.md#86-results-so-far). The design documents also moved from one Roadmap.MD into `docs/`, with section numbers kept.

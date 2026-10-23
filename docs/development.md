@@ -48,6 +48,14 @@ Everything lives in [`config/pr3.toml`](../config/pr3.toml):
 
 PR3 can send email through a sandbox connector: messages land in `outbox.jsonl` in the app's data folder, never on the internet. Each one waits for your approval on a confirmation card and then for Face ID, Touch ID, a fingerprint or the passcode; the approval key lives in the Secure Enclave or the Android Keystore. On Android, set a screen lock first. Every step is recorded in a hash-chained `audit.jsonl` that is verified at each start.
 
+## Voice notes
+
+Hold the talk button beside the message field, speak and let go; or tap it, speak and tap again. No Send button is needed. In the header, **Send on pause** (on by default) sends a tapped note once you stop talking for two seconds, and **Speak replies** reads replies aloud; both are remembered. Recognition and voices run on the device, and the first voice note asks for the microphone and speech recognition.
+
+- **macOS and iOS:** the Speech framework's on-device recognition. If your language has none, turn on Dictation for it (System Settings, Keyboard on a Mac); its on-device model comes with it. Better voices download in the Spoken Content settings. `src-tauri/Info.plist` gives `cargo tauri dev` the usage strings macOS asks for.
+- **Android 12 and later:** the on-device recognizer. On first use Android may offer to download the language's speech model (about 60 MB). In the emulator, turn on **Virtual microphone uses host audio input** in the extended controls.
+- **Simulator and emulator:** both hear through the Mac's microphone, so Simulator and the emulator need microphone access on the Mac (System Settings, Privacy & Security, Microphone). Without it the emulator records silence and the simulator's audio stalls until iOS ends the app. From the command line, start the emulator with `-allow-host-audio`. Some simulator runtimes ship a damaged on-device speech model ("Failed to initialize recognizer"); test transcription on a Mac or a phone instead.
+
 ## Pairing a phone with a computer
 
 1. On the computer, open **Devices** and choose **Pair a phone**; it shows a six-digit code, valid once for two minutes.
@@ -92,6 +100,7 @@ crates/pr3-llamacpp       in-process llama.cpp backend with Qwen prompt formats 
 crates/pr3-memory         user memory with provenance: no_std types and the store interface
 crates/pr3-memory-sqlite  SQLite/FTS5 memory store
 crates/pr3-tools          built-in tools (calculator, clock, memory) and the sandbox mail connector
+crates/pr3-speech         on-device speech: push-to-talk recognition and spoken replies through the platform's engines
 crates/pr3-vault          the device's approval key: Secure Enclave, Android Keystore or a software key
 apps/pr3-app              the Tauri 2 app for macOS, iOS and Android
 benches/agentdojo         AgentDojo harness (benchmark only, never shipped)
@@ -99,4 +108,4 @@ config/pr3.toml           models, traces, actions and node settings
 scripts/                  model download, Android build, trusted-side check
 ```
 
-Crates the roadmap plans but the spike has not needed yet - `pr3-inference`, `pr3-speech`, `pr3-ffi`, `pr3-client-c`, `pr3-node` - are described in [Sec. 4.2](architecture.md#42-rust-workspace-host-api-c-abi-and-protocol-client).
+Crates the roadmap plans but the spike has not needed yet - `pr3-inference`, `pr3-ffi`, `pr3-client-c`, `pr3-node` - are described in [Sec. 4.2](architecture.md#42-rust-workspace-host-api-c-abi-and-protocol-client).

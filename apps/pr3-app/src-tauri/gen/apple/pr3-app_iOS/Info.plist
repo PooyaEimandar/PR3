@@ -49,5 +49,9 @@
 	<string>PR3 asks for Face ID before it sends anything in your name.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>PR3 connects to your own computer, once you pair them, to use its larger model.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>PR3 listens while you hold the talk button, to turn your voice note into text on this iPhone.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>PR3 turns your voice notes into text on this iPhone; the audio never leaves it.</string>
 </dict>
 </plist>

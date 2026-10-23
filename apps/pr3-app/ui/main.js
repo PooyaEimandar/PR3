@@ -92,6 +92,7 @@ function showApproval(request, before) {
 
 function setBusy(busy) {
   button.disabled = busy;
+  talk.disabled = busy;
   input.placeholder = busy ? "PR3 is answering…" : "Message PR3";
 }
 
@@ -126,8 +127,10 @@ async function send(text) {
     bubble.classList.remove("pending");
     for (const action of actions) {
       // The final reply is canonical; it replaces whatever was streamed.
-      if (action.type === "reply") bubble.textContent = action.content;
-      else if (action.type === "failed") {
+      if (action.type === "reply") {
+        bubble.textContent = action.content;
+        if (speakReplies) invoke("speak", { text: action.content }).catch((err) => show("error", String(err)));
+      } else if (action.type === "failed") {
         bubble.remove();
         show("error", action.reason);
       }
@@ -144,10 +147,203 @@ async function send(text) {
 
 form.addEventListener("submit", (event) => {
   event.preventDefault();
+  // Send during a voice note ends it and sends what was heard.
+  if (voice) {
+    finishVoiceNote();
+    return;
+  }
   const text = input.value.trim();
   if (!text || button.disabled) return;
   input.value = "";
   send(text);
+});
+
+// Voice notes: hold the talk button and speak, then let go; or tap it and speak, and
+// tap again (or, with Send on pause, just stop talking). The words are recognized on
+// the device and sent like typed text. Replies are spoken too
+// when the user turns that on.
+const talk = document.querySelector("#talk");
+const speakButton = document.querySelector("#speak-button");
+const pauseButton = document.querySelector("#pause-button");
+// A press shorter than this is a tap: listening continues until the next tap.
+const HOLD_MS = 300;
+// With Send on pause, a tapped voice note is sent once the user stops talking this long.
+const PAUSE_MS = 2000;
+// A voice note that hears nothing new for this long ends by itself, so the
+// microphone never stays open unattended.
+const SILENCE_MS = 30000;
+let speech = { listen: false, speak: false };
+let voice = null;
+// A press began with a pointer, so the click that follows is not a key press.
+let pointerPress = false;
+let speakReplies = remembered("pr3.speakReplies") === "on";
+// On unless the user turned it off.
+let sendOnPause = remembered("pr3.sendOnPause") !== "off";
+
+// Storage can be unavailable; the choice then lasts until the app closes.
+function remembered(key, value) {
+  try {
+    if (value === undefined) return localStorage.getItem(key);
+    localStorage.setItem(key, value);
+  } catch {}
+  return value;
+}
+
+async function setUpSpeech() {
+  try {
+    speech = await invoke("speech_status");
+  } catch {
+    return;
+  }
+  talk.hidden = !speech.listen && !speech.speak;
+  pauseButton.hidden = !speech.listen;
+  speakButton.hidden = !speech.speak;
+  renderPauseButton();
+  renderSpeakButton();
+}
+
+function renderPauseButton() {
+  pauseButton.setAttribute("aria-pressed", String(sendOnPause));
+  pauseButton.title = sendOnPause
+    ? "A tapped voice note is sent when you stop talking; tap to send it yourself"
+    : "A tapped voice note waits for a second tap or Send; tap to send it when you stop talking";
+}
+
+pauseButton.addEventListener("click", () => {
+  sendOnPause = !sendOnPause;
+  remembered("pr3.sendOnPause", sendOnPause ? "on" : "off");
+  renderPauseButton();
+});
+
+function renderSpeakButton() {
+  speakButton.setAttribute("aria-pressed", String(speakReplies));
+  speakButton.title = speakReplies ? "Replies are spoken; tap to stop" : "Replies are text only; tap to hear them too";
+}
+
+speakButton.addEventListener("click", () => {
+  speakReplies = !speakReplies;
+  remembered("pr3.speakReplies", speakReplies ? "on" : "off");
+  renderSpeakButton();
+  if (!speakReplies) invoke("stop_speaking").catch(() => {});
+});
+
+// `held`: started by a press that may become a hold; a tap or a key leaves the note
+// to end itself at the next pause.
+function startVoiceNote(held) {
+  if (!speech.listen) {
+    show("error", speech.why_not || "Voice notes are unavailable here.");
+    return;
+  }
+  const note = { since: Date.now(), heard: Date.now(), spoke: false, held, ending: false, typed: input.value };
+  voice = note;
+  note.watch = setInterval(() => {
+    const quiet = Date.now() - note.heard;
+    const paused = sendOnPause && note.spoke && !note.held && quiet > PAUSE_MS;
+    if (paused || quiet > SILENCE_MS) finishVoiceNote();
+  }, 250);
+  talk.classList.add("listening");
+  talk.setAttribute("aria-label", "Listening; release or tap to send");
+  input.value = "";
+  input.placeholder = "Listening…";
+  const onEvent = new Channel();
+  onEvent.onmessage = (event) => {
+    if (voice !== note || note.ending) return;
+    if (event.type === "partial") {
+      note.heard = Date.now();
+      note.spoke = true;
+      input.value = event.text;
+    } else if (event.type === "failed") {
+      // The recognizer stopped on its own; say so now rather than at release.
+      note.ending = true;
+      show("error", event.error);
+      invoke("cancel_listening")
+        .catch(() => {})
+        .finally(() => endVoiceNote(note, true));
+    }
+  };
+  // The first time, the system asks for the microphone and speech recognition.
+  note.started = invoke("start_listening", { onEvent }).catch((err) => {
+    endVoiceNote(note, true);
+    show("error", String(err));
+    throw err;
+  });
+}
+
+async function finishVoiceNote() {
+  const note = voice;
+  if (!note || note.ending) return;
+  note.ending = true;
+  // What the field shows now: the last partial transcript, or words typed meanwhile.
+  const shown = input.value.trim();
+  try {
+    await note.started;
+  } catch {
+    return;
+  }
+  input.placeholder = "…";
+  let text = "";
+  try {
+    text = (await invoke("stop_listening")).trim() || shown;
+  } catch (err) {
+    show("error", String(err));
+  }
+  endVoiceNote(note, !text);
+  if (text) send(text);
+}
+
+function cancelVoiceNote() {
+  const note = voice;
+  if (!note || note.ending) return;
+  note.ending = true;
+  note.started
+    .then(() => invoke("cancel_listening"))
+    .catch(() => {})
+    .finally(() => endVoiceNote(note, true));
+}
+
+// `restore`: nothing is sent, so whatever was typed before comes back.
+function endVoiceNote(note, restore) {
+  clearInterval(note.watch);
+  if (voice !== note) return;
+  voice = null;
+  talk.classList.remove("listening");
+  talk.setAttribute("aria-label", "Hold to talk");
+  input.value = restore ? note.typed : "";
+  setBusy(button.disabled);
+}
+
+talk.addEventListener("pointerdown", (event) => {
+  if (event.button !== 0 || talk.disabled) return;
+  pointerPress = true;
+  event.preventDefault();
+  talk.setPointerCapture(event.pointerId);
+  if (voice) finishVoiceNote();
+  else startVoiceNote(true);
+});
+talk.addEventListener("pointerup", () => {
+  if (!voice || !voice.held) return;
+  // Held: letting go sends. Tapped: a second tap sends, or with Send on pause, a pause.
+  if (Date.now() - voice.since >= HOLD_MS) finishVoiceNote();
+  else voice.held = false;
+});
+// A system sheet (a permission prompt, a model download) took the touch away.
+talk.addEventListener("pointercancel", () => {
+  pointerPress = false;
+  cancelVoiceNote();
+});
+talk.addEventListener("contextmenu", (event) => event.preventDefault());
+// Keyboard: Enter or Space on the button starts a voice note and ends it. Android's
+// webview reports a tap's click like a key's, so pointer presses are tracked instead.
+talk.addEventListener("click", () => {
+  if (pointerPress) {
+    pointerPress = false;
+    return;
+  }
+  if (voice) finishVoiceNote();
+  else startVoiceNote(false);
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && voice) cancelVoiceNote();
 });
 
 function showPlatform() {
@@ -282,3 +478,4 @@ document.querySelector("#devices-button").addEventListener("click", () => {
 // The model loads in the background; refresh the header when it is ready.
 window.__TAURI__.event.listen("model-changed", showPlatform);
 showPlatform();
+setUpSpeech();

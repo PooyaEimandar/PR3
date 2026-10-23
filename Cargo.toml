@@ -7,6 +7,7 @@ members = [
     "crates/pr3-memory",
     "crates/pr3-memory-sqlite",
     "crates/pr3-protocol",
+    "crates/pr3-speech",
     "crates/pr3-tools",
     "crates/pr3-vault",
     "apps/pr3-app/src-tauri",

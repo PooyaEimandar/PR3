@@ -2,12 +2,15 @@
 
 mod actions;
 #[cfg(target_os = "android")]
+mod android_speech;
+#[cfg(target_os = "android")]
 mod android_vault;
 mod backup;
 mod config;
 mod host;
 mod hybrid;
 mod llama;
+mod speech;
 mod trace_export;
 
 use std::path::Path;
@@ -394,7 +397,9 @@ fn prepare_data_dir(app: &tauri::AppHandle) {
 pub fn run() {
     let builder = tauri::Builder::default();
     #[cfg(target_os = "android")]
-    let builder = builder.plugin(android_vault::plugin());
+    let builder = builder
+        .plugin(android_vault::plugin())
+        .plugin(android_speech::plugin());
     let app = builder
         .setup(|app| {
             prepare_data_dir(app.handle());
@@ -409,6 +414,7 @@ pub fn run() {
                 config.as_ref().map(|c| c.traces).unwrap_or_default(),
             );
             start_model_loading(app.handle(), config);
+            app.manage(speech::Speech::open(app.handle()));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -419,7 +425,13 @@ pub fn run() {
             start_pairing,
             forget_phone,
             pair_with_node,
-            unpair
+            unpair,
+            speech::speech_status,
+            speech::start_listening,
+            speech::stop_listening,
+            speech::cancel_listening,
+            speech::speak,
+            speech::stop_speaking
         ])
         .build(tauri::generate_context!());
     match app {

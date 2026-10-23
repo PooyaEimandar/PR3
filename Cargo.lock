@@ -2865,6 +2865,7 @@ dependencies = [
  "pr3-llamacpp",
  "pr3-memory-sqlite",
  "pr3-protocol",
+ "pr3-speech",
  "pr3-tools",
  "pr3-vault",
  "serde",
@@ -2938,6 +2939,14 @@ dependencies = [
  "ciborium",
  "pr3-core",
  "serde",
+]
+
+[[package]]
+name = "pr3-speech"
+version = "0.1.1"
+dependencies = [
+ "serde_json",
+ "swift-rs",
 ]
 
 [[package]]

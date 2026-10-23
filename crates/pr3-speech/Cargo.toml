@@ -1,0 +1,16 @@
+[package]
+name = "pr3-speech"
+description = "PR3's on-device speech: push-to-talk speech-to-text and spoken replies through the platform's own engines"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+serde_json = { workspace = true, features = ["std"] }
+
+[build-dependencies]
+# Builds the Swift half (swift/) on Apple platforms; the same version Tauri uses.
+swift-rs = { version = "1.0.9", features = ["build"] }

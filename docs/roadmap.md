@@ -30,7 +30,7 @@ The first 6–8 weeks build the spike in small, reviewable steps rather than mil
 | 4 | SQLite memory with provenance | M1-E5 | done (v1.11) |
 | 5 | Trusted side for one action (sandbox email): intent → policy → phone confirmation → one-use capability → audit | M1-E7, M2-E3 | done (v1.13, v1.14) |
 | 6 | The macOS app as the user's node: pairing and handoff | M2-E2, M2-E3, M2-E4 | done (v1.15) |
-| 7 | Voice notes | M2-E7 | next |
+| 7 | Voice notes | M2-E7 | done (v1.17) |
 | 8 | AgentDojo harness: PR3 against a plain tool-calling harness with the same model | M0-E1, M3-E5 | done (v1.16); more suites to run |
 
 The spike ends with the 30-day user-zero diary and the AgentDojo result; together they decide whether the full roadmap continues as written.
