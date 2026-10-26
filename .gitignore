@@ -26,13 +26,19 @@ BUSINESS.md
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-# Model weights: fetched by scripts/fetch-model.sh, never committed
-/models/
+# Model weights: fetched by script/fetch-model.sh, never committed
+/model/
 
-# SwiftPM build output (crates/pr3-vault/swift builds into target/ normally)
+# SwiftPM build output (crate/pr3-vault/swift builds into target/ normally)
 .build/
 
 # AgentDojo harness: its virtualenv and raw results
-benches/agentdojo/.venv/
-benches/agentdojo/results/
+bench/agentdojo/.venv/
+bench/agentdojo/result/
 __pycache__/
+
+# Fuzzing: corpora and failing inputs are generated (script/fuzz.sh)
+fuzz/corpus/
+fuzz/artifact/
+fuzz/artifacts/
+fuzz/coverage/

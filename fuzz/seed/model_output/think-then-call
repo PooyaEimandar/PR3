@@ -1,0 +1,5 @@
+<think>
+The user wants tea.
+</think>
+
+Here you go.<tool_call>{"name":"lookup","arguments":{"query":"x"}}</tool_call>

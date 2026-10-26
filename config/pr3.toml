@@ -53,7 +53,7 @@ serve = true
 listen = "127.0.0.1:7313"
 
 # The models PR3 knows, each pinned to a repository revision and SHA-256 so a download
-# is exactly the file that was tested. scripts/fetch-model.sh downloads them into models/.
+# is exactly the file that was tested. script/fetch-model.sh downloads them into model/.
 
 # Desktop: the strongest open model that runs locally. Needs a Mac with 32 GB or more.
 [models."qwen3.8-27b"]

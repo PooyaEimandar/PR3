@@ -1,0 +1,38 @@
+[package]
+name = "pr3-llamacpp"
+description = "Bundled GGUF backend for PR3: a small, frozen API over llama.cpp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+# cargo-fuzz builds with `--cfg fuzzing`, which exposes `fuzzing` for fuzz/.
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(fuzzing)"] }
+
+[dependencies]
+serde_json = { workspace = true, features = ["std"] }
+# Pinned exactly: upgrades are deliberate, with a conformance run (docs Sec. 4.3).
+llama-cpp-2 = { version = "=0.1.160", default-features = false }
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+llama-cpp-2 = { version = "=0.1.160", default-features = false, features = ["metal"] }
+
+# Static libc++ on Android: nothing extra to package into the APK.
+[target.'cfg(target_os = "android")'.dependencies]
+llama-cpp-2 = { version = "=0.1.160", default-features = false, features = ["android-static-stdcxx"] }
+
+# Folders are named in the singular, so Cargo is told where the example and tests are.
+[[example]]
+name = "chat"
+path = "example/chat.rs"
+
+[[test]]
+name = "kv_reuse"
+path = "test/kv_reuse.rs"
+
+[[test]]
+name = "qwen_tools"
+path = "test/qwen_tools.rs"

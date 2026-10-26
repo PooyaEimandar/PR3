@@ -1,0 +1,11 @@
+# Mail proposals and receipts (fuzz/fuzz_target/trusted_gate.rs)
+"mail.send"
+"{\"to\":[\"Alex Rivera\"],\"subject\":\"s\",\"body\":\"b\"}"
+"\"to\""
+"\"subject\""
+"\"body\""
+"Alex Rivera"
+"\x0d\x0a"
+"\xe2\x80\xae"
+"3045022100"
+"[{\"seq\":0"

@@ -1,0 +1,10 @@
+<tool_call>
+<function=lookup>
+<parameter=query>
+tea
+</parameter>
+<parameter=limit>
+3
+</parameter>
+</function>
+</tool_call>

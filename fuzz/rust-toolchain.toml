@@ -1,0 +1,5 @@
+# The separately pinned nightly that only fuzzing and Miri use (docs Sec. 12); product
+# builds use the stable toolchain in ../rust-toolchain.toml. Bump deliberately.
+[toolchain]
+channel = "nightly-2026-08-29"
+components = ["miri", "rust-src"]

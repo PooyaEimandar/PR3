@@ -1,0 +1,7 @@
+# Every text file is checked out with LF endings, on Windows too: scripts run under
+# bash there, and tests compare text byte for byte.
+* text=auto eol=lf
+*.gguf binary
+*.png binary
+*.icns binary
+*.ico binary

@@ -1,17 +1,17 @@
 [workspace]
 resolver = "3"
 members = [
-    "crates/pr3-core",
-    "crates/pr3-hybrid",
-    "crates/pr3-llamacpp",
-    "crates/pr3-memory",
-    "crates/pr3-memory-sqlite",
-    "crates/pr3-protocol",
-    "crates/pr3-speech",
-    "crates/pr3-tools",
-    "crates/pr3-vault",
-    "apps/pr3-app/src-tauri",
-    "benches/agentdojo/bridge",
+    "crate/pr3-core",
+    "crate/pr3-hybrid",
+    "crate/pr3-llamacpp",
+    "crate/pr3-memory",
+    "crate/pr3-memory-sqlite",
+    "crate/pr3-protocol",
+    "crate/pr3-speech",
+    "crate/pr3-tool",
+    "crate/pr3-vault",
+    "app/pr3-app/src-tauri",
+    "bench/agentdojo/bridge",
 ]
 
 [workspace.package]
@@ -24,9 +24,9 @@ rust-version = "1.90"
 
 [workspace.dependencies]
 # `pr3-core` is `no_std + alloc`; hosts opt into `std` explicitly (docs Sec. 4.2).
-pr3-core = { path = "crates/pr3-core", default-features = false }
-pr3-memory = { path = "crates/pr3-memory", default-features = false }
-pr3-protocol = { path = "crates/pr3-protocol", default-features = false }
+pr3-core = { path = "crate/pr3-core", default-features = false }
+pr3-memory = { path = "crate/pr3-memory", default-features = false }
+pr3-protocol = { path = "crate/pr3-protocol", default-features = false }
 serde = { version = "1", default-features = false, features = [
     "alloc",
     "derive",

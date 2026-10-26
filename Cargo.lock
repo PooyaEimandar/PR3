@@ -2863,10 +2863,11 @@ dependencies = [
  "pr3-core",
  "pr3-hybrid",
  "pr3-llamacpp",
+ "pr3-memory",
  "pr3-memory-sqlite",
  "pr3-protocol",
  "pr3-speech",
- "pr3-tools",
+ "pr3-tool",
  "pr3-vault",
  "serde",
  "serde_json",
@@ -2950,7 +2951,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "pr3-tools"
+name = "pr3-tool"
 version = "0.1.1"
 dependencies = [
  "pr3-core",

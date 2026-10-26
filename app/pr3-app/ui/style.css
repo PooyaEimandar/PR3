@@ -1,0 +1,381 @@
+:root {
+  color-scheme: dark;
+  --bg: #050805;
+  --panel: #0b120b;
+  --line: #1d3a1d;
+  --text: #cfe8cf;
+  --muted: #6f9a6f;
+  --accent: #39ff6a;
+  --user: #12301a;
+  --error: #ff6b6b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  padding: var(--inset-top) env(safe-area-inset-right, 0px) var(--inset-bottom)
+    env(safe-area-inset-left, 0px);
+}
+
+:root {
+  --inset-top: env(safe-area-inset-top, 0px);
+  --inset-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Android's webview reports no safe-area insets in edge-to-edge mode, so keep
+   clear of the status bar and gesture handle explicitly. */
+body.android {
+  --inset-top: max(env(safe-area-inset-top, 0px), 32px);
+  --inset-bottom: max(env(safe-area-inset-bottom, 0px), 24px);
+}
+
+header {
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+h1 {
+  margin: 0;
+  color: var(--accent);
+  font-size: 22px;
+  letter-spacing: 0.12em;
+}
+
+#platform {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+#log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.msg {
+  max-width: 85%;
+  padding: 9px 12px;
+  border-radius: 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.msg.user {
+  align-self: flex-end;
+  background: var(--user);
+}
+
+.msg.assistant {
+  align-self: flex-start;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+
+.msg.error {
+  align-self: center;
+  color: var(--error);
+  font-size: 13px;
+}
+
+#composer {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px 14px;
+  border-top: 1px solid var(--line);
+}
+
+#text {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  /* iOS WebKit zooms into inputs smaller than 16px on focus. */
+  font-size: 16px;
+}
+
+#text:focus {
+  outline: 1px solid var(--accent);
+}
+
+button {
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #032108;
+  font: inherit;
+  font-weight: 700;
+}
+
+.msg.pending {
+  color: var(--muted);
+}
+
+button:disabled {
+  opacity: 0.5;
+}
+
+.msg.tool {
+  align-self: flex-start;
+  max-width: 95%;
+  padding: 4px 10px;
+  border: 1px dashed var(--line);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.msg.tool.failed {
+  color: var(--error);
+}
+
+.msg.approval {
+  align-self: stretch;
+  max-width: 100%;
+  white-space: normal;
+  background: var(--panel);
+  border: 1px solid var(--accent);
+}
+
+.approval h2 {
+  margin: 0 0 8px;
+  color: var(--accent);
+  font-size: 15px;
+}
+
+.approval dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  margin: 0 0 8px;
+}
+
+.approval dt {
+  color: var(--muted);
+}
+
+.approval dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.approval .body {
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.approval .meta {
+  margin: 8px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.approval .choices {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--line);
+}
+
+.msg.approval.answered {
+  border-color: var(--line);
+}
+
+header .title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+button.small {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+#devices,
+#memory {
+  margin: 0;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#devices[hidden],
+#memory[hidden] {
+  display: none;
+}
+
+#devices h2,
+#devices h3,
+#memory h2,
+#memory h3 {
+  margin: 0;
+  font-size: 14px;
+  color: var(--accent);
+}
+
+#devices p,
+#memory p {
+  margin: 0;
+}
+
+#devices .meta,
+#memory .meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+#devices .code {
+  font-size: 32px;
+  letter-spacing: 0.15em;
+  color: var(--accent);
+}
+
+#devices .row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+#devices form,
+#memory form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+#devices input,
+#memory input {
+  flex: 1 1 140px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+}
+
+#devices .error-text,
+#memory .error-text {
+  color: var(--error);
+}
+
+#devices > button,
+#memory > button {
+  align-self: flex-start;
+}
+
+header .actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+button.secondary[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Push-to-talk: held, so no text selection, callouts or scrolling on touch. */
+#talk {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--line);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+#talk[hidden] {
+  display: none;
+}
+
+#talk svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+#talk.listening {
+  background: var(--accent);
+  color: #032108;
+  animation: listening 1.2s ease-in-out infinite;
+}
+
+@keyframes listening {
+  50% {
+    box-shadow: 0 0 0 6px rgba(57, 255, 106, 0.25);
+  }
+}
+
+/* Memory: proposals (dashed) wait for the user; confirmed memories are solid. */
+#memory {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+#memory .item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+
+#memory .item.proposed {
+  border-style: dashed;
+  border-color: var(--accent);
+}
+
+#memory .choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* The edit field sits in a column: no flex size, which would become its height. */
+#memory .item input {
+  flex: none;
+}

@@ -1,0 +1,12 @@
+# Tool arguments as JSON (fuzz/fuzz_target/core_step.rs)
+"{\"query\":\"x\"}"
+"{\"query\":\"x\",\"limit\":3}"
+"{\"to\":\"a\",\"body\":\"b\"}"
+"\"query\""
+"\"limit\""
+"\"to\""
+"\"body\""
+"null"
+"true"
+"1e400"
+"\"\\u0000\""

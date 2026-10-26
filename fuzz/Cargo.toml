@@ -1,0 +1,60 @@
+[package]
+name = "pr3-fuzz"
+description = "Fuzz targets for PR3's parsers of untrusted input (docs Sec. 12); run them with script/fuzz.sh"
+version = "0.0.0"
+edition = "2024"
+license = "Apache-2.0"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+# Its own workspace: it builds only on the pinned nightly, with sanitizers.
+[workspace]
+
+[dependencies]
+arbitrary = { version = "1", features = ["derive"] }
+libfuzzer-sys = "0.4"
+p256 = { version = "0.13", default-features = false, features = ["ecdsa", "std"] }
+pr3-core = { path = "../crate/pr3-core", features = ["std"] }
+pr3-llamacpp = { path = "../crate/pr3-llamacpp" }
+pr3-memory = { path = "../crate/pr3-memory" }
+pr3-memory-sqlite = { path = "../crate/pr3-memory-sqlite" }
+pr3-protocol = { path = "../crate/pr3-protocol", features = ["std"] }
+serde = "1"
+serde_json = "1"
+
+[[bin]]
+name = "core_step"
+path = "fuzz_target/core_step.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "trusted_gate"
+path = "fuzz_target/trusted_gate.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "protocol_frame"
+path = "fuzz_target/protocol_frame.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "model_output"
+path = "fuzz_target/model_output.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "memory_search"
+path = "fuzz_target/memory_search.rs"
+test = false
+doc = false
+bench = false

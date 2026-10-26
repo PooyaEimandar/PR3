@@ -1,0 +1,46 @@
+[package]
+name = "pr3-app"
+description = "PR3 reference app: a voice-first private assistant for macOS, iOS and Android"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+# staticlib/cdylib for iOS and Android, rlib for the desktop binary.
+name = "pr3_app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+pr3-core = { workspace = true, features = ["std"] }
+pr3-llamacpp = { path = "../../../crate/pr3-llamacpp" }
+pr3-memory = { workspace = true, features = ["std"] }
+pr3-memory-sqlite = { path = "../../../crate/pr3-memory-sqlite" }
+pr3-tool = { path = "../../../crate/pr3-tool" }
+pr3-vault = { path = "../../../crate/pr3-vault" }
+pr3-speech = { path = "../../../crate/pr3-speech" }
+pr3-hybrid = { path = "../../../crate/pr3-hybrid" }
+pr3-protocol = { workspace = true, features = ["std"] }
+getrandom = "0.3"
+serde = { workspace = true, features = ["std"] }
+serde_json = { workspace = true, features = ["std"] }
+tauri = { version = "2", features = [] }
+toml = { version = "1", default-features = false, features = ["std", "serde", "parse"] }
+
+# The computer's name, shown on paired phones.
+[target.'cfg(not(any(target_os = "ios", target_os = "android")))'.dependencies]
+gethostname = "1"
+
+# Physical memory, to pick the phone model (config/pr3.toml).
+[target.'cfg(target_vendor = "apple")'.dependencies]
+libc = "0.2"
+
+# Excluding the data folder from iCloud and computer backups.
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSError", "NSString", "NSURL", "NSValue"] }

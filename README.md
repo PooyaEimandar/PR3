@@ -5,25 +5,25 @@ PR3 is an open-source, privacy-first personal AI runtime that works **offline on
 - **Local by default.** The model, speech recognition and voices run on your devices; a paired computer can lend a phone its larger model, and the phone answers on its own when it cannot reach it.
 - **The model proposes, PR3 decides.** Every model output is an untrusted proposal. Consequential actions go through a structured intent, a deterministic policy, your approval with Face ID, Touch ID or a fingerprint, a one-use capability and a hash-chained audit log.
 - **Memory you own.** Local, inspectable and deletable, with the provenance of every fact.
-- **Measured on security.** On [AgentDojo](https://arxiv.org/abs/2406.13352), with the same model, no prompt-injection attack got through PR3 where a plain tool-calling loop let them through ([results](docs/benchmarks.md#86-results-so-far)).
+- **Measured on security.** On [AgentDojo](https://arxiv.org/abs/2406.13352), with the same model, no prompt-injection attack got through PR3 where a plain tool-calling loop let them through ([results](doc/benchmarks.md#86-results-so-far)).
 
 ## Quick start
 
 ```bash
-scripts/fetch-model.sh               # the models config/pr3.toml selects
+script/fetch-model.sh               # the models config/pr3.toml selects
 cargo test --workspace
-cd apps/pr3-app && cargo tauri dev   # the macOS app
+cd app/pr3-app && cargo tauri dev   # the macOS app
 ```
 
-iOS, Android, configuration, pairing and benchmarks: [docs/development.md](docs/development.md).
+iOS, Android, configuration, pairing and benchmarks: [doc/development.md](doc/development.md).
 
 ## Documentation
 
-- [Overview](docs/overview.md): what PR3 is, its positioning and principles.
-- [Architecture](docs/architecture.md) and [security](docs/security.md): how it is built and what it defends against.
-- [Benchmarking](docs/benchmarks.md): what PR3 is measured on, and the results.
-- [Roadmap](docs/roadmap.md): where the work stands and what comes next.
-- [Everything else](docs/README.md): deployment, applications, quality gates, risks, decisions and the change log.
+- [Overview](doc/overview.md): what PR3 is, its positioning and principles.
+- [Architecture](doc/architecture.md) and [security](doc/security.md): how it is built and what it defends against.
+- [Benchmarking](doc/benchmarks.md): what PR3 is measured on, and the results.
+- [Roadmap](doc/roadmap.md): where the work stands and what comes next.
+- [Everything else](doc/README.md): deployment, applications, quality gates, risks, decisions and the change log.
 
 ## Attribution
 
