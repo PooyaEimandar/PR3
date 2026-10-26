@@ -2,6 +2,11 @@
 
 Part of the [PR3 documentation](README.md). Newest first; each version records what changed in the design and why.
 
+## v1.21 (26 October 2026) - voice-note language and the benchmark report
+
+1. **Voice-note language.** A chip beside the talk button picks the language of voice notes and spoken replies: *Auto* follows the system, as before, and the list holds only languages this device recognizes on the device, so picking one never sends audio anywhere. Apple devices list the locales whose on-device model is installed; Android 13 and later add those it downloads on first use, and earlier Android versions offer the system language only. Changing it reopens both engines, ends a voice note or reply in progress, and is remembered.
+2. **Benchmark report** (`bench/agentdojo/report.py`). The tables of [Sec. 8.6](benchmarks.md#86-results-so-far) are generated from the result files, and refuse to mix approver or harness versions. Successful attacks that no runtime can stop are counted apart, from AgentDojo's own task definitions: text-only attacks, whose goal is something the model says, and approver gaps, where the user's own task needs a call to the same place.
+
 ## v1.20 (26 October 2026) - CI on every platform
 
 The CI matrix of [Sec. 12](quality-gates.md#12-build-cicd--quality-gates), begun: the workspace is built and tested on macOS, Linux and Windows, the app's Rust and Swift code is built for the iOS simulator, and the Android APK with its Kotlin plugins is built for arm64. To keep runs short, formatting, clippy's lints, the trusted-side rule and the `no_std` builds run once, on macOS, since they do not depend on the platform, while Linux and Windows build and test with compiler warnings as errors; every job installs only the targets it uses, caches per platform, builds without debug info, and a new push to a pull request cancels the run it replaces. Text files are checked out with LF endings everywhere (`.gitattributes`), so scripts run under bash on Windows.

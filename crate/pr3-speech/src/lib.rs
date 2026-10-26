@@ -117,6 +117,20 @@ pub fn open_platform(locale: Option<&str>) -> Engines {
     }
 }
 
+/// The languages this device recognizes on the device, as BCP 47 tags such as `en-US`:
+/// the ones [`open_platform`] can open. Empty where none can be listed here; Android's
+/// list comes from the app's plugin.
+pub fn platform_languages() -> Vec<String> {
+    #[cfg(target_vendor = "apple")]
+    {
+        apple::languages()
+    }
+    #[cfg(not(target_vendor = "apple"))]
+    {
+        Vec::new()
+    }
+}
+
 /// A reply as it should sound: Markdown's markers dropped (emphasis, headings, bullets,
 /// quotes, code fences and backticks), links read as their text, and each line its own
 /// sentence.

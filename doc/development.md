@@ -50,7 +50,7 @@ PR3 can send email through a sandbox connector: messages land in `outbox.jsonl` 
 
 ## Voice notes
 
-Hold the talk button beside the message field, speak and let go; or tap it, speak and tap again. No Send button is needed. In the header, **Send on pause** (on by default) sends a tapped note once you stop talking for two seconds, and **Speak replies** reads replies aloud; both are remembered. Recognition and voices run on the device, and the first voice note asks for the microphone and speech recognition.
+Hold the talk button beside the message field, speak and let go; or tap it, speak and tap again. No Send button is needed. The chip left of it picks the language voice notes and spoken replies use: *Auto* follows the system, and the list holds the languages this device recognizes on the device (on Android 13 and later also those it downloads on first use); the choice is remembered. In the header, **Send on pause** (on by default) sends a tapped note once you stop talking for two seconds, and **Speak replies** reads replies aloud; both are remembered. Recognition and voices run on the device, and the first voice note asks for the microphone and speech recognition.
 
 - **macOS and iOS:** the Speech framework's on-device recognition. If your language has none, turn on Dictation for it (System Settings, Keyboard on a Mac); its on-device model comes with it. Better voices download in the Spoken Content settings. `src-tauri/Info.plist` gives `cargo tauri dev` the usage strings macOS asks for.
 - **Android 12 and later:** the on-device recognizer. On first use Android may offer to download the language's speech model (about 60 MB). In the emulator, turn on **Virtual microphone uses host audio input** in the extended controls.
@@ -100,6 +100,7 @@ python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
 cargo build --release -p pr3-bench-agentdojo
 .venv/bin/python run.py --model ../../model/Qwen3.5-4B-Q4_K_M.gguf --suite banking --modes pr3 plain confirm_all
 .venv/bin/python run.py --summary result/banking-Qwen3.5-4B-Q4_K_M.jsonl
+.venv/bin/python report.py                                   # every suite's tables, as in Sec. 8.6
 .venv/bin/python -m unittest discover test
 ```
 

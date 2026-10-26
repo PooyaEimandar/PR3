@@ -8,6 +8,8 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.speech.RecognitionListener
+import android.speech.RecognitionSupport
+import android.speech.RecognitionSupportCallback
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
@@ -19,8 +21,10 @@ import app.tauri.annotation.PermissionCallback
 import app.tauri.annotation.TauriPlugin
 import app.tauri.plugin.Channel
 import app.tauri.plugin.Invoke
+import app.tauri.plugin.JSArray
 import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
+import androidx.core.content.ContextCompat
 import java.util.Locale
 
 @InvokeArg
@@ -62,6 +66,49 @@ class SpeechPlugin(private val activity: Activity) : Plugin(activity) {
     result.put("onDevice", onDeviceRecognition())
     result.put("locale", Locale.getDefault().toLanguageTag())
     invoke.resolve(result)
+  }
+
+  /**
+   * The languages this phone recognizes on the device: {"installed": [...], "available":
+   * [...]}, BCP 47 tags; available ones download on first use. Android 13 and later can
+   * tell; before that, only the phone's own language is offered.
+   */
+  @Command
+  fun languages(invoke: Invoke) {
+    main.post {
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || !onDeviceRecognition()) {
+        val result = JSObject()
+        result.put("installed", JSArray())
+        result.put("available", JSArray())
+        invoke.resolve(result)
+        return@post
+      }
+      // A recognizer of its own, so a voice note in progress is not disturbed.
+      val probe = SpeechRecognizer.createOnDeviceSpeechRecognizer(activity)
+      val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+        .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+      probe.checkRecognitionSupport(
+        intent,
+        ContextCompat.getMainExecutor(activity),
+        object : RecognitionSupportCallback {
+          override fun onSupportResult(support: RecognitionSupport) {
+            probe.destroy()
+            val result = JSObject()
+            result.put("installed", JSArray(support.installedOnDeviceLanguages))
+            result.put(
+              "available",
+              JSArray(support.supportedOnDeviceLanguages + support.pendingOnDeviceLanguages)
+            )
+            invoke.resolve(result)
+          }
+
+          override fun onError(error: Int) {
+            probe.destroy()
+            invoke.reject("could not list the speech languages (error $error)", "failed")
+          }
+        }
+      )
+    }
   }
 
   /** Starts listening, asking for the microphone the first time. */

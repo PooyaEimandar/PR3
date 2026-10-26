@@ -18,6 +18,7 @@ use crate::{Heard, OnHeard, Recognizer, SpeechError, Voice};
 unsafe extern "C" {
     fn pr3_speech_free(text: *mut c_char);
     fn pr3_speech_open(locale: *const c_char) -> *mut c_char;
+    fn pr3_speech_languages() -> *mut c_char;
     fn pr3_speech_authorize() -> *mut c_char;
     fn pr3_speech_start() -> *mut c_char;
     fn pr3_speech_next(timeout_ms: isize) -> *mut c_char;
@@ -66,6 +67,22 @@ fn ok(reply: *mut c_char) -> Result<String, SpeechError> {
 fn c_string(text: &str) -> CString {
     // Interior NULs cannot be spoken or recognized; drop any, never fail.
     CString::new(text.replace('\0', "")).unwrap_or_default()
+}
+
+/// The languages with an on-device model here, as BCP 47 tags.
+pub(crate) fn languages() -> Vec<String> {
+    // SAFETY: takes nothing and returns a reply that `take` frees.
+    let reply = take(unsafe { pr3_speech_languages() });
+    reply
+        .get("ok")
+        .and_then(Value::as_array)
+        .map(|tags| {
+            tags.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 pub(crate) struct AppleRecognizer {
@@ -186,6 +203,20 @@ impl Voice for AppleVoice {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_languages_listed_are_the_ones_that_open() {
+        let tags = languages();
+        if tags.is_empty() {
+            eprintln!("no on-device languages here; skipped");
+            return;
+        }
+        assert!(tags.windows(2).all(|w| w[0] < w[1]), "sorted and unique");
+        for tag in tags.iter().take(3) {
+            let recognizer = AppleRecognizer::open(Some(tag)).unwrap();
+            assert_eq!(recognizer.locale(), tag);
+        }
+    }
 
     /// Opening needs no permission prompt; listening does, so it is tested in the app.
     /// Skipped where English has no on-device model (CI's VMs).

@@ -33,6 +33,21 @@ struct Status {
 }
 
 #[derive(Deserialize)]
+struct Languages {
+    installed: Vec<String>,
+    available: Vec<String>,
+}
+
+/// The languages this phone recognizes on the device, installed ones first; the others
+/// download on first use. Empty before Android 13, which cannot tell.
+pub fn languages(handle: &PluginHandle<Wry>) -> Result<(Vec<String>, Vec<String>), SpeechError> {
+    let reply: Languages = handle
+        .run_mobile_plugin("languages", ())
+        .map_err(|e| speech_error(&e))?;
+    Ok((reply.installed, reply.available))
+}
+
+#[derive(Deserialize)]
 struct Transcript {
     text: String,
 }
@@ -48,9 +63,9 @@ pub struct AndroidRecognizer {
     events: Channel<Value>,
 }
 
-/// The phone's recognizer and voice, both in the phone's language. The recognizer is
-/// missing where the phone has no on-device one.
-pub fn open(handle: &PluginHandle<Wry>) -> Engines {
+/// The phone's recognizer and voice, both in `locale` (a BCP 47 tag; `None` for the
+/// phone's language). The recognizer is missing where the phone has no on-device one.
+pub fn open(handle: &PluginHandle<Wry>, locale: Option<&str>) -> Engines {
     let status: Status = match handle.run_mobile_plugin("status", ()) {
         Ok(status) => status,
         Err(e) => {
@@ -60,9 +75,10 @@ pub fn open(handle: &PluginHandle<Wry>) -> Engines {
             };
         }
     };
+    let locale = locale.map_or(status.locale, str::to_string);
     let voice: Box<dyn Voice> = Box::new(AndroidVoice {
         handle: handle.clone(),
-        locale: status.locale.clone(),
+        locale: locale.clone(),
     });
     if !status.on_device {
         let none = SpeechError::Unavailable(
@@ -97,7 +113,7 @@ pub fn open(handle: &PluginHandle<Wry>) -> Engines {
     Engines {
         recognizer: Ok(Box::new(AndroidRecognizer {
             handle: handle.clone(),
-            locale: status.locale,
+            locale,
             listener,
             events,
         })),

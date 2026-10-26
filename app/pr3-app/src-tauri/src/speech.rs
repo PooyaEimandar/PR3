@@ -2,6 +2,11 @@
 //! by the user's choice, spoken replies. Recognition and voices run on the device
 //! (`pr3-speech`); no audio is sent anywhere or kept. A transcript is sent like typed
 //! text, so the memories it leads to are proposals with the user's words as source.
+//!
+//! Both speak the system's language unless the user picks another; changing it swaps
+//! the engines, which commands borrow without holding the lock while they wait.
+
+use std::sync::{Arc, Mutex, PoisonError};
 
 use pr3_speech::{Engines, Heard, Recognizer, SpeechError, Voice};
 use serde::Serialize;
@@ -9,6 +14,13 @@ use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager};
 
 pub struct Speech {
+    current: Mutex<Arc<Language>>,
+}
+
+/// The engines for one language.
+struct Language {
+    /// What the user picked; `None` follows the system.
+    chosen: Option<String>,
     recognizer: Result<Box<dyn Recognizer>, SpeechError>,
     voice: Result<Box<dyn Voice>, SpeechError>,
 }
@@ -17,9 +29,21 @@ impl Speech {
     /// This device's engines, in the system's language. Opening asks for nothing: the
     /// permission prompts come with the first voice note.
     pub fn open(app: &AppHandle) -> Self {
+        Self {
+            current: Mutex::new(Arc::new(Language::open(app, None))),
+        }
+    }
+
+    fn current(&self) -> Arc<Language> {
+        Arc::clone(&self.current.lock().unwrap_or_else(PoisonError::into_inner))
+    }
+}
+
+impl Language {
+    fn open(app: &AppHandle, chosen: Option<String>) -> Self {
         #[cfg(target_os = "android")]
         let engines = match app.try_state::<crate::android_speech::SpeechHandle>() {
-            Some(plugin) => crate::android_speech::open(&plugin.0),
+            Some(plugin) => crate::android_speech::open(&plugin.0, chosen.as_deref()),
             None => {
                 let missing = || SpeechError::Platform("the speech plugin is not loaded".into());
                 Engines {
@@ -31,7 +55,7 @@ impl Speech {
         #[cfg(not(target_os = "android"))]
         let engines = {
             let _ = app;
-            pr3_speech::open_platform(None)
+            pr3_speech::open_platform(chosen.as_deref())
         };
         let Engines { recognizer, voice } = engines;
         match &recognizer {
@@ -41,7 +65,11 @@ impl Speech {
             ),
             Err(e) => eprintln!("PR3: no voice notes: {e}"),
         }
-        Self { recognizer, voice }
+        Self {
+            chosen,
+            recognizer,
+            voice,
+        }
     }
 
     fn recognizer(&self) -> Result<&dyn Recognizer, String> {
@@ -50,6 +78,20 @@ impl Speech {
 
     fn voice(&self) -> Result<&dyn Voice, String> {
         self.voice.as_deref().map_err(ToString::to_string)
+    }
+
+    fn status(&self) -> SpeechStatus {
+        SpeechStatus {
+            listen: self.recognizer.is_ok(),
+            why_not: self.recognizer.as_ref().err().map(ToString::to_string),
+            speak: self.voice.is_ok(),
+            locale: self
+                .recognizer
+                .as_ref()
+                .ok()
+                .map(|r| r.locale().to_string()),
+            chosen: self.chosen.clone(),
+        }
     }
 }
 
@@ -70,21 +112,90 @@ pub struct SpeechStatus {
     why_not: Option<String>,
     /// Replies can be spoken.
     speak: bool,
+    /// The language being recognized, which may differ from the one picked: another
+    /// region of the same language when only that one is on the device.
     locale: Option<String>,
+    /// What the user picked; `None` follows the system.
+    chosen: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct SpeechLanguages {
+    /// What the user picked; `None` follows the system.
+    chosen: Option<String>,
+    /// Recognized on the device now, as BCP 47 tags.
+    installed: Vec<String>,
+    /// Recognized on the device after a download on first use (Android).
+    available: Vec<String>,
 }
 
 #[tauri::command]
 pub fn speech_status(speech: tauri::State<'_, Speech>) -> SpeechStatus {
-    SpeechStatus {
-        listen: speech.recognizer.is_ok(),
-        why_not: speech.recognizer.as_ref().err().map(ToString::to_string),
-        speak: speech.voice.is_ok(),
-        locale: speech
-            .recognizer
-            .as_ref()
-            .ok()
-            .map(|r| r.locale().to_string()),
+    speech.current().status()
+}
+
+/// The languages voice notes can use on this device.
+#[tauri::command]
+pub async fn speech_languages(app: AppHandle) -> Result<SpeechLanguages, String> {
+    let handle = app.clone();
+    blocking(app, move |speech| {
+        let chosen = speech.current().chosen.clone();
+        #[cfg(target_os = "android")]
+        let (installed, available) = match handle.try_state::<crate::android_speech::SpeechHandle>()
+        {
+            Some(plugin) => {
+                crate::android_speech::languages(&plugin.0).map_err(|e| e.to_string())?
+            }
+            None => (Vec::new(), Vec::new()),
+        };
+        #[cfg(not(target_os = "android"))]
+        let (installed, available) = {
+            let _ = handle;
+            (pr3_speech::platform_languages(), Vec::new())
+        };
+        Ok(SpeechLanguages {
+            chosen,
+            installed,
+            available,
+        })
+    })
+    .await
+}
+
+/// Switches voice notes and spoken replies to `language`, a BCP 47 tag such as `de-DE`,
+/// or back to the system's language with `None`. A voice note or reply in progress ends.
+#[tauri::command]
+pub async fn set_speech_language(
+    app: AppHandle,
+    language: Option<String>,
+) -> Result<SpeechStatus, String> {
+    if let Some(tag) = &language
+        && (tag.is_empty()
+            || tag.len() > 35
+            || !tag
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'))
+    {
+        return Err(format!("{tag:?} is not a language tag"));
     }
+    let handle = app.clone();
+    blocking(app, move |speech| {
+        let old = speech.current();
+        if let Ok(recognizer) = old.recognizer() {
+            recognizer.cancel();
+        }
+        if let Ok(voice) = old.voice() {
+            voice.stop();
+        }
+        let new = Arc::new(Language::open(&handle, language));
+        let status = new.status();
+        *speech
+            .current
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = new;
+        Ok(status)
+    })
+    .await
 }
 
 /// Starts a voice note: the transcript so far, or a failure, streams through
@@ -93,10 +204,11 @@ pub fn speech_status(speech: tauri::State<'_, Speech>) -> SpeechStatus {
 #[tauri::command]
 pub async fn start_listening(app: AppHandle, on_event: Channel<Hearing>) -> Result<(), String> {
     blocking(app, move |speech| {
-        if let Ok(voice) = speech.voice() {
+        let current = speech.current();
+        if let Ok(voice) = current.voice() {
             voice.stop();
         }
-        speech
+        current
             .recognizer()?
             .start(Box::new(move |heard| {
                 let event = match heard {
@@ -119,7 +231,11 @@ pub async fn start_listening(app: AppHandle, on_event: Channel<Hearing>) -> Resu
 #[tauri::command]
 pub async fn stop_listening(app: AppHandle) -> Result<String, String> {
     blocking(app, |speech| {
-        speech.recognizer()?.stop().map_err(|e| e.to_string())
+        speech
+            .current()
+            .recognizer()?
+            .stop()
+            .map_err(|e| e.to_string())
     })
     .await
 }
@@ -128,7 +244,7 @@ pub async fn stop_listening(app: AppHandle) -> Result<String, String> {
 #[tauri::command]
 pub async fn cancel_listening(app: AppHandle) -> Result<(), String> {
     blocking(app, |speech| {
-        speech.recognizer()?.cancel();
+        speech.current().recognizer()?.cancel();
         Ok(())
     })
     .await
@@ -142,7 +258,11 @@ pub async fn speak(app: AppHandle, text: String) -> Result<(), String> {
         if spoken.is_empty() {
             return Ok(());
         }
-        speech.voice()?.speak(&spoken).map_err(|e| e.to_string())
+        speech
+            .current()
+            .voice()?
+            .speak(&spoken)
+            .map_err(|e| e.to_string())
     })
     .await
 }
@@ -150,7 +270,7 @@ pub async fn speak(app: AppHandle, text: String) -> Result<(), String> {
 #[tauri::command]
 pub async fn stop_speaking(app: AppHandle) -> Result<(), String> {
     blocking(app, |speech| {
-        speech.voice()?.stop();
+        speech.current().voice()?.stop();
         Ok(())
     })
     .await

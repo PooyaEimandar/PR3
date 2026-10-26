@@ -93,6 +93,7 @@ function showApproval(request, before) {
 function setBusy(busy) {
   button.disabled = busy;
   talk.disabled = busy;
+  languageSelect.disabled = busy || voice !== null;
   input.placeholder = busy ? "PR3 is answering…" : "Message PR3";
 }
 
@@ -193,10 +194,15 @@ function remembered(key, value) {
 
 async function setUpSpeech() {
   try {
-    speech = await invoke("speech_status");
+    // The language the user picked before, if any, else the system's.
+    const picked = remembered("pr3.voiceLanguage");
+    speech = picked
+      ? await invoke("set_speech_language", { language: picked })
+      : await invoke("speech_status");
   } catch {
     return;
   }
+  setUpLanguages();
   talk.hidden = !speech.listen && !speech.speak;
   pauseButton.hidden = !speech.listen;
   speakButton.hidden = !speech.speak;
@@ -231,6 +237,61 @@ speakButton.addEventListener("click", () => {
 
 // `held`: started by a press that may become a hold; a tap or a key leaves the note
 // to end itself at the next pause.
+// The language of voice notes and spoken replies: the system's, unless the user picks
+// one of the languages this device recognizes on the device.
+const languageChip = document.querySelector("#voice-language");
+const languageSelect = languageChip.querySelector("select");
+const languageLabel = languageChip.querySelector("span");
+
+const languageName = (() => {
+  try {
+    const names = new Intl.DisplayNames([navigator.language], { type: "language" });
+    return (tag) => names.of(tag) || tag;
+  } catch {
+    return (tag) => tag;
+  }
+})();
+
+async function setUpLanguages() {
+  let languages;
+  try {
+    languages = await invoke("speech_languages");
+  } catch {
+    return;
+  }
+  const tags = [...new Set([...languages.installed, ...languages.available])];
+  // Nothing to choose from: older Android, or no on-device recognition here.
+  if (tags.length === 0) return;
+  const options = tags
+    .map((tag) => {
+      const later = languages.installed.includes(tag) ? "" : " (downloads on first use)";
+      return new Option(`${languageName(tag)}${later}`, tag);
+    })
+    .sort((a, b) => a.text.localeCompare(b.text));
+  languageSelect.replaceChildren(new Option("System language", ""), ...options);
+  languageSelect.value = languages.chosen ?? "";
+  renderLanguage();
+  languageChip.hidden = false;
+}
+
+function renderLanguage() {
+  const tag = languageSelect.value;
+  languageLabel.textContent = tag ? tag.split(/[-_]/)[0].toUpperCase() : "Auto";
+  languageChip.title = `Voice language: ${tag ? languageName(tag) : "the system's"}`;
+}
+
+languageSelect.addEventListener("change", async () => {
+  const tag = languageSelect.value || null;
+  remembered("pr3.voiceLanguage", tag ?? "");
+  renderLanguage();
+  try {
+    speech = await invoke("set_speech_language", { language: tag });
+    if (!speech.listen && speech.why_not) show("error", speech.why_not);
+  } catch (err) {
+    show("error", String(err));
+  }
+});
+
 function startVoiceNote(held) {
   if (!speech.listen) {
     show("error", speech.why_not || "Voice notes are unavailable here.");
@@ -238,6 +299,7 @@ function startVoiceNote(held) {
   }
   const note = { since: Date.now(), heard: Date.now(), spoke: false, held, ending: false, typed: input.value };
   voice = note;
+  languageSelect.disabled = true;
   note.watch = setInterval(() => {
     const quiet = Date.now() - note.heard;
     const paused = sendOnPause && note.spoke && !note.held && quiet > PAUSE_MS;

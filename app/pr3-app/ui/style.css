@@ -379,3 +379,36 @@ button.secondary[aria-pressed="true"] {
 #memory .item input {
   flex: none;
 }
+
+/* The voice language: a short label with the system's own picker laid over it. */
+.language {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3.2em;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.language[hidden] {
+  display: none;
+}
+
+.language select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  /* iOS WebKit zooms into controls smaller than 16px on focus. */
+  font-size: 16px;
+}
+
+.language:has(select:disabled) {
+  opacity: 0.5;
+}

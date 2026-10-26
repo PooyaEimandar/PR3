@@ -442,6 +442,8 @@ pub fn run() {
             pair_with_node,
             unpair,
             speech::speech_status,
+            speech::speech_languages,
+            speech::set_speech_language,
             speech::start_listening,
             speech::stop_listening,
             speech::cancel_listening,

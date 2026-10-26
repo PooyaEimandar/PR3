@@ -43,6 +43,16 @@ public func pr3SpeechOpen(_ locale: UnsafePointer<CChar>) -> UnsafeMutablePointe
     return reply(["ok": tag(found.locale.identifier)])
 }
 
+/// Every language this device recognizes on the device, as BCP 47 tags: those whose
+/// on-device model is installed. Needs no permission.
+@_cdecl("pr3_speech_languages")
+public func pr3SpeechLanguages() -> UnsafeMutablePointer<CChar> {
+    let tags = SFSpeechRecognizer.supportedLocales()
+        .filter { SFSpeechRecognizer(locale: $0)?.supportsOnDeviceRecognition == true }
+        .map { tag($0.identifier) }
+    return reply(["ok": Array(Set(tags)).sorted()])
+}
+
 /// Asks for speech recognition and the microphone, the first time with the system's
 /// prompts, and waits for the answers.
 @_cdecl("pr3_speech_authorize")
