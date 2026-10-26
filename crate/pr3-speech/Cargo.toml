@@ -11,6 +11,8 @@ publish = false
 [dependencies]
 serde_json = { workspace = true, features = ["std"] }
 
-[build-dependencies]
-# Builds the Swift half (swift/) on Apple platforms; the same version Tauri uses.
+# Builds the Swift half (swift/) on Apple platforms; the same version Tauri uses. Only a
+# Mac builds Swift, and Cargo matches this against the machine that builds, so Linux and
+# Windows never compile it (its runtime's Swift symbols do not link there).
+[target.'cfg(target_vendor = "apple")'.build-dependencies]
 swift-rs = { version = "1.0.9", features = ["build"] }
