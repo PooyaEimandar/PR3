@@ -154,7 +154,7 @@ impl Vault for SoftwareVault {
     fn public_key(&self) -> Vec<u8> {
         self.key
             .verifying_key()
-            .to_encoded_point(false)
+            .to_sec1_point(false)
             .as_bytes()
             .to_vec()
     }

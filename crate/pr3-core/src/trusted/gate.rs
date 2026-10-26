@@ -453,7 +453,7 @@ mod tests {
     }
 
     fn gate() -> Gate {
-        let public = device_key().verifying_key().to_encoded_point(false);
+        let public = device_key().verifying_key().to_sec1_point(false);
         let approver = ApprovalKey::from_sec1(public.as_bytes()).unwrap();
         Gate::new(Limits::default(), approver, "mail:sandbox", &[]).unwrap()
     }

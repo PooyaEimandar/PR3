@@ -72,7 +72,7 @@ fn sign(key: &SigningKey, receipt: Receipt) -> SignedReceipt {
 
 fuzz_target!(|case: Case| {
     let key = SigningKey::from_bytes(&[7u8; 32].into()).unwrap();
-    let public = key.verifying_key().to_encoded_point(false);
+    let public = key.verifying_key().to_sec1_point(false);
     let approver = ApprovalKey::from_sec1(public.as_bytes()).unwrap();
     let log: Vec<Entry> = serde_json::from_str(&case.log).unwrap_or_default();
     let mut gate = match Gate::new(Limits::default(), approver.clone(), "mail:sandbox", &log) {

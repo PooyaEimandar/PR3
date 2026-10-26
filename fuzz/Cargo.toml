@@ -15,7 +15,7 @@ cargo-fuzz = true
 [dependencies]
 arbitrary = { version = "1", features = ["derive"] }
 libfuzzer-sys = "0.4"
-p256 = { version = "0.13", default-features = false, features = ["ecdsa", "std"] }
+p256 = { version = "0.14", default-features = false, features = ["ecdsa", "std"] }
 pr3-core = { path = "../crate/pr3-core", features = ["std"] }
 pr3-llamacpp = { path = "../crate/pr3-llamacpp" }
 pr3-memory = { path = "../crate/pr3-memory" }
