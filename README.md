@@ -12,7 +12,7 @@ PR3 is an open-source, privacy-first personal AI runtime that works **offline on
 ```bash
 script/fetch-model.sh               # the models config/pr3.toml selects
 cargo test --workspace
-cd app/pr3-app && cargo tauri dev   # the macOS app
+cd app/pr3-app && npm ci && cargo tauri dev   # the macOS app
 ```
 
 iOS, Android, configuration, pairing and benchmarks: [doc/development.md](doc/development.md).

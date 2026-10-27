@@ -6,6 +6,7 @@ Part of the [PR3 documentation](README.md). How to build, run, configure and tes
 
 - **Rust.** rustup installs the pinned toolchain from `rust-toolchain.toml` on first use.
 - **Tauri CLI 2:** `cargo install tauri-cli --version "^2"`.
+- **Node.js 20 or newer**, for the app's TypeScript: run `npm ci` in `app/pr3-app` once. It installs the pinned compiler (TypeScript 7) and the Tauri API's types; nothing from npm ships in the app.
 - **Python 3.11 or newer**, for `script/fetch-model.sh`; 3.12 for the AgentDojo harness.
 - **iOS and macOS:** Xcode. **Android:** the Android SDK with NDK 27, and JDK 21.
 
@@ -32,6 +33,8 @@ To run another model, change the ids under `[model]`. To change anything without
   ```
 
 llama.cpp's CMake step does not reconfigure an existing build: after changing a `GGML_*` flag, run `cargo clean -p llama-cpp-sys-2 --target <target>`.
+
+The webview's script is TypeScript, in `app/pr3-app/src`, checked in strict mode. The Tauri CLI compiles it into `ui/main.js` before every build, and `cargo tauri dev` recompiles it as you edit; `npm run check` in `app/pr3-app` only type-checks it. The source keeps to types a compiler can simply erase, so tools that strip types without checking them (esbuild, swc, Node, Deno, Bun) build the same script.
 
 ## Configuration
 
@@ -119,7 +122,7 @@ crate/pr3-tool          built-in tools (calculator, clock, memory) and the sandb
 crate/pr3-speech         on-device speech: push-to-talk recognition and spoken replies through the platform's engines
 crate/pr3-vault          the device's approval key: Secure Enclave, Android Keystore or a software key
 fuzz                     fuzz targets for the parsers of untrusted input (pinned nightly, cargo-fuzz)
-app/pr3-app              the Tauri 2 app for macOS, iOS and Android
+app/pr3-app              the Tauri 2 app for macOS, iOS and Android: Rust in src-tauri, the webview's TypeScript in src, its page in ui
 bench/agentdojo         AgentDojo harness (benchmark only, never shipped)
 config/pr3.toml           models, traces, actions and node settings
 script/                  model download, Android build, trusted-side check

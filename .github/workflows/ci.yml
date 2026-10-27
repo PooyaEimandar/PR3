@@ -1,6 +1,7 @@
 # Quality gates for every change (docs Sec. 12): the workspace built and tested on
-# macOS, Linux and Windows, the app's code built for iOS and Android, formatting, lints,
-# the no_std builds of the core crates, known-vulnerability checks, fuzzing and Miri.
+# macOS, Linux and Windows, the app's code built for iOS and Android, the app's
+# TypeScript type-checked, formatting, lints, the no_std builds of the core crates,
+# known-vulnerability checks, fuzzing and Miri.
 # Real-model tests need multi-gigabyte models and stay manual (cargo test -- --ignored).
 name: CI
 
@@ -81,6 +82,22 @@ jobs:
           cargo check -p pr3-protocol --no-default-features --target thumbv7em-none-eabihf
           cargo check -p pr3-protocol --no-default-features --target wasm32-unknown-unknown
 
+  ui:
+    # The app's webview script (app/pr3-app/src), type-checked in strict mode.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app/pr3-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: app/pr3-app/package-lock.json
+      - run: npm ci
+      - run: npm run check
+
   ios:
     # The app's Rust and Swift code for the iOS simulator: llama.cpp, and the Swift
     # halves of the vault and speech, linked as Xcode links them. The Xcode project
@@ -101,8 +118,8 @@ jobs:
       - run: cargo build -p pr3-app --lib --target aarch64-apple-ios-sim --locked
 
   android:
-    # The arm64 APK, Kotlin plugins included (script/build-android.sh), with the
-    # runner's Android SDK and NDK.
+    # The arm64 APK, Kotlin plugins and the compiled webview script included
+    # (script/build-android.sh), with the runner's Android SDK and NDK.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -111,6 +128,14 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v4
+      # The TypeScript compiler, which the build runs (tauri.conf.json's beforeBuildCommand).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: app/pr3-app/package-lock.json
+      - run: npm ci
+        working-directory: app/pr3-app
       - name: Pinned toolchain with the Android target
         run: |
           stable="$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)"

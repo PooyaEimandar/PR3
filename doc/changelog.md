@@ -2,6 +2,12 @@
 
 Part of the [PR3 documentation](README.md). Newest first; each version records what changed in the design and why.
 
+## v1.23 (27 October 2026) - the app's script in TypeScript
+
+The webview's script is TypeScript (`app/pr3-app/src`), checked in strict mode, with what each Rust command sends written out as a type, so the script's use of it is checked when it is built; an element missing from the page stops the script at startup, naming it. The Tauri CLI compiles it into `ui/main.js` before every build and recompiles it under `cargo tauri dev`, and CI type-checks it on every push. The compiler is pinned: TypeScript 7.0.2, the native `tsc`, with the Tauri API's types from `@tauri-apps/api` 2.11.1, matching the `tauri` crate. Both are build tools only; nothing from npm ships in the app. The source keeps to types a compiler can simply erase (`erasableSyntaxOnly`), so tools that strip types without checking them build the same script. The app's build script now also watches `ui/`, since Tauri's embedding notices a file that changes there but not one that appears.
+
+Typing the script found a bug: the Send button was looked up as the composer's first button, which since voice notes has been the talk button, so Send stayed enabled while PR3 answered, and pressing it did nothing. It is now disabled until the answer is in.
+
 ## v1.22 (27 October 2026) - voice notes always send on a pause
 
 1. **Send on pause, always.** A tapped voice note is sent once you stop talking for two seconds, or at a second tap; the **Send on pause** switch is gone, leaving one setting fewer. A held note is still sent when you let go.

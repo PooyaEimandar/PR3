@@ -1,0 +1,15 @@
+{
+  "name": "pr3-app",
+  "private": true,
+  "description": "The PR3 app's webview script: src/*.ts, compiled into ui/ for Tauri to bundle",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch --preserveWatchOutput",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@tauri-apps/api": "2.11.1",
+    "typescript": "7.0.2"
+  }
+}

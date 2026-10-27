@@ -1,0 +1,33 @@
+{
+  // The webview's script: src/*.ts compiled into ui/, the folder Tauri bundles
+  // (tauri.conf.json's frontendDist). Strict, and no bundler: the Tauri API comes from
+  // the window (app.withGlobalTauri), so the output is the script as written.
+  //
+  // tsc checks the types and emits; the source stays plain TypeScript that any
+  // compiler which only strips types (esbuild, swc, Node, Deno, Bun) also accepts:
+  // types are erasable, with no enums, namespaces or parameter properties, and each
+  // file compiles on its own.
+  "compilerOptions": {
+    "target": "es2020",
+    "lib": ["es2020", "dom", "dom.iterable"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "isolatedModules": true,
+    "rootDir": "src",
+    "outDir": "ui",
+    "types": [],
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noEmitOnError": true
+  },
+  "include": ["src"]
+}

@@ -4,7 +4,9 @@
   "version": "0.1.0",
   "identifier": "ai.pooya.pr3",
   "build": {
-    "frontendDist": "../ui"
+    "frontendDist": "../ui",
+    "beforeDevCommand": "npm run watch",
+    "beforeBuildCommand": "npm run build"
   },
   "app": {
     "withGlobalTauri": true,
