@@ -48,16 +48,22 @@ header {
 }
 
 h1 {
+  flex: none;
   margin: 0;
   color: var(--accent);
-  font-size: 22px;
+  font-size: 18px;
   letter-spacing: 0.12em;
 }
 
+/* Beside the name; cut short rather than wrapped on a narrow screen. */
 #platform {
-  margin: 2px 0 0;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
   color: var(--muted);
   font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 #log {
@@ -211,8 +217,8 @@ button.secondary {
 
 header .title {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
 }
 
 button.small {
@@ -299,11 +305,22 @@ button.small {
   align-self: flex-start;
 }
 
+/* One row; on a screen too narrow for it, it scrolls sideways rather than wrapping. */
 header .actions {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
   gap: 6px;
+  margin-top: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+header .actions::-webkit-scrollbar {
+  display: none;
+}
+
+header .actions button {
+  flex: none;
+  white-space: nowrap;
 }
 
 button.secondary[aria-pressed="true"] {

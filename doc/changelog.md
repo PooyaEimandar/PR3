@@ -2,6 +2,11 @@
 
 Part of the [PR3 documentation](README.md). Newest first; each version records what changed in the design and why.
 
+## v1.22 (27 October 2026) - voice notes always send on a pause
+
+1. **Send on pause, always.** A tapped voice note is sent once you stop talking for two seconds, or at a second tap; the **Send on pause** switch is gone, leaving one setting fewer. A held note is still sent when you let go.
+2. **A shorter header.** The version, platform and model sit beside the name, and the header's buttons share one row below, so the header takes two lines on a phone instead of four.
+
 ## v1.21 (26 October 2026) - voice-note language and the benchmark report
 
 1. **Voice-note language.** A chip beside the talk button picks the language of voice notes and spoken replies: *Auto* follows the system, as before, and the list holds only languages this device recognizes on the device, so picking one never sends audio anywhere. Apple devices list the locales whose on-device model is installed; Android 13 and later add those it downloads on first use, and earlier Android versions offer the system language only. Changing it reopens both engines, ends a voice note or reply in progress, and is remembered.

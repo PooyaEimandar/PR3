@@ -162,15 +162,13 @@ form.addEventListener("submit", (event) => {
 });
 
 // Voice notes: hold the talk button and speak, then let go; or tap it and speak, and
-// tap again (or, with Send on pause, just stop talking). The words are recognized on
-// the device and sent like typed text. Replies are spoken too
-// when the user turns that on.
+// stop talking (or tap again). The words are recognized on the device and sent like
+// typed text. Replies are spoken too when the user turns that on.
 const talk = document.querySelector("#talk");
 const speakButton = document.querySelector("#speak-button");
-const pauseButton = document.querySelector("#pause-button");
 // A press shorter than this is a tap: listening continues until the next tap.
 const HOLD_MS = 300;
-// With Send on pause, a tapped voice note is sent once the user stops talking this long.
+// A tapped voice note is sent once the user stops talking this long.
 const PAUSE_MS = 2000;
 // A voice note that hears nothing new for this long ends by itself, so the
 // microphone never stays open unattended.
@@ -180,8 +178,6 @@ let voice = null;
 // A press began with a pointer, so the click that follows is not a key press.
 let pointerPress = false;
 let speakReplies = remembered("pr3.speakReplies") === "on";
-// On unless the user turned it off.
-let sendOnPause = remembered("pr3.sendOnPause") !== "off";
 
 // Storage can be unavailable; the choice then lasts until the app closes.
 function remembered(key, value) {
@@ -204,24 +200,9 @@ async function setUpSpeech() {
   }
   setUpLanguages();
   talk.hidden = !speech.listen && !speech.speak;
-  pauseButton.hidden = !speech.listen;
   speakButton.hidden = !speech.speak;
-  renderPauseButton();
   renderSpeakButton();
 }
-
-function renderPauseButton() {
-  pauseButton.setAttribute("aria-pressed", String(sendOnPause));
-  pauseButton.title = sendOnPause
-    ? "A tapped voice note is sent when you stop talking; tap to send it yourself"
-    : "A tapped voice note waits for a second tap or Send; tap to send it when you stop talking";
-}
-
-pauseButton.addEventListener("click", () => {
-  sendOnPause = !sendOnPause;
-  remembered("pr3.sendOnPause", sendOnPause ? "on" : "off");
-  renderPauseButton();
-});
 
 function renderSpeakButton() {
   speakButton.setAttribute("aria-pressed", String(speakReplies));
@@ -235,8 +216,6 @@ speakButton.addEventListener("click", () => {
   if (!speakReplies) invoke("stop_speaking").catch(() => {});
 });
 
-// `held`: started by a press that may become a hold; a tap or a key leaves the note
-// to end itself at the next pause.
 // The language of voice notes and spoken replies: the system's, unless the user picks
 // one of the languages this device recognizes on the device.
 const languageChip = document.querySelector("#voice-language");
@@ -292,6 +271,8 @@ languageSelect.addEventListener("change", async () => {
   }
 });
 
+// `held`: started by a press that may become a hold; a tap or a key leaves the note
+// to end itself at the next pause.
 function startVoiceNote(held) {
   if (!speech.listen) {
     show("error", speech.why_not || "Voice notes are unavailable here.");
@@ -302,7 +283,7 @@ function startVoiceNote(held) {
   languageSelect.disabled = true;
   note.watch = setInterval(() => {
     const quiet = Date.now() - note.heard;
-    const paused = sendOnPause && note.spoke && !note.held && quiet > PAUSE_MS;
+    const paused = note.spoke && !note.held && quiet > PAUSE_MS;
     if (paused || quiet > SILENCE_MS) finishVoiceNote();
   }, 250);
   talk.classList.add("listening");
@@ -386,7 +367,7 @@ talk.addEventListener("pointerdown", (event) => {
 });
 talk.addEventListener("pointerup", () => {
   if (!voice || !voice.held) return;
-  // Held: letting go sends. Tapped: a second tap sends, or with Send on pause, a pause.
+  // Held: letting go sends. Tapped: a pause sends, or a second tap.
   if (Date.now() - voice.since >= HOLD_MS) finishVoiceNote();
   else voice.held = false;
 });
@@ -414,7 +395,9 @@ function showPlatform() {
   invoke("platform_info")
     .then((p) => {
       document.body.classList.add(p.os);
-      document.querySelector("#platform").textContent = `v${p.version} · ${p.os}/${p.arch} · ${p.model}`;
+      const platform = document.querySelector("#platform");
+      platform.textContent = `v${p.version} · ${p.os}/${p.arch} · ${p.model}`;
+      platform.title = platform.textContent;
     })
     .catch((err) => show("error", String(err)));
 }
