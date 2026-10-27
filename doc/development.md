@@ -6,7 +6,7 @@ Part of the [PR3 documentation](README.md). How to build, run, configure and tes
 
 - **Rust.** rustup installs the pinned toolchain from `rust-toolchain.toml` on first use.
 - **Tauri CLI 2:** `cargo install tauri-cli --version "^2"`.
-- **Node.js 20 or newer**, for the app's TypeScript: run `npm ci` in `app/pr3-app` once. It installs the pinned compiler (TypeScript 7) and the Tauri API's types; nothing from npm ships in the app.
+- **Node.js 24 or newer**, for the app's TypeScript: run `npm ci` in `app/pr3-app` once. It installs the pinned compiler (TypeScript 7) and the Tauri API's types; nothing from npm ships in the app.
 - **Python 3.11 or newer**, for `script/fetch-model.sh`; 3.12 for the AgentDojo harness.
 - **iOS and macOS:** Xcode. **Android:** the Android SDK with NDK 27, and JDK 21.
 
