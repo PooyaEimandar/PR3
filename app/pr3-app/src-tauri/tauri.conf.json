@@ -1,7 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "PR3",
-  "version": "0.1.0",
   "identifier": "ai.pooya.pr3",
   "build": {
     "frontendDist": "../ui",
@@ -29,6 +28,10 @@
     "targets": "all",
     "iOS": {
       "minimumSystemVersion": "16.0"
+    },
+    "macOS": {
+      "signingIdentity": "-",
+      "entitlements": "Entitlements.plist"
     },
     "icon": [
       "icon/32x32.png",
