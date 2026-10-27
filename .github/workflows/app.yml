@@ -1,0 +1,521 @@
+# The PR3 app for each platform it ships on: the iOS simulator, Android, macOS,
+# Windows and Linux (docs Sec. 12).
+#
+#   pull request, manual run -> every platform's package, kept 7 days in the run;
+#     the APK signed with the runner's throwaway debug key
+#   push to main             -> the same, with the APK signed with the fixed dev key
+#     so each build installs over the last, and every file attested
+#   release.yml (Actions, Release, Run workflow) -> the same for main's newest
+#     commit, published as a permanent GitHub release under the tag release.yml made
+#
+# Every version comes from the commit's time (script/version.py): a build of
+# 2026-10-27 08:23:04 UTC is 2026.10.27.30184-dev+<commit>, and its release is
+# tagged v2026.10.27.30184.
+#
+# Packages are built with no secret in reach. The dev key is in the app-dev
+# environment, which only the signing job uses; that job checks out nothing and runs
+# nothing the build made, and takes the APK only if it matches the digest the build
+# job reported. The jobs that attest and publish take every file the same way.
+name: App
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  # From release.yml, once it has tagged the commit.
+  workflow_call:
+    inputs:
+      release:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# Every push gets a run of its own, so no build of main or of a tag is skipped; a new
+# push to a pull request cancels the run it replaces.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  meta:
+    # The commit's versions, which every file's name and every platform's package
+    # carry: a release's, or a dev build's.
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      name: ${{ steps.version.outputs.name }}
+      code: ${{ steps.version.outputs.code }}
+      apple: ${{ steps.version.outputs.apple }}
+      windows: ${{ steps.version.outputs.windows }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: version
+        env:
+          RELEASE: ${{ inputs.release && '--release' || '' }}
+        run: |
+          # shellcheck disable=SC2086 # RELEASE is one flag or none.
+          python3 -I script/version.py $RELEASE | tee -a "$GITHUB_OUTPUT"
+      # A build of main should come at least two seconds after the previous one, the
+      # commit this push replaced, or its APK will not install over that build. Only a
+      # warning: everything is still built, and the next commit sets it right.
+      - name: Newer than the previous build of main
+        if: github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000'
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if ! git fetch --quiet --depth=1 origin "$BEFORE"; then
+            echo "::notice::The previous build of main, $BEFORE, is no longer on GitHub, so its version was not compared."
+          elif ! reason="$(python3 -I script/version.py --after "$BEFORE" 2>&1)"; then
+            echo "::warning::$reason This build's APK will not install over the previous build of main without uninstalling that first."
+          fi
+
+  ios:
+    # For the simulator, which needs no signing ("Sign to Run Locally"); no phone can
+    # install it. A debug build, as tauri ios build makes for the simulator.
+    needs: meta
+    runs-on: macos-15
+    env:
+      # tauri.conf.json's bundle.iOS.minimumSystemVersion.
+      IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+      RUSTFLAGS: -D warnings
+      PR3_VERSION: ${{ needs.meta.outputs.name }}
+      FILE: pr3-${{ needs.meta.outputs.name }}-aarch64-ios-simulator.zip
+    outputs:
+      digests: ${{ steps.dist.outputs.digests }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The TypeScript compiler, which the build runs (tauri.conf.json's beforeBuildCommand).
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: app/pr3-app/package-lock.json
+      - run: npm ci --ignore-scripts
+        working-directory: app/pr3-app
+      - name: Pinned toolchain with the simulator target
+        run: |
+          stable="$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)"
+          rustup toolchain install "$stable" --profile minimal --target aarch64-apple-ios-sim
+          echo "RUSTUP_TOOLCHAIN=$stable" >> "$GITHUB_ENV"
+      - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.87.32
+        with:
+          tool: tauri-cli@2.12.3
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Build
+        working-directory: app/pr3-app
+        env:
+          APPLE: ${{ needs.meta.outputs.apple }}
+          CODE: ${{ needs.meta.outputs.code }}
+        run: |
+          printf '{"version":"%s","bundle":{"iOS":{"bundleVersion":"%s"}}}' "$APPLE" "$CODE" > "$RUNNER_TEMP/version.json"
+          cargo tauri ios build --debug --target aarch64-sim --config "$RUNNER_TEMP/version.json"
+      - id: dist
+        run: |
+          mkdir dist
+          ditto -c -k --keepParent app/pr3-app/src-tauri/gen/apple/build/arm64-sim/PR3.app "dist/$FILE"
+          { echo 'digests<<EOF'; (cd dist && shasum -a 256 "$FILE"); echo EOF; } >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          path: dist/${{ env.FILE }}
+          archive: false
+          if-no-files-found: error
+          retention-days: 7
+
+  android:
+    # arm64, as a debug build (script/build-android.sh): debuggable, so adb can put a
+    # model in its data folder. The build signs it with the runner's own debug key.
+    needs: meta
+    runs-on: ubuntu-latest
+    env:
+      PR3_VERSION: ${{ needs.meta.outputs.name }}
+      # Read by the Gradle build (gen/android/app/build.gradle.kts).
+      PR3_ANDROID_VERSION_NAME: ${{ needs.meta.outputs.name }}
+      PR3_ANDROID_VERSION_CODE: ${{ needs.meta.outputs.code }}
+      FILE: pr3-${{ needs.meta.outputs.name }}-aarch64-debug-key.apk
+    outputs:
+      digests: ${{ steps.dist.outputs.digests }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: app/pr3-app/package-lock.json
+      - run: npm ci --ignore-scripts
+        working-directory: app/pr3-app
+      - name: Pinned toolchain with the Android target
+        run: |
+          stable="$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)"
+          rustup toolchain install "$stable" --profile minimal --target aarch64-linux-android
+          echo "RUSTUP_TOOLCHAIN=$stable" >> "$GITHUB_ENV"
+      - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.87.32
+        with:
+          tool: tauri-cli@2.12.3
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: script/build-android.sh
+      - id: dist
+        run: |
+          mkdir dist
+          cp app/pr3-app/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk "dist/$FILE"
+          { echo 'digests<<EOF'; (cd dist && sha256sum "$FILE"); echo EOF; } >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          path: dist/${{ env.FILE }}
+          archive: false
+          if-no-files-found: error
+          # On a push it only carries the APK to android-sign.
+          retention-days: ${{ github.event_name == 'push' && 1 || 7 }}
+
+  android-sign:
+    # The APK signed with the fixed dev key, so each build installs over the last and
+    # keeps its data. The key's secrets are in the app-dev environment
+    # (doc/development.md, Dev builds).
+    needs: [meta, android]
+    if: github.event_name == 'push' || inputs.release
+    environment: app-dev
+    runs-on: ubuntu-latest
+    env:
+      UNSIGNED: pr3-${{ needs.meta.outputs.name }}-aarch64-debug-key.apk
+      FILE: pr3-${{ needs.meta.outputs.name }}-aarch64.apk
+    outputs:
+      digests: ${{ steps.dist.outputs.digests }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ env.UNSIGNED }}
+          path: build
+      - name: The APK the build job reported
+        working-directory: build
+        env:
+          DIGESTS: ${{ needs.android.outputs.digests }}
+        run: printf '%s\n' "$DIGESTS" | sha256sum --check --strict
+      - name: Sign with the dev key
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_DEV_KEYSTORE }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_DEV_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE" ] || [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "::error::The app-dev environment has no ANDROID_DEV_KEYSTORE or ANDROID_DEV_KEYSTORE_PASSWORD (doc/development.md, Dev builds)."
+            exit 1
+          fi
+          umask 077
+          keystore="$RUNNER_TEMP/dev.p12"
+          trap 'rm -f -- "$keystore"' EXIT
+          printf '%s' "$KEYSTORE" | base64 --decode > "$keystore"
+          apksigner="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)/apksigner"
+          mkdir dist
+          "$apksigner" sign --ks "$keystore" --ks-pass env:KEYSTORE_PASSWORD \
+            --v4-signing-enabled false --out "dist/$FILE" "build/$UNSIGNED"
+          "$apksigner" verify --print-certs "dist/$FILE"
+      - id: dist
+        run: |
+          { echo 'digests<<EOF'; (cd dist && sha256sum "$FILE"); echo EOF; } >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          path: dist/${{ env.FILE }}
+          archive: false
+          if-no-files-found: error
+          retention-days: 7
+
+  macos:
+    # Apple Silicon, signed ad hoc (tauri.conf.json): macOS opens it once it is allowed
+    # under Privacy & Security. A Developer ID signature and notarization would drop
+    # that step.
+    needs: meta
+    runs-on: macos-15
+    env:
+      PR3_VERSION: ${{ needs.meta.outputs.name }}
+      FILE: pr3-${{ needs.meta.outputs.name }}-aarch64.dmg
+    outputs:
+      digests: ${{ steps.dist.outputs.digests }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: app/pr3-app/package-lock.json
+      - run: npm ci --ignore-scripts
+        working-directory: app/pr3-app
+      - name: Pinned toolchain
+        run: |
+          stable="$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)"
+          rustup toolchain install "$stable" --profile minimal
+          echo "RUSTUP_TOOLCHAIN=$stable" >> "$GITHUB_ENV"
+      - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.87.32
+        with:
+          tool: tauri-cli@2.12.3
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Build
+        working-directory: app/pr3-app
+        env:
+          APPLE: ${{ needs.meta.outputs.apple }}
+          CODE: ${{ needs.meta.outputs.code }}
+        run: |
+          printf '{"version":"%s","bundle":{"macOS":{"bundleVersion":"%s"}}}' "$APPLE" "$CODE" > "$RUNNER_TEMP/version.json"
+          cargo tauri build --bundles app,dmg --config "$RUNNER_TEMP/version.json"
+      - id: dist
+        run: |
+          mkdir dist
+          cp target/release/bundle/dmg/PR3_*_aarch64.dmg "dist/$FILE"
+          { echo 'digests<<EOF'; (cd dist && shasum -a 256 "$FILE"); echo EOF; } >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          path: dist/${{ env.FILE }}
+          archive: false
+          if-no-files-found: error
+          retention-days: 7
+
+  windows:
+    # x64, as an installer. Unsigned: Windows asks once before running it.
+    needs: meta
+    runs-on: windows-latest
+    env:
+      PR3_VERSION: ${{ needs.meta.outputs.name }}
+      FILE: pr3-${{ needs.meta.outputs.name }}-x86_64.exe
+      # llama.cpp for x86-64-v3 (AVX2, FMA: processors from 2013 on). Left alone it
+      # builds for plain SSE2, several times slower.
+      GGML_AVX: "ON"
+      GGML_AVX2: "ON"
+      GGML_FMA: "ON"
+      GGML_F16C: "ON"
+      GGML_BMI2: "ON"
+    outputs:
+      digests: ${{ steps.dist.outputs.digests }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: app/pr3-app/package-lock.json
+      - run: npm ci --ignore-scripts
+        working-directory: app/pr3-app
+      - name: Pinned toolchain
+        run: |
+          stable="$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)"
+          rustup toolchain install "$stable" --profile minimal
+          echo "RUSTUP_TOOLCHAIN=$stable" >> "$GITHUB_ENV"
+      - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.87.32
+        with:
+          tool: tauri-cli@2.12.3
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      # The installer's version, 2026.300.15092, which Windows shows as 2026.300.15092.0.
+      - name: Build
+        working-directory: app/pr3-app
+        env:
+          WINDOWS: ${{ needs.meta.outputs.windows }}
+        run: |
+          printf '{"version":"%s"}' "$WINDOWS" > "$RUNNER_TEMP/version.json"
+          cargo tauri build --bundles nsis --config "$RUNNER_TEMP/version.json"
+      - id: dist
+        run: |
+          mkdir dist
+          cp target/release/bundle/nsis/PR3_*_x64-setup.exe "dist/$FILE"
+          { echo 'digests<<EOF'; (cd dist && sha256sum "$FILE"); echo EOF; } >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          path: dist/${{ env.FILE }}
+          archive: false
+          if-no-files-found: error
+          retention-days: 7
+
+  linux:
+    # x64, as an AppImage and a .deb, built on the oldest Ubuntu the runners offer so
+    # they also run on distributions as old as it. llama.cpp as on Windows.
+    needs: meta
+    runs-on: ubuntu-22.04
+    env:
+      PR3_VERSION: ${{ needs.meta.outputs.name }}
+      APPIMAGE: pr3-${{ needs.meta.outputs.name }}-x86_64.AppImage
+      DEB: pr3-${{ needs.meta.outputs.name }}-x86_64.deb
+      GGML_AVX: "ON"
+      GGML_AVX2: "ON"
+      GGML_FMA: "ON"
+      GGML_F16C: "ON"
+      GGML_BMI2: "ON"
+      # The AppImage tools are AppImages themselves, and the runner has no FUSE.
+      APPIMAGE_EXTRACT_AND_RUN: "1"
+    outputs:
+      digests: ${{ steps.dist.outputs.digests }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Tauri's Linux libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev patchelf
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: app/pr3-app/package-lock.json
+      - run: npm ci --ignore-scripts
+        working-directory: app/pr3-app
+      - name: Pinned toolchain
+        run: |
+          stable="$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)"
+          rustup toolchain install "$stable" --profile minimal
+          echo "RUSTUP_TOOLCHAIN=$stable" >> "$GITHUB_ENV"
+      - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.87.32
+        with:
+          tool: tauri-cli@2.12.3
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      # The packages' version is the Windows one, which also orders the .deb correctly.
+      - name: Build
+        working-directory: app/pr3-app
+        env:
+          WINDOWS: ${{ needs.meta.outputs.windows }}
+        run: |
+          printf '{"version":"%s"}' "$WINDOWS" > "$RUNNER_TEMP/version.json"
+          cargo tauri build --bundles appimage,deb --config "$RUNNER_TEMP/version.json"
+      - id: dist
+        run: |
+          mkdir dist
+          cp target/release/bundle/appimage/PR3_*_amd64.AppImage "dist/$APPIMAGE"
+          cp target/release/bundle/deb/PR3_*_amd64.deb "dist/$DEB"
+          { echo 'digests<<EOF'; (cd dist && sha256sum "$APPIMAGE" "$DEB"); echo EOF; } >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          path: dist/${{ env.APPIMAGE }}
+          archive: false
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          path: dist/${{ env.DEB }}
+          archive: false
+          if-no-files-found: error
+          retention-days: 7
+
+  attest:
+    # Every file of a push to main or of a release, attested as built by this workflow
+    # from this commit; check one with: gh attestation verify <file> --repo
+    # PooyaEimandar/PR3. A platform whose build failed is left out, and the others are
+    # still attested.
+    needs: [meta, ios, android-sign, macos, windows, linux]
+    if: ${{ !cancelled() && (github.event_name == 'push' || inputs.release) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: pr3-${{ needs.meta.outputs.name }}-*
+          merge-multiple: true
+          path: dist
+      - name: Only the files the jobs that made them reported
+        working-directory: dist
+        env:
+          DIGESTS: |
+            ${{ needs.ios.result == 'success' && needs.ios.outputs.digests || '' }}
+            ${{ needs.android-sign.result == 'success' && needs.android-sign.outputs.digests || '' }}
+            ${{ needs.macos.result == 'success' && needs.macos.outputs.digests || '' }}
+            ${{ needs.windows.result == 'success' && needs.windows.outputs.digests || '' }}
+            ${{ needs.linux.result == 'success' && needs.linux.outputs.digests || '' }}
+        run: |
+          printf '%s\n' "$DIGESTS" | sed '/^[[:space:]]*$/d' > ../expected.sha256
+          if [ ! -s ../expected.sha256 ]; then
+            echo "::error::No platform built."
+            exit 1
+          fi
+          sha256sum --check --strict ../expected.sha256
+          # Anything else here (the APK before signing, or a file a job did not
+          # report) is left out.
+          cut -c67- ../expected.sha256 > ../expected.names
+          for file in *; do
+            grep -qxF -- "$file" ../expected.names || rm -f -- "$file"
+          done
+          ls -l
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/*
+
+  release:
+    # A permanent GitHub release under release.yml's tag, with every platform's file,
+    # made only when every one of them built.
+    needs: [meta, ios, android-sign, macos, windows, linux, attest]
+    if: inputs.release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.meta.outputs.tag }}
+      NAME: ${{ needs.meta.outputs.name }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: pr3-${{ needs.meta.outputs.name }}-*
+          merge-multiple: true
+          path: dist
+      - name: Only the files the jobs that made them reported
+        working-directory: dist
+        env:
+          DIGESTS: |
+            ${{ needs.ios.outputs.digests }}
+            ${{ needs.android-sign.outputs.digests }}
+            ${{ needs.macos.outputs.digests }}
+            ${{ needs.windows.outputs.digests }}
+            ${{ needs.linux.outputs.digests }}
+        run: |
+          printf '%s\n' "$DIGESTS" | sed '/^[[:space:]]*$/d' > ../SHA256SUMS
+          sha256sum --check --strict ../SHA256SUMS
+          cut -c67- ../SHA256SUMS > ../expected.names
+          for file in *; do
+            grep -qxF -- "$file" ../expected.names || rm -f -- "$file"
+          done
+          mv ../SHA256SUMS .
+          ls -l
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > "$RUNNER_TEMP/notes.md" <<EOF
+          PR3 $NAME, built from $GITHUB_SHA by [this run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID). What changed: [the change log]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/$TAG/doc/changelog.md).
+
+          This is the \`dev\` channel: no security claims yet ([quality gates, Sec. 12]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/$TAG/doc/quality-gates.md)). How to install each file, and where the model goes: [Dev builds]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/$TAG/doc/development.md#dev-builds).
+
+          Check a download against \`SHA256SUMS\`, or that this workflow built it: \`gh attestation verify <file> --repo $GITHUB_REPOSITORY\`.
+          EOF
+          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "PR3 $NAME" --notes-file "$RUNNER_TEMP/notes.md"

@@ -1,0 +1,78 @@
+# A release of the PR3 app, started by hand with nothing to fill in: Actions, Release,
+# Run workflow, from main. It tags main's newest commit with that commit's own time
+# (script/version.py --tag, such as v2026.10.27.30184), then app.yml builds every
+# platform from it and publishes them as a permanent GitHub release under that tag.
+#
+# A tag this workflow pushes would start no other workflow (GitHub's rule for its own
+# token), so it calls app.yml itself, in the same run. A run whose builds fail leaves
+# the tag without a release: rerun its failed jobs, or run Release again, which reuses
+# the tag as long as no release has it yet. A commit less than two seconds after the
+# newest release is refused, since some platform would not take it as an upgrade.
+name: Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One release at a time; a second waits rather than cancels the first.
+concurrency:
+  group: app-release
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - name: Releases come from main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Run Release from main, not $GITHUB_REF_NAME."
+          exit 1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="$(python3 -I script/version.py --tag)"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "::error::main's newest commit, $GITHUB_SHA, is already released as $tag."
+            exit 1
+          fi
+          # A release must come at least two seconds after the newest one, or some
+          # platform would not install it over that one. Tags sort as their times do.
+          latest="$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1000 --json tagName \
+            --jq '[.[].tagName | select(test("^v[0-9]{4}[.][0-9]{2}[.][0-9]{2}[.][0-9]{5}$"))] | max // empty')"
+          if [ -n "$latest" ] && ! reason="$(python3 -I script/version.py --after "$latest" 2>&1)"; then
+            echo "::error::$reason A release must be newer than the last one, $latest, to install over it; release a later commit."
+            exit 1
+          fi
+          tagged="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" --jq .object.sha 2> /dev/null || true)"
+          if [ -z "$tagged" ]; then
+            gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$tag" -f sha="$GITHUB_SHA" > /dev/null
+            echo "Tagged $GITHUB_SHA as $tag."
+          elif [ "$tagged" != "$GITHUB_SHA" ]; then
+            echo "::error::$tag already names another commit, $tagged."
+            exit 1
+          else
+            echo "$tag already names $GITHUB_SHA and has no release yet; building it."
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+  app:
+    needs: tag
+    uses: ./.github/workflows/app.yml
+    with:
+      release: true
+    # What app.yml's jobs need: attesting, and publishing the release.
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write

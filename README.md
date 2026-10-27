@@ -15,7 +15,7 @@ cargo test --workspace
 cd app/pr3-app && npm ci && cargo tauri dev   # the macOS app
 ```
 
-iOS, Android, configuration, pairing and benchmarks: [doc/development.md](doc/development.md).
+iOS, Android, configuration, pairing and benchmarks: [doc/development.md](doc/development.md). Ready-made builds for the iOS simulator, Android, macOS, Windows and Linux: each version on the [Releases](https://github.com/PooyaEimandar/PR3/releases) page, and each push to `main` for 7 days ([dev builds](doc/development.md#dev-builds)).
 
 ## Documentation
 

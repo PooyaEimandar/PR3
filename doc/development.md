@@ -36,6 +36,53 @@ llama.cpp's CMake step does not reconfigure an existing build: after changing a 
 
 The webview's script is TypeScript, in `app/pr3-app/src`, checked in strict mode. The Tauri CLI compiles it into `ui/main.js` before every build, and `cargo tauri dev` recompiles it as you edit; `npm run check` in `app/pr3-app` only type-checks it. The source keeps to types a compiler can simply erase, so tools that strip types without checking them (esbuild, swc, Node, Deno, Bun) build the same script.
 
+## Dev builds
+
+[`.github/workflows/app.yml`](../.github/workflows/app.yml) builds the app for every platform on every push and pull request:
+
+| File | Platform | To install |
+|---|---|---|
+| `pr3-<version>-aarch64-ios-simulator.zip` | iOS simulator on an Apple Silicon Mac | unzip it, then `xcrun simctl install booted PR3.app` |
+| `pr3-<version>-aarch64.apk` | Android, arm64 | `adb install -r`, or open it on the phone |
+| `pr3-<version>-aarch64.dmg` | macOS, Apple Silicon | drag PR3 to Applications. It is signed ad hoc, so macOS blocks the first launch: allow it under System Settings, Privacy & Security, **Open Anyway** |
+| `pr3-<version>-x86_64.exe` | Windows x64 | run the installer. It is unsigned, so Windows asks first: **More info**, **Run anyway** |
+| `pr3-<version>-x86_64.AppImage`, `pr3-<version>-x86_64.deb` | Linux x64 | `chmod +x` the AppImage and run it, or `sudo apt install ./pr3-<version>-x86_64.deb` |
+
+- **Each push to `main`:** the files stay 7 days among the run's artifacts (Actions, the run, Artifacts; GitHub asks you to sign in to download). The APK is signed with the fixed dev key, so each build installs over the last and keeps its data, and every file is attested: `gh attestation verify <file> --repo PooyaEimandar/PR3` checks that this workflow built it from that commit.
+- **A pull request:** the same files for 7 days, but the APK carries the runner's throwaway debug key (`…-debug-key.apk`) and nothing is attested.
+- **A release:** Actions, **Release**, **Run workflow** from `main`, with nothing to fill in. [`release.yml`](../.github/workflows/release.yml) tags `main`'s newest commit with that commit's own time, builds every platform from it, and, once all of them have built, publishes them with `SHA256SUMS` as a permanent release on the [Releases](https://github.com/PooyaEimandar/PR3/releases) page. If a build fails, the tag stays without a release: rerun the failed jobs, or run Release again, which reuses the tag. `script/version.py --tag` shows the tag a commit would get.
+
+**Versions.** Every version comes from the time of the commit a build is made from ([`script/version.py`](../script/version.py)), so a later commit always has a larger one. A release is tagged `vYYYY.MM.DD.SSSSS`, the commit's UTC day and its seconds since midnight (00000-86399). For a commit `fd9a287…` made on 27 October 2026 at 08:23:04 UTC, released as `v2026.10.27.30184`:
+
+| Platform | Version | Build number |
+|---|---|---|
+| Android, dev build | `2026.10.27.30184-dev+fd9a2875dc06` | `25863784` |
+| Android, release | `2026.10.27.30184` | `25863784` |
+| iOS and macOS | `2026.10.27` | `25863784` |
+| Windows and Linux | `2026.300.15092` (Windows shows `2026.300.15092.0`) | - |
+
+- **Dev builds** add `-dev+` and the commit's first 12 characters to the name, so a build names the commit it came from. The app's header shows the name; a local build says *local build*.
+- **The build number** is the seconds since 1 January 2026 UTC: Android's version code and Apple's `CFBundleVersion`. It stops at 2,100,000,000, Google Play's ceiling, about 66 years on.
+- **iOS and macOS** show at most three numbers, so the version is the day alone, without leading zeros (`2026.1.5`, not `2026.01.05`); the build number orders builds within a day.
+- **Windows** takes four numbers of at most 65535 each: the year, the day of the year, half the seconds since midnight, and 0. The Linux packages carry the first three.
+- **Newer, by at least two seconds.** Two commits that close together share Windows' half-second, and a commit whose clock ran behind gets a smaller version than the one before it. So Release refuses a commit less than two seconds after the newest release, and a build of `main` less than two seconds after the previous build of `main` (the commit its push replaced) warns that its APK will not install over that build without uninstalling it first; the next commit sets it right. `script/version.py --after <tag or commit>` runs the same check.
+
+All builds are the `dev` channel ([quality-gates.md](quality-gates.md)): no security claims yet. The iOS simulator and Android builds are debug builds; the Android one is debuggable, so the `adb` command above puts a model in its data folder. Every other build looks for the model in the app's data folder, under `model/`: `~/Library/Application Support/ai.pooya.pr3/model/` on macOS, `%APPDATA%\ai.pooya.pr3\model\` on Windows and `~/.local/share/ai.pooya.pr3/model/` on Linux. Until one is there, the app answers with a stand-in that names the file it needs and where.
+
+llama.cpp in the Windows and Linux builds uses AVX2 and FMA, which x86 processors have had since 2013; left alone it would build for plain SSE2, several times slower. The Linux build runs on Ubuntu 22.04 so that it also runs on distributions as old as that.
+
+**Signing setup (once, by the repository owner).** The dev key that signs the APK lives only in the `app-dev` environment's secrets, which only the signing job reads. That job checks out nothing and runs nothing the build made, and takes the APK only if it matches the digest the build job reported. Make the key once and keep the file somewhere safe: losing it means every phone has to uninstall PR3 before the next build will install.
+
+```bash
+keytool -genkeypair -keystore pr3-dev.p12 -storetype PKCS12 -alias pr3-dev -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=PR3 dev"
+gh api -X PUT repos/PooyaEimandar/PR3/environments/app-dev -F 'deployment_branch_policy[protected_branches]=false' -F 'deployment_branch_policy[custom_branch_policies]=true'
+gh api -X POST repos/PooyaEimandar/PR3/environments/app-dev/deployment-branch-policies -f name=main -f type=branch
+base64 -i pr3-dev.p12 | gh secret set ANDROID_DEV_KEYSTORE --env app-dev --repo PooyaEimandar/PR3
+gh secret set ANDROID_DEV_KEYSTORE_PASSWORD --env app-dev --repo PooyaEimandar/PR3
+```
+
+The environment's branch rule lets only `main` use the key; releases run from `main` too. Until the secrets exist, the signing job fails with a message that points here, and the other platforms are still built and attested.
+
 ## Configuration
 
 Everything lives in [`config/pr3.toml`](../config/pr3.toml):
@@ -91,7 +138,7 @@ PROPTEST_CASES=4 MIRIFLAGS=-Zmiri-disable-isolation \
 
 The fuzz targets in [`fuzz/fuzz_target`](../fuzz/fuzz_target) cover what reads untrusted input: the core's agent loop under arbitrary model replies and tool results, the trusted gate under forged and altered receipts, phone↔computer messages, the model-output parser, and memory search. A failing input is saved in `fuzz/artifact/<target>/`; `cargo +nightly-2026-08-29 fuzz run <target> <file>` replays it.
 
-CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) builds and tests the workspace on macOS, Linux and Windows, builds the app's Rust and Swift code for the iOS simulator and the Android APK, and runs formatting, lints, the `no_std` builds, dependency advisories and a minute of fuzzing per target on every change; Miri on `pr3-core` (about an hour) runs on pushes to `main` and weekly. On Linux, Tauri needs `libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev`, and llama.cpp needs CMake and clang. Real-model tests stay manual. The rules behind them are in [quality-gates.md](quality-gates.md).
+CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) builds and tests the workspace on macOS, Linux and Windows, and runs formatting, lints, the `no_std` builds, dependency advisories and a minute of fuzzing per target on every change; Miri on `pr3-core` (about an hour) runs on pushes to `main` and weekly. On Linux, Tauri needs `libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev`, and llama.cpp needs CMake and clang. Real-model tests stay manual. The app itself is built for every platform by `app.yml`, and released by `release.yml` ([Dev builds](#dev-builds)). The rules behind them are in [quality-gates.md](quality-gates.md).
 
 ## Benchmarks
 
