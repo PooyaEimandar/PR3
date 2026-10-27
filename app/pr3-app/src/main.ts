@@ -486,7 +486,8 @@ document.addEventListener("keydown", (event) => {
 interface PlatformInfo {
   os: string;
   arch: string;
-  version: string;
+  /** A CI build's version, such as 2026.10.27.30184-dev+fd9a2875dc06; null for a local build. */
+  version: string | null;
   model: string;
 }
 
@@ -496,7 +497,7 @@ function showPlatform(): void {
   invoke<PlatformInfo>("platform_info")
     .then((p) => {
       document.body.classList.add(p.os);
-      platformLine.textContent = `v${p.version} · ${p.os}/${p.arch} · ${p.model}`;
+      platformLine.textContent = `${p.version ?? "local build"} · ${p.os}/${p.arch} · ${p.model}`;
       platformLine.title = platformLine.textContent;
     })
     .catch((err) => show("error", String(err)));

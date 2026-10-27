@@ -12,6 +12,18 @@ val tauriProperties = Properties().apply {
         propFile.inputStream().use { load(it) }
     }
 }
+// A CI build's version (script/version.py, .github/workflows/app.yml): the name, such
+// as 2026.10.27.30184-dev+fd9a2875dc06, and the code, which grows with every commit so
+// each build installs over the last. A local build takes Tauri's, from Cargo.toml.
+val ciVersionCode = System.getenv("PR3_ANDROID_VERSION_CODE")?.let { value ->
+    value.toIntOrNull()?.takeIf { it in 1..2_100_000_000 }
+        ?: throw GradleException("PR3_ANDROID_VERSION_CODE must be a Play version code")
+}
+val ciVersionName = System.getenv("PR3_ANDROID_VERSION_NAME")?.also { value ->
+    if (!Regex("[0-9A-Za-z.+-]{1,64}").matches(value)) {
+        throw GradleException("PR3_ANDROID_VERSION_NAME must be a plain version name")
+    }
+}
 
 android {
     compileSdk = 36
@@ -21,8 +33,10 @@ android {
         applicationId = "ai.pooya.pr3"
         minSdk = 24
         targetSdk = 36
-        versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
-        versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
+        versionCode = ciVersionCode
+            ?: tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
+        versionName = ciVersionName
+            ?: tauriProperties.getProperty("tauri.android.versionName", "1.0")
     }
     buildTypes {
         getByName("debug") {

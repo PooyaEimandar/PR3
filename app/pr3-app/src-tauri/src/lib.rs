@@ -32,7 +32,9 @@ const MODEL_CHANGED: &str = "model-changed";
 struct PlatformInfo {
     os: &'static str,
     arch: &'static str,
-    version: &'static str,
+    /// A CI build's version (script/version.py), such as
+    /// 2026.10.27.30184-dev+fd9a2875dc06; none for a local build.
+    version: Option<&'static str>,
     model: String,
 }
 
@@ -41,7 +43,7 @@ fn platform_info(host: tauri::State<'_, Host>) -> PlatformInfo {
     PlatformInfo {
         os: std::env::consts::OS,
         arch: std::env::consts::ARCH,
-        version: env!("CARGO_PKG_VERSION"),
+        version: option_env!("PR3_VERSION"),
         model: host.backend_label(),
     }
 }
