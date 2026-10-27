@@ -112,12 +112,23 @@ jobs:
           stable="$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)"
           rustup toolchain install "$stable" --profile minimal --target aarch64-apple-ios-sim
           echo "RUSTUP_TOOLCHAIN=$stable" >> "$GITHUB_ENV"
-      - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.87.32
-        with:
-          tool: tauri-cli@2.12.3
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      # The Apple Silicon Tauri CLI, checked against its release's digest. install-action
+      # has none of its own and falls back to cargo-binstall, which takes the Intel build
+      # on a Mac (tauri-cli's binstall metadata expects a .tgz, and this one is a .zip);
+      # under Rosetta that build makes every simulator build x86_64, which Xcode rejects.
+      # After rust-cache, so a cached ~/.cargo/bin cannot replace it.
+      - name: Tauri CLI
+        env:
+          ZIP: https://github.com/tauri-apps/tauri/releases/download/tauri-cli-v2.12.3/cargo-tauri-aarch64-apple-darwin.zip
+          SHA256: 35e3b339bfb5f2061023bf5646dc969e5fa53b6fc4347daf467e7f6743692494
+        run: |
+          curl --proto '=https' --tlsv1.2 -fsSL --retry 3 -o "$RUNNER_TEMP/cargo-tauri.zip" "$ZIP"
+          echo "$SHA256  $RUNNER_TEMP/cargo-tauri.zip" | shasum -a 256 --check --strict
+          unzip -o -q "$RUNNER_TEMP/cargo-tauri.zip" cargo-tauri -d "$HOME/.cargo/bin"
+          cargo tauri --version
       - name: Build
         working-directory: app/pr3-app
         env:
@@ -270,12 +281,19 @@ jobs:
           stable="$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)"
           rustup toolchain install "$stable" --profile minimal
           echo "RUSTUP_TOOLCHAIN=$stable" >> "$GITHUB_ENV"
-      - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.87.32
-        with:
-          tool: tauri-cli@2.12.3
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      # The Apple Silicon Tauri CLI, as in the ios job.
+      - name: Tauri CLI
+        env:
+          ZIP: https://github.com/tauri-apps/tauri/releases/download/tauri-cli-v2.12.3/cargo-tauri-aarch64-apple-darwin.zip
+          SHA256: 35e3b339bfb5f2061023bf5646dc969e5fa53b6fc4347daf467e7f6743692494
+        run: |
+          curl --proto '=https' --tlsv1.2 -fsSL --retry 3 -o "$RUNNER_TEMP/cargo-tauri.zip" "$ZIP"
+          echo "$SHA256  $RUNNER_TEMP/cargo-tauri.zip" | shasum -a 256 --check --strict
+          unzip -o -q "$RUNNER_TEMP/cargo-tauri.zip" cargo-tauri -d "$HOME/.cargo/bin"
+          cargo tauri --version
       - name: Build
         working-directory: app/pr3-app
         env:
