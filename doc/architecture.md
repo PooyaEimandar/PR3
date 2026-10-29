@@ -309,7 +309,7 @@ Every connector and plugin ships a **signed manifest** the policy engine reads: 
 
 ### 4.8 Tasks and conversation continuity
 
-PR3 carries work forward through **tasks** and **memory**, not saved chat threads. A thread grows without bound, mixes topics, keeps text the user never approved, and must be read again whole once the app has closed, which on a phone's CPU costs time and battery. Its transcript would be a second memory outside the user's control ([Sec. 4.4](#44-memory-and-knowledge-architecture)), and it would carry untrusted text from tools and pages into later days. A task is bounded instead: it has a goal, a state and an outcome, and the model receives no more of it than the next step needs ([Sec. 4.3](#43-inference-strategy)).
+PR3 carries work forward through **tasks** and **memory**, not one long chat thread that the model reads back. A thread grows without bound, mixes topics, and must be read again whole once the app has closed, which on a phone's CPU costs time and battery; and whatever it holds reaches later prompts, both text the user never approved as memory ([Sec. 4.4](#44-memory-and-knowledge-architecture)) and untrusted text from tools and pages. A task is bounded instead: it has a goal, a state and an outcome, keeps its own chat for the user to read, and gives the model no more of it than the next step needs ([Sec. 4.3](#43-inference-strategy)).
 
 **What a task is.** One goal of the user's that PR3 works on until it is done, cancelled or given up: "send Alex the Q3 summary", "remind me about the dentist on Friday", "what did the landlord say about the deposit?". A question answered in one turn is a task that opens and closes in that turn. A task record holds:
 
@@ -356,12 +356,31 @@ A turn runs inside a task: the core's turn state (rounds, loop guard, pending to
 |---|---|---|
 | Task record | Unfinished tasks until they finish; finished ones 30 days by default, then erased. The user can keep, delete or export any task | `tasks`, in the memory database |
 | Task events | As long as the audit chain; they hold states and references, not text | `task_events`, hash-chained |
-| The task's exchanges (messages and tool results) | Only while the task is unfinished, within the core's history bound; erased when it closes, leaving the summary | `messages`, in the memory database |
+| The task's chat (messages, and tool activity as the conversation showed it) | As long as the task, so the user can read it in **Tasks**; deleting the task deletes it | `messages`, in the memory database |
 | Memories | As today: proposed from the task, kept only if the user confirms | `memories` |
 
-Forgetting a memory removes it from every task's refs, and a summary that quotes it is erased; the task keeps its goal and state.
+A task's chat is the user's record, not the model's: the model reads only the task it is working on, as above, and following up a finished task starts from its summary, never its chat. Forgetting a memory removes it from every task's refs, and a summary that quotes it is erased; the task keeps its goal, state and chat.
 
-**Task history in the app.** A task list sits beside the conversation: unfinished tasks first, with what each waits on, then finished ones by date with their outcome. Opening one shows its summary and steps and offers Resume, Cancel and Delete. Voice does the same: "what is still open?", "carry on with the email to Alex". The conversation on screen shows the current task; a finished task folds into one line with its outcome.
+**Tasks in the app: casual, three pages.** The composer reads, left to right, **Settings**, **Tasks**, the message field, the microphone and **Send**: the microphone sits beside Send, and Tasks beside Settings. Tasks opens like Settings does, and tapping it again goes back to the conversation. It holds three full-width pages, swiped left and right, with their names on top to tap:
+
+```text
+  [Settings] [Tasks] [ Message PR3 ........ ] [Mic] [Send]
+
+  [To Do]    Doing    Done          swipe, or tap a name
+  +------------------------------+
+  | Email Alex the Q3 summary    |   a task: its title, one plain line,
+  | Waiting for your OK - 2 min  |   and when
+  +------------------------------+
+  | Dentist on Friday            |
+  | I'll remind you Fri 9:00     |
+  +------------------------------+
+```
+
+- **To Do:** waiting for the user or for later: an approval, an answer, a time, or set aside unfinished with **New topic**.
+- **Doing:** PR3 is on it: the task the conversation is on, or one running on the paired computer.
+- **Done:** finished, with how it ended in plain words: sent, answered, cancelled, did not work, expired.
+
+Tapping a task opens its chat, as the conversation showed it; **Back** returns to the same page of the list, and **Tasks** goes home. An unfinished task offers **Continue**, which makes it the conversation's task again; a finished one offers **Follow up**, which opens a new task linked to it; any task can be deleted. The words stay casual: titles and plain lines, never states, ids or references. Voice does the same: "what is still open?", "carry on with the email to Alex". On the home page the conversation shows the current task; when a new one starts, the last one folds into a line that says where it went ("Sent to Alex - in Done").
 
 **Across devices.** The phone owns its tasks (single writer, [Sec. 4.4](#44-memory-and-knowledge-architecture)). A task delegated to the paired computer ([Sec. 6.3](deployment.md#63-private-hybrid-mobile--desktop)) carries its goal, summary and the refs it needs, never a transcript; the result returns as the task's outcome, and approvals stay on the phone. M2-E4's delegation protocol moves task state.
 
@@ -369,8 +388,8 @@ Forgetting a memory removes it from every task's refs, and a summary that quotes
 
 **From today's spike.** The app holds one in-memory session per launch with the last 32 messages, trimmed to fit 4,096 tokens and lost when the app closes; only confirmed memories carry over. The build order:
 
-1. **New topic** and the follow-up window: one task at a time, in memory.
-2. Task records and events in the memory database; unfinished tasks, including a card still waiting for approval, survive restarts.
-3. The task list in the app and by voice: resume, cancel, delete, export, retention.
+1. **New topic**, the follow-up window and the **Tasks** pages, with tasks kept in memory for one launch; the microphone moves beside Send.
+2. Task records, chats and events in the memory database; tasks survive restarts, including a card still waiting for approval.
+3. Tasks by voice, and continue, follow up, delete, export and retention.
 4. Summaries at checkpoints and the model's `task.resume` proposal, once measured.
 5. Delegating tasks to the paired computer (M2-E4).
