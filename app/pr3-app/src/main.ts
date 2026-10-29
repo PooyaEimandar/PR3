@@ -67,6 +67,8 @@ type Entry =
 interface TaskView extends TaskCard {
   parent: { id: number; title: string } | null;
   running: boolean;
+  /** Its confirmation card waits for the user; after a restart, ask again. */
+  waiting: boolean;
   chat: Entry[];
 }
 
@@ -203,10 +205,7 @@ async function send(text: string): Promise<void> {
       bubble.textContent = streamed;
     } else if (event.type === "tool") {
       // Show what PR3 ran on the user's behalf, above the answer it leads to.
-      const line = document.createElement("div");
-      line.className = `msg tool${event.success ? "" : " failed"}`;
-      line.textContent = toolText(event);
-      log.insertBefore(line, bubble);
+      log.insertBefore(entryNode(event), bubble);
       streamed = "";
       bubble.textContent = "…";
     } else if (event.type === "approval") {
@@ -239,6 +238,31 @@ async function send(text: string): Promise<void> {
     showPlatform();
     // The turn may have proposed a memory.
     if (showing("memory")) renderMemory();
+    if (!tasksSection.hidden && !taskList.hidden) renderTasks();
+  }
+}
+
+// A confirmation card that was waiting when the app closed is shown again: the trusted
+// side takes it as a new request, and the task ends with what came of it.
+async function askAgain(id: number): Promise<void> {
+  const bubble = show("assistant pending", "…");
+  const onEvent = new Channel<TurnEvent>();
+  onEvent.onmessage = (event) => {
+    if (event.type === "approval") showApproval(event.request, bubble);
+    else if (event.type === "tool") log.insertBefore(entryNode(event), bubble);
+    log.scrollTop = log.scrollHeight;
+  };
+  setBusy(true);
+  try {
+    const reply = await invoke<string>("ask_again", { id, onEvent });
+    bubble.classList.remove("pending");
+    bubble.textContent = reply;
+    if (speakReplies) invoke("speak", { text: reply }).catch((err) => show("error", String(err)));
+  } catch (err) {
+    bubble.remove();
+    show("error", String(err));
+  } finally {
+    setBusy(false);
     if (!tasksSection.hidden && !taskList.hidden) renderTasks();
   }
 }
@@ -1241,6 +1265,7 @@ async function continueTask(id: number, status: HTMLElement): Promise<void> {
   currentTask = id;
   showTasks(false);
   updateNewTopic();
+  if (next.task.waiting) askAgain(id);
 }
 
 async function followUp(id: number, status: HTMLElement): Promise<void> {
@@ -1305,6 +1330,17 @@ function updateNewTopic(): void {
   newTopicButton.hidden = answering || !log.querySelector(".msg, button.following");
 }
 
+// The conversation the app closed on comes back while it is still going, and a
+// confirmation card it was waiting on is asked again.
+async function restoreConversation(): Promise<void> {
+  const task = await invoke<TaskView | null>("current_task").catch(() => null);
+  if (!task) return;
+  currentTask = task.id;
+  for (const entry of task.chat) addToLog(entryNode(entry));
+  updateNewTopic();
+  if (task.waiting) askAgain(task.id);
+}
+
 // The model loads in the background; refresh the header, and the Models tab, when it
 // changes.
 window.__TAURI__.event.listen("model-changed", () => {
@@ -1313,3 +1349,4 @@ window.__TAURI__.event.listen("model-changed", () => {
 });
 showPlatform();
 setUpSpeech();
+restoreConversation();
