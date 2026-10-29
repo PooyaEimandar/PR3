@@ -484,13 +484,11 @@ pub struct MockBackend {
 }
 
 impl MockBackend {
-    /// A mock that tells the user which model file it is standing in for, and where.
-    pub fn missing_model(file: &str, expected_dir: Option<String>) -> Self {
-        let note = match expected_dir {
-            Some(dir) => format!("no {file} in {dir}"),
-            None => format!("no {file}"),
-        };
-        Self { note: Some(note) }
+    /// A mock that tells the user which model to download, and where.
+    pub fn missing_model(file: &str) -> Self {
+        Self {
+            note: Some(format!("download {file} in Settings")),
+        }
     }
 
     /// A mock standing in for a model that exists but failed to load.

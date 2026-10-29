@@ -141,25 +141,10 @@ impl Backend for LlamaBackend {
     }
 }
 
-/// Where to look for the model `file`, in order: `PR3_MODEL`, the app's data folder,
-/// and — in debug builds only — the repository's `model/` folder.
-pub fn model_candidates(data_dir: Option<&Path>, file: &str) -> Vec<PathBuf> {
-    let mut paths = Vec::new();
-    if let Some(path) = std::env::var_os("PR3_MODEL") {
-        paths.push(PathBuf::from(path));
-    }
-    if let Some(dir) = data_dir {
-        paths.push(dir.join("model").join(file));
-    }
-    #[cfg(debug_assertions)]
-    paths.push(repo_models().join(file));
-    paths
-}
-
-/// The repository's `model/` folder. Debug builds and tests only, so release builds
-/// carry no path from the build machine.
+/// The repository's `model/` folder, where debug builds also look for models. Debug
+/// builds and tests only, so release builds carry no path from the build machine.
 #[cfg(any(debug_assertions, test))]
-fn repo_models() -> PathBuf {
+pub fn repo_models() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../model")
 }
 

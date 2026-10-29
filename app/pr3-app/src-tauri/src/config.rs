@@ -139,11 +139,55 @@ pub struct ModelChoice {
     pub mobile_min_memory_gb: f64,
 }
 
-/// One pinned GGUF file. The app needs only its name; the repository, revision and
-/// SHA-256 are for script/fetch-model.sh.
+/// One pinned GGUF file and where it comes from: a Hugging Face repository at a fixed
+/// revision. A download is kept only if it has exactly this size and SHA-256.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ModelEntry {
+    pub repo: String,
+    pub revision: String,
     pub file: String,
+    pub sha256: String,
+    pub size: u64,
+}
+
+impl ModelEntry {
+    /// Where the file is downloaded from.
+    pub fn url(&self) -> String {
+        format!(
+            "https://huggingface.co/{}/resolve/{}/{}",
+            self.repo, self.revision, self.file
+        )
+    }
+
+    /// A file name with no folders, a repository `owner/name` and a revision that stay
+    /// inside the URL's path, and a SHA-256 in hex.
+    fn check(&self, id: &str) -> Result<(), String> {
+        let plain = |s: &str| {
+            !s.is_empty()
+                && s != "."
+                && s != ".."
+                && s.chars()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+        };
+        let repo = self.repo.split('/').collect::<Vec<_>>();
+        let fine = plain(&self.file)
+            && self.file.ends_with(".gguf")
+            && repo.len() == 2
+            && repo.iter().all(|part| plain(part))
+            && plain(&self.revision)
+            && self.sha256.len() == 64
+            && self.sha256.chars().all(|c| c.is_ascii_hexdigit())
+            && self.size > 0;
+        if fine {
+            Ok(())
+        } else {
+            Err(format!(
+                "[models.\"{id}\"] needs a repo owner/name, a revision, a .gguf file name, \
+                 a SHA-256 and a size"
+            ))
+        }
+    }
 }
 
 /// The kind of device, with its physical memory in bytes if known.
@@ -202,6 +246,9 @@ impl Config {
                     "[model] names '{id}', which [models] does not list"
                 ));
             }
+        }
+        for (id, entry) in &config.models {
+            entry.check(id)?;
         }
         config.actions.check()?;
         Ok(config)
@@ -300,6 +347,40 @@ mod tests {
         );
         for entry in config.models.values() {
             assert!(entry.file.ends_with(".gguf"));
+            assert!(entry.url().starts_with("https://huggingface.co/"));
+        }
+    }
+
+    #[test]
+    fn a_model_must_stay_in_its_repository_and_carry_its_checksum() {
+        let entry = &Config::built_in().unwrap().models["qwen3-0.6b"];
+        assert_eq!(
+            entry.url(),
+            "https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/\
+             23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf"
+        );
+        for (from, to) in [
+            (
+                "file = \"Qwen3-0.6B-Q8_0.gguf\"",
+                "file = \"../Qwen3-0.6B-Q8_0.gguf\"",
+            ),
+            (
+                "file = \"Qwen3-0.6B-Q8_0.gguf\"",
+                "file = \"Qwen3-0.6B-Q8_0.bin\"",
+            ),
+            ("repo = \"Qwen/Qwen3-0.6B-GGUF\"", "repo = \"Qwen/../evil\""),
+            (
+                "repo = \"Qwen/Qwen3-0.6B-GGUF\"",
+                "repo = \"Qwen3-0.6B-GGUF\"",
+            ),
+            ("sha256 = \"9465e63a", "sha256 = \"zz65e63a"),
+        ] {
+            let text = BUILT_IN.replace(from, to);
+            assert_ne!(text, BUILT_IN, "{from}");
+            assert!(
+                Config::parse(&text).unwrap_err().contains("qwen3-0.6b"),
+                "{to}"
+            );
         }
     }
 

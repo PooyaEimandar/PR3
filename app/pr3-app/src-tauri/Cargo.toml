@@ -31,6 +31,10 @@ serde = { workspace = true, features = ["std"] }
 serde_json = { workspace = true, features = ["std"] }
 tauri = { version = "2", features = [] }
 toml = { version = "1", default-features = false, features = ["std", "serde", "parse"] }
+# Downloading models from their pinned repositories (models.rs): rustls with ring,
+# which pairing already builds, and Mozilla's root certificates on every platform.
+ureq = { version = "3", default-features = false, features = ["rustls"] }
+sha2 = "0.10"
 
 # The computer's name, shown on paired phones.
 [target.'cfg(not(any(target_os = "ios", target_os = "android")))'.dependencies]
