@@ -5,7 +5,7 @@ PR3 is an open-source, privacy-first personal AI runtime that works **offline on
 - **Local by default.** The model, speech recognition and voices run on your devices; a paired computer can lend a phone its larger model, and the phone answers on its own when it cannot reach it.
 - **The model proposes, PR3 decides.** Every model output is an untrusted proposal. Consequential actions go through a structured intent, a deterministic policy, your approval with Face ID, Touch ID or a fingerprint, a one-use capability and a hash-chained audit log.
 - **Memory you own.** Local, inspectable and deletable, with the provenance of every fact.
-- **Measured on security.** On [AgentDojo](https://arxiv.org/abs/2406.13352), with the same model, no prompt-injection attack got through PR3 where a plain tool-calling loop let them through ([results](doc/benchmarks.md#86-results-so-far)).
+- **Measured on security.** On [AgentDojo](https://arxiv.org/abs/2406.13352), with the same model, no prompt-injection attack that needed a tool call got through PR3 in any of its four suites, where a plain tool-calling loop let up to 57% through ([results](doc/benchmarks.md#86-results-so-far)).
 
 ## Quick start
 
