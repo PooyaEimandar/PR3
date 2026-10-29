@@ -16,9 +16,10 @@ use pr3_core::{
     Action, Config, Core, CoreError, GenerationInfo, InferenceRequest, Input, ProposedToolCall,
     Role, SessionId, Timestamp, ToolCall, Trace,
 };
+use pr3_memory_sqlite::SqliteMemory;
 use pr3_tool::{SharedMemory, Tool, ToolContext};
 
-use crate::actions::Actions;
+use crate::actions::{self, Actions};
 use crate::task::{Continued, FollowingUp, Opened, TaskCard, TaskView, Tasks};
 use serde::Serialize;
 use serde_json::{Map, Value};
@@ -173,6 +174,17 @@ impl Host {
         self
     }
 
+    /// Keeps the user's tasks in `store`, and brings back the ones it kept, erasing
+    /// finished tasks older than `keep_days` (docs Sec. 4.8). Without it, tasks last
+    /// until the app closes.
+    pub fn with_tasks(mut self, store: Arc<Mutex<SqliteMemory>>, keep_days: u64) -> Self {
+        match Tasks::load(store, keep_days, now()) {
+            Ok(tasks) => self.tasks = Arc::new(Mutex::new(tasks)),
+            Err(e) => eprintln!("PR3: tasks are not kept: {e}"),
+        }
+        self
+    }
+
     /// Offers the consequential tools of `actions` and runs their calls through it.
     pub fn with_actions(mut self, actions: Arc<Actions>) -> Result<Self, HostError> {
         {
@@ -241,6 +253,10 @@ impl Host {
             .ok_or_else(|| "This task is no longer kept.".to_string())
     }
 
+    pub fn current_task(&self) -> Result<Option<TaskView>, String> {
+        Ok(self.tasks().map_err(|e| e.to_string())?.current(now()))
+    }
+
     pub fn new_topic(&self) -> Result<Option<TaskCard>, String> {
         self.tasks().map_err(|e| e.to_string())?.new_topic(now())
     }
@@ -265,7 +281,69 @@ impl Host {
             .map_err(|_| "runtime state is unavailable".to_string())?
             .forget(id)
             .map_err(|e| e.to_string())?;
-        self.tasks().map_err(|e| e.to_string())?.delete(id)
+        self.tasks().map_err(|e| e.to_string())?.delete(id, now())
+    }
+
+    /// Asks again for the call a task was waiting on when the app last closed. The
+    /// trusted path takes it as a new request, with a new confirmation card streamed
+    /// through `on_event`, and the task ends with what came of it; no model runs.
+    /// Returns the line to show as PR3's answer.
+    pub async fn ask_again<F>(&self, id: SessionId, mut on_event: F) -> Result<String, String>
+    where
+        F: FnMut(TurnEvent) + Send + 'static,
+    {
+        let waiting = self
+            .tasks()
+            .map_err(|e| e.to_string())?
+            .resume_waiting(id)?;
+        let Some(actions) = &self.actions else {
+            let reason = "actions are not available".to_string();
+            self.tasks()
+                .map_err(|e| e.to_string())?
+                .end(id, Err(reason.clone()), now());
+            return Err(reason);
+        };
+        let call = ToolCall {
+            id: format!("again-{}", id.0),
+            name: waiting.tool,
+            arguments: waiting.arguments,
+        };
+        let mut asked = None;
+        let (success, output) = Arc::clone(actions)
+            .run(&call, |request| {
+                if let Ok(mut tasks) = self.tasks.lock() {
+                    tasks.waiting(id, &call, request.expires_at, now());
+                }
+                asked = Some((actions::names(&request.mail.to), request.expires_at));
+                on_event(TurnEvent::Approval {
+                    request: request.clone(),
+                });
+            })
+            .await;
+        let tool = TurnEvent::Tool {
+            name: call.name.clone(),
+            arguments: call.arguments.clone(),
+            success,
+            output: output.clone(),
+        };
+        on_event(tool.clone());
+        let mut tasks = self.tasks().map_err(|e| e.to_string())?;
+        tasks.record(id, &tool, now());
+        let reply = match asked {
+            Some((recipients, _)) if success => format!("Sent to {recipients}."),
+            Some((_, until)) if now() >= until => {
+                tasks.expire(id, now());
+                return Ok("Nothing was sent: the confirmation ran out.".to_string());
+            }
+            Some(_) => "Nothing was sent.".to_string(),
+            // Refused before any card, for example over a limit.
+            None => {
+                tasks.end(id, Err(output.clone()), now());
+                return Err(output);
+            }
+        };
+        tasks.end(id, Ok(reply.clone()), now());
+        Ok(reply)
     }
 
     fn tasks(&self) -> Result<std::sync::MutexGuard<'_, Tasks>, HostError> {
@@ -301,7 +379,7 @@ impl Host {
         let tasks = Arc::clone(&self.tasks);
         let on_event = move |event: TurnEvent| {
             if let Ok(mut tasks) = tasks.lock() {
-                tasks.record(session, &event);
+                tasks.record(session, &event, now());
             }
             on_event(event);
         };
@@ -331,6 +409,7 @@ impl Host {
     where
         F: FnMut(TurnEvent) + Send + 'static,
     {
+        self.restore(session)?;
         let utterance = text.clone();
         let notes = match &self.memory {
             Some(memory) if text.len() <= MAX_LOOKUP_BYTES => {
@@ -432,6 +511,10 @@ impl Host {
                     let (success, output) = match &self.actions {
                         Some(actions) => {
                             let ask = |request: &ApprovalRequest| {
+                                // Kept, so the card is asked again if the app closes.
+                                if let Ok(mut tasks) = self.tasks.lock() {
+                                    tasks.waiting(session, &call, request.expires_at, now());
+                                }
                                 if let Ok(mut emit) = on_event.lock() {
                                     emit(TurnEvent::Approval {
                                         request: request.clone(),
@@ -482,11 +565,26 @@ impl Host {
     }
 
     fn step(&self, input: Input) -> Result<Vec<Action>, HostError> {
-        let mut core = self
-            .core
+        Ok(self.core()?.step(input)?)
+    }
+
+    /// A task kept from an earlier launch gets its exchanges back in the runtime before
+    /// its next turn, so a follow-up keeps its context across restarts.
+    fn restore(&self, session: SessionId) -> Result<(), HostError> {
+        if self.core()?.history(session).next().is_some() {
+            return Ok(());
+        }
+        let earlier = self.tasks()?.history(session);
+        if !earlier.is_empty() {
+            self.core()?.restore(session, earlier)?;
+        }
+        Ok(())
+    }
+
+    fn core(&self) -> Result<std::sync::MutexGuard<'_, Core>, HostError> {
+        self.core
             .lock()
-            .map_err(|_| HostError::Host("runtime state is unavailable".to_string()))?;
-        Ok(core.step(input)?)
+            .map_err(|_| HostError::Host("runtime state is unavailable".to_string()))
     }
 
     /// Runs a call the core has already validated against the tool's schema.
@@ -716,6 +814,70 @@ mod tests {
         // The next message cannot land in the deleted task.
         let (next, _) = run(&host, "hello");
         assert!(reply(&next.unwrap()).ends_with("1 message(s) in this conversation so far."));
+    }
+
+    #[test]
+    fn a_kept_task_asks_again_and_keeps_its_context_after_a_restart() {
+        let store = Arc::new(Mutex::new(SqliteMemory::open_in_memory().unwrap()));
+        let dir = std::env::temp_dir().join(format!("pr3-host-again-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // The app closes while a confirmation card waits.
+        let first = host(MockBackend::default()).with_tasks(Arc::clone(&store), 30);
+        let (_, events) = run(&first, "hello");
+        let Some(TurnEvent::TaskOpened(opened)) = events.first() else {
+            panic!("expected a new task: {events:?}");
+        };
+        let id = SessionId(opened.id);
+        let call = ToolCall {
+            id: "c1".to_string(),
+            name: pr3_tool::mail::SEND_EMAIL.to_string(),
+            arguments: r#"{"body":"Noon?","subject":"Lunch","to":"Alex"}"#.to_string(),
+        };
+        {
+            let mut tasks = first.tasks().unwrap();
+            assert_eq!(tasks.begin("Email Alex about lunch", now()).0, id);
+            tasks.waiting(id, &call, Timestamp(now().0 + 60_000), now());
+        }
+        drop(first);
+
+        let contacts = pr3_core::trusted::Directory {
+            contacts: vec![pr3_core::trusted::Contact {
+                name: "Alex Rivera".to_string(),
+                address: "alex@example.com".to_string(),
+            }],
+        };
+        let vault = pr3_vault::SoftwareVault::generate().unwrap();
+        let actions = Arc::new(
+            Actions::with_vault(&dir, Default::default(), contacts, Box::new(vault)).unwrap(),
+        );
+        let second = host(MockBackend::default())
+            .with_tasks(store, 30)
+            .with_actions(Arc::clone(&actions))
+            .unwrap();
+        let current = second.current_task().unwrap().unwrap();
+        assert_eq!((current.card.id, current.waiting), (id.0, true));
+
+        // A new card; the user approves it.
+        let approve = Arc::clone(&actions);
+        let answered = tauri::async_runtime::block_on(second.ask_again(id, move |event| {
+            if let TurnEvent::Approval { request } = event {
+                approve.answer(&request.request, true).unwrap();
+            }
+        }));
+        assert_eq!(answered.unwrap(), "Sent to Alex Rivera.");
+        let outbox = std::fs::read_to_string(dir.join("outbox.jsonl")).unwrap();
+        assert_eq!(outbox.lines().count(), 1);
+        let view = second.task(id).unwrap();
+        assert!(!view.waiting);
+        assert!(tauri::async_runtime::block_on(second.ask_again(id, |_| {})).is_err());
+
+        // The follow-up continues with both exchanges from before the restart.
+        let (reply_to, events) = run(&second, "thanks");
+        assert!(!events.iter().any(|e| matches!(e, TurnEvent::TaskOpened(_))));
+        assert!(reply(&reply_to.unwrap()).ends_with("5 message(s) in this conversation so far."));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// First asks for a calculation, then answers with the tool's result.

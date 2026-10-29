@@ -19,6 +19,8 @@ pub struct Config {
     #[serde(default)]
     pub traces: Traces,
     #[serde(default)]
+    pub tasks: Tasks,
+    #[serde(default)]
     pub actions: Actions,
     #[serde(default)]
     pub node: Node,
@@ -121,6 +123,21 @@ impl Default for Traces {
             enabled: false,
             max_mb: 8,
         }
+    }
+}
+
+/// How long the user's tasks are kept (docs Sec. 4.8).
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Tasks {
+    /// Finished tasks are erased this many days after they last changed; unfinished
+    /// ones stay until they finish. 0 keeps finished tasks until the app closes.
+    pub keep_days: u64,
+}
+
+impl Default for Tasks {
+    fn default() -> Self {
+        Self { keep_days: 30 }
     }
 }
 
@@ -324,6 +341,7 @@ mod tests {
     #[test]
     fn built_in_config_is_valid_and_picks_per_device() {
         let config = Config::built_in().unwrap();
+        assert_eq!(config.tasks.keep_days, 30);
         assert_eq!(
             config
                 .model_for(Device::Desktop { memory: None })

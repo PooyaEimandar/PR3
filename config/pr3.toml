@@ -21,6 +21,11 @@ mobile_min_memory_gb = 7
 enabled = false
 max_mb = 8
 
+# The user's tasks and their chats (docs Sec. 4.8), kept in memory.sqlite. A finished
+# task is erased keep_days after it last changed; unfinished ones stay until they finish.
+[tasks]
+keep_days = 30
+
 # Consequential actions (docs Sec. 4.6). The spike has one: sending email through a
 # sandbox connector that delivers to outbox.jsonl in the app's data folder, never to
 # the internet. Every email waits for the user's approval on a confirmation card.

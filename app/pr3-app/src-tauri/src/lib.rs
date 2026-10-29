@@ -223,7 +223,7 @@ fn set_backend(app: &tauri::AppHandle, backend: Arc<dyn Backend>) {
 
 /// The memory store in the app's data folder. Without it PR3 still runs; it just
 /// cannot remember.
-fn open_memory(app: &tauri::AppHandle) -> Option<pr3_tool::SharedMemory> {
+fn open_memory(app: &tauri::AppHandle) -> Option<Arc<Mutex<pr3_memory_sqlite::SqliteMemory>>> {
     let opened = app
         .path()
         .app_data_dir()
@@ -291,20 +291,24 @@ fn open_actions(app: &tauri::AppHandle, settings: &config::Actions) -> Option<Ar
     }
 }
 
-/// The host with the built-in tools, plus memory tools and per-message recall when
-/// memory is available, and consequential actions when they are configured.
+/// The host with the built-in tools, plus memory tools, per-message recall and kept
+/// tasks when memory is available, and consequential actions when they are configured.
 fn host(
     app: &tauri::AppHandle,
     actions: Option<&config::Actions>,
+    tasks: config::Tasks,
 ) -> Result<Host, host::HostError> {
     let backend = Arc::new(MockBackend::default());
     let host = match open_memory(app) {
-        Some(memory) => {
+        Some(store) => {
+            let memory: pr3_tool::SharedMemory = store.clone();
             // The panel where the user reviews what PR3 remembers uses the same store.
             app.manage(memory::MemoryHandle(Arc::clone(&memory)));
             let mut tools = pr3_tool::builtin();
             tools.extend(pr3_tool::memory_tools(Arc::clone(&memory)));
-            Host::new(backend, tools)?.with_memory(memory)
+            Host::new(backend, tools)?
+                .with_memory(memory)
+                .with_tasks(store, tasks.keep_days)
         }
         None => Host::new(backend, pr3_tool::builtin())?,
     };
@@ -372,7 +376,8 @@ pub fn run() {
             let data_dir = app.path().app_data_dir().ok();
             let config = config::Config::load(data_dir.as_deref());
             let actions = config.as_ref().ok().map(|c| &c.actions);
-            app.manage(host(app.handle(), actions)?);
+            let tasks = config.as_ref().map(|c| c.tasks).unwrap_or_default();
+            app.manage(host(app.handle(), actions, tasks)?);
             let node = config.as_ref().map(|c| c.node.clone()).unwrap_or_default();
             start_hybrid(app.handle(), &node);
             start_tracing(
@@ -414,6 +419,8 @@ pub fn run() {
             models::delete_model,
             task::list_tasks,
             task::open_task,
+            task::current_task,
+            task::ask_again,
             task::new_topic,
             task::continue_task,
             task::follow_up_task,
