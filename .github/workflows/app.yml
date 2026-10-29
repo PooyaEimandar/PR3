@@ -127,6 +127,9 @@ jobs:
         run: |
           curl --proto '=https' --tlsv1.2 -fsSL --retry 3 -o "$RUNNER_TEMP/cargo-tauri.zip" "$ZIP"
           echo "$SHA256  $RUNNER_TEMP/cargo-tauri.zip" | shasum -a 256 --check --strict
+          # The runner's Rust may come from Homebrew, which makes no ~/.cargo/bin.
+          mkdir -p "$HOME/.cargo/bin"
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
           unzip -o -q "$RUNNER_TEMP/cargo-tauri.zip" cargo-tauri -d "$HOME/.cargo/bin"
           cargo tauri --version
       - name: Build
@@ -293,6 +296,9 @@ jobs:
         run: |
           curl --proto '=https' --tlsv1.2 -fsSL --retry 3 -o "$RUNNER_TEMP/cargo-tauri.zip" "$ZIP"
           echo "$SHA256  $RUNNER_TEMP/cargo-tauri.zip" | shasum -a 256 --check --strict
+          # The runner's Rust may come from Homebrew, which makes no ~/.cargo/bin.
+          mkdir -p "$HOME/.cargo/bin"
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
           unzip -o -q "$RUNNER_TEMP/cargo-tauri.zip" cargo-tauri -d "$HOME/.cargo/bin"
           cargo tauri --version
       - name: Build
