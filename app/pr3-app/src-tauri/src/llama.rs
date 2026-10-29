@@ -194,7 +194,9 @@ mod tests {
             .iter()
             .filter_map(|e| match e {
                 TurnEvent::Tool { name, .. } => Some(name.as_str()),
-                TurnEvent::Token { .. } | TurnEvent::Approval { .. } => None,
+                TurnEvent::Token { .. } | TurnEvent::Approval { .. } | TurnEvent::TaskOpened(_) => {
+                    None
+                }
             })
             .collect()
     }

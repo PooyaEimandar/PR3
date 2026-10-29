@@ -14,6 +14,7 @@ mod memory;
 mod models;
 mod network;
 mod speech;
+mod task;
 mod trace_export;
 
 use std::path::Path;
@@ -410,7 +411,13 @@ pub fn run() {
             models::cancel_download,
             models::set_mobile_data,
             models::use_model,
-            models::delete_model
+            models::delete_model,
+            task::list_tasks,
+            task::open_task,
+            task::new_topic,
+            task::continue_task,
+            task::follow_up_task,
+            task::delete_task
         ])
         .build(tauri::generate_context!());
     match app {

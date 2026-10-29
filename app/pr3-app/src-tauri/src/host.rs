@@ -19,6 +19,7 @@ use pr3_core::{
 use pr3_tool::{SharedMemory, Tool, ToolContext};
 
 use crate::actions::Actions;
+use crate::task::{Continued, FollowingUp, Opened, TaskCard, TaskView, Tasks};
 use serde::Serialize;
 use serde_json::{Map, Value};
 
@@ -88,6 +89,8 @@ pub enum TurnEvent {
     Approval {
         request: ApprovalRequest,
     },
+    /// The message opened a new task (docs Sec. 4.8); comes before anything else.
+    TaskOpened(Opened),
 }
 
 pub type TraceSink = Arc<dyn Fn(&Trace) + Send + Sync>;
@@ -135,7 +138,8 @@ pub struct Host {
     /// The trusted path for consequential tools; without it they are refused.
     actions: Option<Arc<Actions>>,
     trace_sink: RwLock<Option<TraceSink>>,
-    session: SessionId,
+    /// The user's tasks; each is its own core session (docs Sec. 4.8).
+    tasks: Arc<Mutex<Tasks>>,
     /// Set once the app is quitting: a model that finishes loading afterwards is
     /// dropped instead of installed.
     shutting_down: AtomicBool,
@@ -159,9 +163,7 @@ impl Host {
             actions: None,
             trace_sink: RwLock::new(None),
             shutting_down: AtomicBool::new(false),
-            // The launch time keeps trace ids (`pr3-{session}-{turn}`) unique across
-            // launches, which OpenJarvis's trace store needs.
-            session: SessionId(now().0),
+            tasks: Arc::new(Mutex::new(Tasks::default())),
         })
     }
 
@@ -228,6 +230,50 @@ impl Host {
         }
     }
 
+    pub fn task_cards(&self) -> Result<Vec<TaskCard>, String> {
+        Ok(self.tasks().map_err(|e| e.to_string())?.cards(now()))
+    }
+
+    pub fn task(&self, id: SessionId) -> Result<TaskView, String> {
+        self.tasks()
+            .map_err(|e| e.to_string())?
+            .view(id, now())
+            .ok_or_else(|| "This task is no longer kept.".to_string())
+    }
+
+    pub fn new_topic(&self) -> Result<Option<TaskCard>, String> {
+        self.tasks().map_err(|e| e.to_string())?.new_topic(now())
+    }
+
+    pub fn continue_task(&self, id: SessionId) -> Result<Continued, String> {
+        self.tasks()
+            .map_err(|e| e.to_string())?
+            .continue_task(id, now())
+    }
+
+    pub fn follow_up(&self, id: SessionId) -> Result<FollowingUp, String> {
+        self.tasks()
+            .map_err(|e| e.to_string())?
+            .follow_up(id, now())
+    }
+
+    /// Deletes a task: its chat here, and its history in the core.
+    pub fn delete_task(&self, id: SessionId) -> Result<(), String> {
+        self.tasks().map_err(|e| e.to_string())?.deletable(id)?;
+        self.core
+            .lock()
+            .map_err(|_| "runtime state is unavailable".to_string())?
+            .forget(id)
+            .map_err(|e| e.to_string())?;
+        self.tasks().map_err(|e| e.to_string())?.delete(id)
+    }
+
+    fn tasks(&self) -> Result<std::sync::MutexGuard<'_, Tasks>, HostError> {
+        self.tasks
+            .lock()
+            .map_err(|_| HostError::Host("the task list is unavailable".to_string()))
+    }
+
     pub(crate) fn backend(&self) -> Arc<dyn Backend> {
         match self.backend.read() {
             Ok(b) => Arc::clone(&b),
@@ -235,10 +281,49 @@ impl Host {
         }
     }
 
-    /// Runs one user turn and returns what the UI should show at the end (a reply or a
-    /// failure). Tokens and tool activity stream through `on_event` meanwhile.
+    /// Runs one user turn in the task the message belongs to and returns what the UI
+    /// should show at the end (a reply or a failure). Tokens and tool activity stream
+    /// through `on_event` meanwhile, after `TaskOpened` if the message opened a task.
     pub async fn send<F>(
         &self,
+        text: String,
+        utc_offset_minutes: i32,
+        mut on_event: F,
+    ) -> Result<Vec<Action>, HostError>
+    where
+        F: FnMut(TurnEvent) + Send + 'static,
+    {
+        let (session, opened) = self.tasks()?.begin(&text, now());
+        if let Some(opened) = opened {
+            on_event(TurnEvent::TaskOpened(opened));
+        }
+        // The task keeps its chat as the user saw it.
+        let tasks = Arc::clone(&self.tasks);
+        let on_event = move |event: TurnEvent| {
+            if let Ok(mut tasks) = tasks.lock() {
+                tasks.record(session, &event);
+            }
+            on_event(event);
+        };
+        let result = self.turn(session, text, utc_offset_minutes, on_event).await;
+        let outcome = match &result {
+            Ok(actions) => actions
+                .iter()
+                .find_map(|action| match action {
+                    Action::Reply { content, .. } => Some(Ok(content.clone())),
+                    Action::Failed { reason, .. } => Some(Err(reason.clone())),
+                    _ => None,
+                })
+                .unwrap_or_else(|| Err("the turn ended without an answer".to_string())),
+            Err(error) => Err(error.to_string()),
+        };
+        self.tasks()?.end(session, outcome, now());
+        result
+    }
+
+    async fn turn<F>(
+        &self,
+        session: SessionId,
         text: String,
         utc_offset_minutes: i32,
         on_event: F,
@@ -255,21 +340,21 @@ impl Host {
         };
         // If the core refuses the message, no turn was started.
         let queue = self.step(Input::Utterance {
-            session: self.session,
+            session,
             content: text,
             notes,
             at: now(),
         })?;
         let on_event = Arc::new(Mutex::new(on_event));
         match self
-            .drive(queue, utc_offset_minutes, &utterance, on_event)
+            .drive(session, queue, utc_offset_minutes, &utterance, on_event)
             .await
         {
             Ok(for_ui) => Ok(for_ui),
             // The turn is still open: end it, so the session takes the next message.
             Err(error) => {
                 let actions = self.step(Input::Abort {
-                    session: self.session,
+                    session,
                     reason: error.to_string(),
                     at: now(),
                 })?;
@@ -281,6 +366,7 @@ impl Host {
     /// Performs the core's actions until the turn ends.
     async fn drive<F>(
         &self,
+        session: SessionId,
         mut queue: Vec<Action>,
         utc_offset_minutes: i32,
         utterance: &str,
@@ -323,7 +409,7 @@ impl Host {
                     let ctx = ToolContext {
                         now: now(),
                         utc_offset_minutes,
-                        session: self.session,
+                        session,
                         utterance: utterance.to_string(),
                     };
                     let (success, output) = self.run_tool(&call, &ctx);
@@ -547,6 +633,7 @@ pub(crate) fn now() -> Timestamp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::task::Opened;
     use pr3_core::{Outcome, StepType};
 
     fn host(backend: impl Backend + 'static) -> Host {
@@ -574,10 +661,61 @@ mod tests {
             .iter()
             .map(|e| match e {
                 TurnEvent::Token { text } => text.as_str(),
-                TurnEvent::Tool { .. } | TurnEvent::Approval { .. } => "",
+                TurnEvent::Tool { .. } | TurnEvent::Approval { .. } | TurnEvent::TaskOpened(_) => {
+                    ""
+                }
             })
             .collect();
         assert_eq!(streamed, *content);
+    }
+
+    fn reply(actions: &[Action]) -> &str {
+        match actions {
+            [Action::Reply { content, .. }] => content,
+            other => panic!("expected one reply, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_follow_up_shares_its_task_and_a_new_topic_starts_fresh() {
+        let host = host(MockBackend::default());
+        let (first, events) = run(&host, "hello");
+        let [TurnEvent::TaskOpened(opened), ..] = events.as_slice() else {
+            panic!("the first message opens a task: {events:?}");
+        };
+        assert!(reply(&first.unwrap()).ends_with("1 message(s) in this conversation so far."));
+        let (second, events) = run(&host, "and again");
+        assert!(!events.iter().any(|e| matches!(e, TurnEvent::TaskOpened(_))));
+        assert!(reply(&second.unwrap()).ends_with("3 message(s) in this conversation so far."));
+
+        let aside = host.new_topic().unwrap().unwrap();
+        assert_eq!(aside.id, opened.id);
+        let (third, events) = run(&host, "something else");
+        assert!(matches!(
+            events.first(),
+            Some(TurnEvent::TaskOpened(Opened { previous: None, .. }))
+        ));
+        assert!(reply(&third.unwrap()).ends_with("1 message(s) in this conversation so far."));
+
+        let chat = host.task(SessionId(opened.id)).unwrap().chat;
+        assert_eq!(chat.len(), 4);
+        assert_eq!(host.task_cards().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn a_deleted_task_is_forgotten_by_the_runtime_too() {
+        let host = host(MockBackend::default());
+        let (_, events) = run(&host, "remember this");
+        let Some(TurnEvent::TaskOpened(opened)) = events.first() else {
+            panic!("expected a new task: {events:?}");
+        };
+        let id = SessionId(opened.id);
+        host.delete_task(id).unwrap();
+        assert!(host.task(id).is_err());
+        assert_eq!(host.core.lock().unwrap().history(id).count(), 0);
+        // The next message cannot land in the deleted task.
+        let (next, _) = run(&host, "hello");
+        assert!(reply(&next.unwrap()).ends_with("1 message(s) in this conversation so far."));
     }
 
     /// First asks for a calculation, then answers with the tool's result.
