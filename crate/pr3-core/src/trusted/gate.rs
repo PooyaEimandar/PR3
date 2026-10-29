@@ -101,12 +101,18 @@ pub struct Gate {
 }
 
 impl Gate {
-    /// Picks up where `log` (the stored audit log) left off, after verifying it.
+    /// Picks up where `log` (the stored audit log) left off, after verifying it. A
+    /// request the log leaves waiting for approval or holding an unused capability was
+    /// lost with the gate that held it, when the app last closed: it can no longer be
+    /// approved or used, so it is logged as expired at `now`. One left mid-delivery
+    /// (redeemed, not executed) stays open, since only the connector knows whether it
+    /// went out.
     pub fn new(
         limits: Limits,
         approver: ApprovalKey,
         provider: &str,
         log: &[Entry],
+        now: Timestamp,
     ) -> Result<Self, Broken> {
         let chain = Chain::resume(log)?;
         let recent = log
@@ -114,7 +120,7 @@ impl Gate {
             .filter(|e| matches!(e.event, Event::Issued { .. }))
             .map(|e| e.at)
             .collect();
-        Ok(Self {
+        let mut gate = Self {
             limits,
             approver,
             provider: provider.to_string(),
@@ -124,7 +130,11 @@ impl Gate {
             recent,
             chain,
             unsaved: Vec::new(),
-        })
+        };
+        for request in left_open(log) {
+            gate.log(now, Event::Expired { request });
+        }
+        Ok(gate)
     }
 
     /// Validates a proposal and decides on it.
@@ -403,6 +413,34 @@ impl Gate {
     }
 }
 
+/// Requests whose last event leaves them waiting for an answer or a capability's use,
+/// in the order they were proposed.
+fn left_open(log: &[Entry]) -> Vec<String> {
+    let mut last: BTreeMap<&str, &Event> = BTreeMap::new();
+    let mut order = Vec::new();
+    for entry in log {
+        let request = entry.event.request();
+        if last.insert(request, &entry.event).is_none() {
+            order.push(request);
+        }
+    }
+    order
+        .into_iter()
+        .filter(|request| {
+            matches!(
+                last.get(request),
+                Some(
+                    Event::Proposed { .. }
+                        | Event::AwaitingApproval { .. }
+                        | Event::Approved { .. }
+                        | Event::Issued { .. }
+                )
+            )
+        })
+        .map(ToString::to_string)
+        .collect()
+}
+
 fn receipt_for(
     request: &str,
     waiting: &Waiting,
@@ -455,7 +493,14 @@ mod tests {
     fn gate() -> Gate {
         let public = device_key().verifying_key().to_sec1_point(false);
         let approver = ApprovalKey::from_sec1(public.as_bytes()).unwrap();
-        Gate::new(Limits::default(), approver, "mail:sandbox", &[]).unwrap()
+        Gate::new(
+            Limits::default(),
+            approver,
+            "mail:sandbox",
+            &[],
+            Timestamp(T0),
+        )
+        .unwrap()
     }
 
     fn envelope(nonce: &str, arguments: &str, at: u64) -> Envelope {
@@ -607,7 +652,14 @@ mod tests {
         first.issue(&signed, Timestamp(T0 + 6)).unwrap();
         let log = first.take_log();
 
-        let mut again = Gate::new(limits, first.approver.clone(), "mail:sandbox", &log).unwrap();
+        let mut again = Gate::new(
+            limits,
+            first.approver.clone(),
+            "mail:sandbox",
+            &log,
+            Timestamp(T0 + 7),
+        )
+        .unwrap();
         let next = again.submit(
             &envelope("r2", TO_ALEX, T0 + 60_000),
             &directory(),
@@ -635,8 +687,55 @@ mod tests {
             gate.approver.clone(),
             "mail:sandbox",
             &log,
+            Timestamp(T0),
         );
         assert_eq!(refused.unwrap_err(), Broken { at_index: 0 });
+    }
+
+    #[test]
+    fn requests_left_open_when_the_app_closed_expire_when_it_opens() {
+        let expired = |request: &str| Event::Expired {
+            request: request.to_string(),
+        };
+        // Opens a gate on the stored log, as the app does, and stores what it logs.
+        let reopen = |old: &Gate, log: &mut Vec<Entry>, at: u64| {
+            let mut gate = Gate::new(
+                Limits::default(),
+                old.approver.clone(),
+                "mail:sandbox",
+                log,
+                Timestamp(at),
+            )
+            .unwrap();
+            let closed = gate.take_log();
+            let events: Vec<Event> = closed.iter().map(|e| e.event.clone()).collect();
+            log.extend(closed);
+            (gate, events)
+        };
+
+        // The app closes while r1's card shows.
+        let mut first = gate();
+        approved(&mut first, "r1");
+        let mut log = first.take_log();
+        let (mut second, closed) = reopen(&first, &mut log, T0 + 100);
+        assert_eq!(closed, [expired("r1")]);
+
+        // Then while r2's capability is unused.
+        let signed = approved(&mut second, "r2");
+        second.issue(&signed, Timestamp(T0 + 6)).unwrap();
+        log.extend(second.take_log());
+        let (mut third, closed) = reopen(&second, &mut log, T0 + 200);
+        assert_eq!(closed, [expired("r2")]);
+
+        // Then while r3 is being delivered: only the connector knows whether it went
+        // out, so it stays open, and nothing already closed is closed again.
+        let signed = approved(&mut third, "r3");
+        let capability = third.issue(&signed, Timestamp(T0 + 6)).unwrap();
+        third.redeem(&capability, Timestamp(T0 + 7)).unwrap();
+        log.extend(third.take_log());
+        let (_, closed) = reopen(&third, &mut log, T0 + 300);
+        assert!(closed.is_empty());
+        assert_eq!(verify(&log), Ok(()));
     }
 
     proptest! {

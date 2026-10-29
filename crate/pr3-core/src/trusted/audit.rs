@@ -59,6 +59,24 @@ pub enum Event {
     },
 }
 
+impl Event {
+    /// The request this event belongs to.
+    pub fn request(&self) -> &str {
+        match self {
+            Self::Proposed { request, .. }
+            | Self::Refused { request, .. }
+            | Self::Denied { request, .. }
+            | Self::AwaitingApproval { request, .. }
+            | Self::Approved { request, .. }
+            | Self::Declined { request, .. }
+            | Self::Expired { request }
+            | Self::Issued { request, .. }
+            | Self::Redeemed { request }
+            | Self::Executed { request, .. } => request,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Entry {
     pub seq: u64,

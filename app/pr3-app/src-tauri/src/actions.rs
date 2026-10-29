@@ -37,6 +37,7 @@ pub struct Actions {
 impl Actions {
     /// Opens the outbox and audit log in `dir`, with `vault` as the approver. Refuses to
     /// start if the audit log does not verify: actions stay off until someone looks at it.
+    /// Requests the app left open when it last closed are logged as expired.
     pub fn with_vault(
         dir: &Path,
         limits: Limits,
@@ -47,16 +48,21 @@ impl Actions {
         let log = read_log(&audit).map_err(|e| format!("{}: {e}", audit.display()))?;
         let approver = ApprovalKey::from_sec1(&vault.public_key())
             .ok_or("the vault's key is not a P-256 key")?;
-        let gate = Gate::new(limits, approver, mail::PROVIDER, &log).map_err(|broken| {
-            format!(
-                "{} does not verify at entry {}; actions are off until it is checked",
-                audit.display(),
-                broken.at_index
-            )
-        })?;
+        let mut gate =
+            Gate::new(limits, approver, mail::PROVIDER, &log, now()).map_err(|broken| {
+                format!(
+                    "{} does not verify at entry {}; actions are off until it is checked",
+                    audit.display(),
+                    broken.at_index
+                )
+            })?;
+        let closed = gate.take_log();
+        append_log(&audit, &closed).map_err(|e| format!("{}: {e}", audit.display()))?;
         eprintln!(
-            "PR3: actions on: {} audit entries verified, approvals signed by a {}",
+            "PR3: actions on: {} audit entries verified, {} left open closed, approvals \
+             signed by a {}",
             log.len(),
+            closed.len(),
             vault.label()
         );
         Ok(Self {
@@ -244,7 +250,7 @@ fn prompt_reason(request: &ApprovalRequest) -> String {
     format!("send the email “{subject}” to {}", names(&request.mail.to))
 }
 
-fn names(contacts: &[Contact]) -> String {
+pub(crate) fn names(contacts: &[Contact]) -> String {
     let names: Vec<&str> = contacts.iter().map(|c| c.name.as_str()).collect();
     names.join(", ")
 }
@@ -331,6 +337,41 @@ mod tests {
                 actions.answer(&request.request, approve).unwrap();
             }
         }))
+    }
+
+    #[test]
+    fn a_request_left_open_by_closing_is_logged_as_expired() {
+        let dir = temp("left-open");
+        let first = actions(&dir, Limits::default());
+        let envelope = Envelope {
+            actor: ACTOR.to_string(),
+            principal: PRINCIPAL.to_string(),
+            nonce: nonce().unwrap(),
+            received_at: now(),
+            proposal: Proposal {
+                operation: MAIL_SEND.to_string(),
+                arguments: TO_ALEX.to_string(),
+            },
+        };
+        // The card is showing when the app closes.
+        let submitted = first.with_gate(|gate| gate.submit(&envelope, &first.directory, now()));
+        let Some(Submitted::NeedsApproval(request)) = submitted else {
+            panic!("expected a confirmation card");
+        };
+        drop(first);
+
+        let _again = actions(&dir, Limits::default());
+        let log = read_log(&dir.join("audit.jsonl")).unwrap();
+        assert_eq!(verify(&log), Ok(()));
+        assert_eq!(
+            log.last().unwrap().event,
+            pr3_core::trusted::Event::Expired {
+                request: request.request
+            }
+        );
+        // Closed once: opening again adds nothing.
+        let _third = actions(&dir, Limits::default());
+        assert_eq!(read_log(&dir.join("audit.jsonl")).unwrap().len(), log.len());
     }
 
     #[test]
