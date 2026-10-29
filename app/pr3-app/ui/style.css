@@ -75,6 +75,10 @@ h1 {
   gap: 10px;
 }
 
+#log[hidden] {
+  display: none;
+}
+
 .msg {
   max-width: 85%;
   padding: 9px 12px;
@@ -105,6 +109,14 @@ h1 {
   gap: 8px;
   padding: 10px 12px 14px;
   border-top: 1px solid var(--line);
+}
+
+/* Four buttons share the row with the text box; on small phones they sit closer, so
+   "Message PR3" still fits. */
+@media (max-width: 400px) {
+  #composer {
+    gap: 6px;
+  }
 }
 
 #text {
@@ -410,13 +422,13 @@ button.small {
   gap: 8px;
 }
 
-/* The composer's icon buttons: Settings, and push-to-talk. */
+/* The composer's icon buttons: Settings, Tasks, and push-to-talk. */
 #composer button.icon,
 #talk {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 12px;
+  padding: 0 10px;
   background: transparent;
   color: var(--accent);
   border: 1px solid var(--line);
@@ -428,7 +440,8 @@ button.small {
   fill: currentColor;
 }
 
-#settings-button[aria-expanded="true"] {
+/* Settings or Tasks while open; more specific than the rule above, so it wins. */
+#composer button.icon[aria-expanded="true"] {
   border-color: var(--accent);
 }
 
@@ -460,4 +473,180 @@ button.small {
   50% {
     box-shadow: 0 0 0 6px rgba(57, 255, 106, 0.25);
   }
+}
+
+/* Tasks (docs Sec. 4.8): in place of the conversation, three pages side by side that
+   snap as they are swiped, with their names on top to tap. Casual: a task is its title,
+   one plain line and when. */
+#tasks {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow-wrap: anywhere;
+}
+
+#tasks[hidden],
+#task-list[hidden],
+#task-detail[hidden] {
+  display: none;
+}
+
+#task-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+#tasks .page-names {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 16px 6px;
+}
+
+#tasks .page-names button {
+  flex: 1;
+  max-width: 120px;
+}
+
+#tasks .page-names [aria-selected="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+#tasks .pages {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+#tasks .pages::-webkit-scrollbar {
+  display: none;
+}
+
+#tasks .page {
+  display: flex;
+  flex: 0 0 100%;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 16px 16px;
+  overflow-y: auto;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+#tasks .empty {
+  margin: 32px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+/* A task in the list: the whole card is the button. */
+button.task-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  font-weight: 400;
+  text-align: left;
+}
+
+.task-card .title {
+  font-weight: 700;
+}
+
+.task-card .line {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+#task-detail {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  padding: 12px 16px 16px;
+  overflow-y: auto;
+}
+
+#task-detail .top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* A long title wraps beside Back; Back keeps its width. */
+#task-detail .top button {
+  flex: none;
+}
+
+/* Back: an arrow, drawn like the composer's icon buttons. */
+#task-detail button.icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--line);
+}
+
+#task-detail button.icon svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+#task-detail h2 {
+  margin: 0;
+  color: var(--accent);
+  font-size: 15px;
+}
+
+#task-detail .meta {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+#task-detail .chat {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#task-detail .choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* A task set aside folds into one line at the top of the conversation; tapping it opens
+   the task. New topic sits under the conversation. */
+#log button.fold,
+#log button.new-topic {
+  align-self: center;
+  max-width: 100%;
+  padding: 4px 10px;
+  border: 1px dashed var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+#log button.new-topic[hidden] {
+  display: none;
 }

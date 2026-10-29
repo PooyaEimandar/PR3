@@ -14,6 +14,15 @@ const form = find("#composer", HTMLFormElement);
 const input = find("#text", HTMLInputElement);
 const button = find("button[type=submit]", HTMLButtonElement, form);
 
+// Sets the conversation's task aside, so the next message opens a new one (docs
+// Sec. 4.8). It stays under the conversation while there is one.
+const newTopicButton = document.createElement("button");
+newTopicButton.type = "button";
+newTopicButton.className = "new-topic";
+newTopicButton.textContent = "New topic";
+newTopicButton.hidden = true;
+log.append(newTopicButton);
+
 // A consequential action waiting for the user, built by the trusted side from the
 // validated intent (pr3-core's ApprovalRequest).
 interface ApprovalRequest {
@@ -30,7 +39,36 @@ interface ApprovalRequest {
 type TurnEvent =
   | { type: "token"; text: string }
   | { type: "tool"; name: string; arguments: string; success: boolean; output: string }
-  | { type: "approval"; request: ApprovalRequest };
+  | { type: "approval"; request: ApprovalRequest }
+  // The message opened a new task; the one the conversation was on is set aside.
+  | { type: "task_opened"; id: number; previous: TaskCard | null };
+
+// Tasks (task.rs): the page a task shows on, and the task as the list shows it.
+type PageName = "todo" | "doing" | "done";
+
+interface TaskCard {
+  id: number;
+  title: string;
+  page: PageName;
+  /** What it waits on, or how it ended. */
+  line: string;
+  /** Milliseconds since the epoch. */
+  updated_at: number;
+}
+
+// One step of a task's chat, as the conversation showed it (task.rs's Entry).
+type Entry =
+  | { type: "user"; text: string }
+  | { type: "reply"; text: string }
+  | { type: "tool"; name: string; arguments: string; success: boolean; output: string }
+  | { type: "failed"; reason: string };
+
+// A task opened from the list (task.rs's TaskView).
+interface TaskView extends TaskCard {
+  parent: { id: number; title: string } | null;
+  running: boolean;
+  chat: Entry[];
+}
 
 // What a finished turn asks of the host (pr3-core's Action); the UI shows the reply or
 // the failure, and the host has handled the rest.
@@ -44,10 +82,17 @@ function show(kind: string, text: string): HTMLDivElement {
   const el = document.createElement("div");
   el.className = `msg ${kind}`;
   el.textContent = text;
-  log.append(el);
-  log.scrollTop = log.scrollHeight;
+  addToLog(el);
   return el;
 }
+
+// The conversation grows above the New topic button.
+function addToLog(node: Node): void {
+  log.insertBefore(node, newTopicButton);
+  log.scrollTop = log.scrollHeight;
+}
+
+const toolText = (t: { name: string; arguments: string; output: string }) => `⚙ ${t.name} ${t.arguments} → ${t.output}`;
 
 // The confirmation card for a consequential action. What it shows comes from the
 // validated intent — the contacts' real addresses and the exact text that will be
@@ -123,28 +168,44 @@ function showApproval(request: ApprovalRequest, before: Node): void {
   log.insertBefore(card, before);
 }
 
+let answering = false;
+
 function setBusy(busy: boolean): void {
+  answering = busy;
   button.disabled = busy;
   talk.disabled = busy;
   languageSelect.disabled = busy || voice !== null;
   input.placeholder = busy ? "PR3 is answering…" : "Message PR3";
+  updateNewTopic();
 }
 
 async function send(text: string): Promise<void> {
-  show("user", text);
+  // "New topic", typed or said, sets the conversation's task aside instead.
+  if (/^\s*new topic[\s.!]*$/i.test(text)) {
+    startNewTopic();
+    return;
+  }
+  // The answer shows in the conversation, so a message sent from Tasks goes back to it.
+  if (!tasksSection.hidden) showTasks(false);
+  const said = show("user", text);
   const bubble = show("assistant pending", "…");
   let streamed = "";
 
   const onEvent = new Channel<TurnEvent>();
   onEvent.onmessage = (event) => {
-    if (event.type === "token") {
+    if (event.type === "task_opened") {
+      currentTask = event.id;
+      foldConversation(event.previous, said);
+      // A "Following up" line stays above the follow-up, as the way back to its parent.
+      log.querySelector("button.fold.following")?.classList.remove("following");
+    } else if (event.type === "token") {
       streamed += event.text;
       bubble.textContent = streamed;
     } else if (event.type === "tool") {
       // Show what PR3 ran on the user's behalf, above the answer it leads to.
       const line = document.createElement("div");
       line.className = `msg tool${event.success ? "" : " failed"}`;
-      line.textContent = `⚙ ${event.name} ${event.arguments} → ${event.output}`;
+      line.textContent = toolText(event);
       log.insertBefore(line, bubble);
       streamed = "";
       bubble.textContent = "…";
@@ -178,6 +239,7 @@ async function send(text: string): Promise<void> {
     showPlatform();
     // The turn may have proposed a memory.
     if (showing("memory")) renderMemory();
+    if (!tasksSection.hidden && !taskList.hidden) renderTasks();
   }
 }
 
@@ -949,6 +1011,7 @@ function openTab(name: Tab): void {
 }
 
 function showSettings(open: boolean): void {
+  if (open) showTasks(false);
   settings.hidden = !open;
   settingsButton.setAttribute("aria-expanded", String(open));
   if (open) openTab(tab);
@@ -961,6 +1024,285 @@ for (const button of tabs) {
   button.addEventListener("click", () => {
     if (isTab(button.dataset.tab)) openTab(button.dataset.tab);
   });
+}
+
+// Tasks (docs Sec. 4.8): To Do, Doing and Done, three pages swiped left and right, in
+// place of the conversation. A task opens to its chat; Back returns to the list, and the
+// Tasks button to the conversation. The Rust side decides which task a message belongs
+// to and which page a task shows on; this only renders it, in casual words.
+const tasksSection = find("#tasks", HTMLElement);
+const tasksButton = find("#tasks-button", HTMLButtonElement);
+const taskList = find("#task-list", HTMLElement);
+const taskDetail = find("#task-detail", HTMLElement);
+const pagesBox = find(".pages", HTMLElement, tasksSection);
+const PAGES: readonly PageName[] = ["todo", "doing", "done"];
+const PAGE_NAMES: Record<PageName, string> = { todo: "To Do", doing: "Doing", done: "Done" };
+const EMPTY: Record<PageName, string> = {
+  todo: "Nothing is waiting on you.",
+  doing: "Nothing going on. Say something to start.",
+  done: "Nothing finished yet.",
+};
+const isPage = (name: string | undefined): name is PageName => PAGES.some((p) => p === name);
+const pageBoxes = Object.fromEntries(
+  PAGES.map((p) => [p, find(`.page[data-page=${p}]`, HTMLElement, pagesBox)]),
+) as Record<PageName, HTMLElement>;
+const pageButtons = [...tasksSection.querySelectorAll<HTMLButtonElement>(".page-names button")];
+// Lines for tasks set aside stay at the top of the conversation, the latest few.
+const MAX_FOLDS = 3;
+// Back, in a task, is an arrow (Material's arrow_back).
+const BACK_ARROW = "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z";
+let page: PageName = "doing";
+// The task the conversation on screen belongs to.
+let currentTask: number | null = null;
+
+function ago(ms: number): string {
+  const minutes = Math.round((Date.now() - ms) / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  return hours < 24 ? `${hours} h ago` : new Date(ms).toLocaleDateString();
+}
+
+// A button that shows only an icon; its label is for screen readers and a long press.
+function iconButton(label: string, path: string, onClick: () => void): HTMLButtonElement {
+  const b = makeButton("", onClick, "icon");
+  b.setAttribute("aria-label", label);
+  b.title = label;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  const shape = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  shape.setAttribute("d", path);
+  svg.append(shape);
+  b.append(svg);
+  return b;
+}
+
+function showTasks(open: boolean): void {
+  if (open) showSettings(false);
+  tasksSection.hidden = !open;
+  log.hidden = open;
+  tasksButton.setAttribute("aria-expanded", String(open));
+  if (open) {
+    showList();
+  } else {
+    log.scrollTop = log.scrollHeight;
+  }
+}
+
+function showList(): void {
+  taskDetail.hidden = true;
+  taskList.hidden = false;
+  renderTasks();
+  scrollToPage(page, false);
+}
+
+tasksButton.addEventListener("click", () => showTasks(tasksButton.getAttribute("aria-expanded") !== "true"));
+
+function scrollToPage(name: PageName, smooth = true): void {
+  page = name;
+  pagesBox.scrollTo({ left: PAGES.indexOf(name) * pagesBox.clientWidth, behavior: smooth ? "smooth" : "auto" });
+  markPage();
+}
+
+function markPage(): void {
+  for (const b of pageButtons) b.setAttribute("aria-selected", String(b.dataset.page === page));
+}
+
+pagesBox.addEventListener("scroll", () => {
+  const i = Math.round(pagesBox.scrollLeft / Math.max(1, pagesBox.clientWidth));
+  const name = PAGES[Math.min(PAGES.length - 1, Math.max(0, i))];
+  if (name && name !== page) {
+    page = name;
+    markPage();
+  }
+});
+
+for (const b of pageButtons) {
+  b.addEventListener("click", () => {
+    if (isPage(b.dataset.page)) scrollToPage(b.dataset.page);
+  });
+}
+
+async function renderTasks(): Promise<void> {
+  let cards: TaskCard[];
+  try {
+    cards = await invoke<TaskCard[]>("list_tasks");
+  } catch (err) {
+    pageBoxes.doing.replaceChildren(el("p", String(err), "empty"));
+    return;
+  }
+  for (const p of PAGES) {
+    const mine = cards.filter((c) => c.page === p);
+    const name = pageButtons.find((b) => b.dataset.page === p);
+    if (name) name.textContent = mine.length ? `${PAGE_NAMES[p]} ${mine.length}` : PAGE_NAMES[p];
+    pageBoxes[p].replaceChildren(...(mine.length ? mine.map(taskCard) : [el("p", EMPTY[p], "empty")]));
+  }
+}
+
+function taskCard(card: TaskCard): HTMLButtonElement {
+  const b = makeButton("", () => openTask(card.id), "task-card");
+  b.append(el("span", card.title, "title"), el("span", `${card.line} · ${ago(card.updated_at)}`, "line"));
+  return b;
+}
+
+function entryNode(entry: Entry): HTMLElement {
+  switch (entry.type) {
+    case "user":
+      return el("div", entry.text, "msg user");
+    case "reply":
+      return el("div", entry.text, "msg assistant");
+    case "tool":
+      return el("div", toolText(entry), `msg tool${entry.success ? "" : " failed"}`);
+    case "failed":
+      return el("div", entry.reason, "msg error");
+  }
+}
+
+// Opens Tasks at one task, as a folded line does.
+function openTasks(id: number): void {
+  showTasks(true);
+  openTask(id);
+}
+
+async function openTask(id: number): Promise<void> {
+  let task: TaskView;
+  try {
+    task = await invoke<TaskView>("open_task", { id });
+  } catch {
+    // Deleted meanwhile: show the list as it is now.
+    showList();
+    return;
+  }
+  taskList.hidden = true;
+  taskDetail.hidden = false;
+  const top = el("div", undefined, "top");
+  top.append(iconButton("Back", BACK_ARROW, showList), el("h2", task.title));
+  const status = el("p", `${PAGE_NAMES[task.page]} · ${task.line} · ${ago(task.updated_at)}`, "meta");
+  const parts: Node[] = [top, status];
+  const parent = task.parent;
+  if (parent) parts.push(makeButton(`Follows up: ${parent.title}`, () => openTask(parent.id), "secondary small"));
+  const chat = el("div", undefined, "chat");
+  chat.append(...task.chat.map(entryNode));
+  parts.push(chat);
+
+  const choices = el("div", undefined, "choices");
+  const waitForAnswer = (b: HTMLButtonElement) => {
+    b.disabled = answering || task.running;
+    return b;
+  };
+  // The conversation on screen is this task's, approval cards and all, and the next
+  // message goes on with it.
+  if (task.id === currentTask && (task.running || task.page === "doing")) {
+    choices.append(makeButton("Back to the conversation", () => showTasks(false), "small"));
+  } else if (task.page === "done") {
+    choices.append(waitForAnswer(makeButton("Follow up", () => followUp(task.id, status), "small")));
+  } else {
+    choices.append(waitForAnswer(makeButton("Continue", () => continueTask(task.id, status), "small")));
+  }
+  // Deleting cannot be undone, so it takes a second tap.
+  const remove = makeButton("Delete", async () => {
+    if (!remove.dataset.sure) {
+      remove.dataset.sure = "yes";
+      remove.textContent = "Delete for good?";
+      return;
+    }
+    try {
+      await invoke("delete_task", { id: task.id });
+    } catch (err) {
+      status.textContent = String(err);
+      return;
+    }
+    log.querySelector(`button.fold[data-task="${task.id}"]`)?.remove();
+    if (currentTask === task.id) {
+      currentTask = null;
+      foldConversation(null);
+    }
+    showList();
+  }, "secondary small");
+  choices.append(waitForAnswer(remove));
+  parts.push(choices);
+  taskDetail.replaceChildren(...parts);
+  taskDetail.scrollTop = 0;
+}
+
+async function continueTask(id: number, status: HTMLElement): Promise<void> {
+  let next: { task: TaskView; previous: TaskCard | null };
+  try {
+    next = await invoke("continue_task", { id });
+  } catch (err) {
+    status.textContent = String(err);
+    return;
+  }
+  log.querySelector(`button.fold[data-task="${id}"]`)?.remove();
+  log.querySelector("button.fold.following")?.remove();
+  foldConversation(next.previous);
+  for (const entry of next.task.chat) addToLog(entryNode(entry));
+  currentTask = id;
+  showTasks(false);
+  updateNewTopic();
+}
+
+async function followUp(id: number, status: HTMLElement): Promise<void> {
+  let next: { parent: TaskCard; previous: TaskCard | null };
+  try {
+    next = await invoke("follow_up_task", { id });
+  } catch (err) {
+    status.textContent = String(err);
+    return;
+  }
+  foldConversation(next.previous);
+  currentTask = null;
+  log.querySelector("button.fold.following")?.remove();
+  const line = addFold(id, `Following up: ${next.parent.title}`);
+  line.classList.add("following");
+  line.dataset.follows = "yes";
+  updateNewTopic();
+  showTasks(false);
+  input.focus();
+}
+
+async function startNewTopic(): Promise<void> {
+  try {
+    const previous = await invoke<TaskCard | null>("new_topic");
+    currentTask = null;
+    // New topic also drops a follow-up that was about to start.
+    log.querySelector("button.fold.following")?.remove();
+    foldConversation(previous);
+  } catch (err) {
+    show("error", String(err));
+  }
+}
+
+newTopicButton.addEventListener("click", startNewTopic);
+
+// Takes the conversation off the home page up to `from` (the message that opened the
+// next task), and folds the task it belonged to into one line that opens it.
+function foldConversation(previous: TaskCard | null, from?: Element): void {
+  for (const node of [...log.children]) {
+    if (node === from || node === newTopicButton) break;
+    if (!node.classList.contains("fold")) node.remove();
+  }
+  // A follow-up's "Following up" line goes with its conversation; the task keeps the link.
+  for (const line of log.querySelectorAll("button.fold[data-follows]:not(.following)")) line.remove();
+  if (previous) addFold(previous.id, `${previous.title} - in ${PAGE_NAMES[previous.page]}`);
+  updateNewTopic();
+}
+
+function addFold(id: number, text: string): HTMLButtonElement {
+  log.querySelector(`button.fold[data-task="${id}"]`)?.remove();
+  const line = makeButton(text, () => openTasks(id), "fold");
+  line.dataset.task = String(id);
+  const folds = [...log.querySelectorAll("button.fold")];
+  const last = folds[folds.length - 1];
+  log.insertBefore(line, last ? last.nextSibling : log.firstChild);
+  folds.push(line);
+  for (const old of folds.slice(0, -MAX_FOLDS)) old.remove();
+  return line;
+}
+
+function updateNewTopic(): void {
+  newTopicButton.hidden = answering || !log.querySelector(".msg, button.following");
 }
 
 // The model loads in the background; refresh the header, and the Models tab, when it
