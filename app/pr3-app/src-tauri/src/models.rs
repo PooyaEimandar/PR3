@@ -6,8 +6,10 @@
 //!
 //! A model is downloaded only from its pinned repository and revision, over HTTPS, and
 //! gets its file name only once its size and SHA-256 match the config, so nothing else
-//! is ever loaded as a model. An interrupted download resumes where it stopped.
+//! is ever loaded as a model. An interrupted download resumes where it stopped. On a
+//! phone, a download waits for Wi-Fi unless the user allows mobile data in Settings.
 
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
@@ -25,6 +27,7 @@ use tauri::{Emitter, Manager};
 use crate::config::{Config, Device, ModelEntry};
 use crate::host::{Backend, LoadingBackend, MockBackend};
 use crate::llama;
+use crate::network;
 
 /// Event the UI listens to while a model downloads.
 const MODEL_DOWNLOAD: &str = "model-download";
@@ -32,6 +35,16 @@ const MODEL_DOWNLOAD: &str = "model-download";
 const PROGRESS_EVERY: Duration = Duration::from_millis(250);
 /// The file in the model folder that holds the id of the model the user chose.
 const SELECTED: &str = "selected";
+/// The file in the model folder that lets downloads use mobile data, if it is there.
+const MOBILE_DATA: &str = "mobile-data";
+/// How often a download waiting for Wi-Fi looks again.
+const WAIT_STEP: Duration = Duration::from_millis(500);
+/// How often a running download checks that the phone is still off mobile data.
+const CHECK_EVERY: Duration = if cfg!(test) {
+    Duration::ZERO
+} else {
+    Duration::from_secs(2)
+};
 /// The share of memory a model file may take: a phone's app gets a little over half of
 /// its memory before the system ends it, and the model needs room to work in.
 const MOBILE_SHARE: f64 = 0.5;
@@ -96,14 +109,15 @@ fn agent_for(https_only: bool) -> ureq::Agent {
 
 /// Downloads `url` to `dest`, resuming a partial download, and gives it its name only if
 /// it is `size` bytes with SHA-256 `sha256`. `progress` gets the bytes held so far.
-/// Cancelling or losing the connection keeps what arrived, for the next try.
+/// Stopping, when `stop` says so, or losing the connection keeps what arrived, for the
+/// next try.
 pub fn download(
     agent: &ureq::Agent,
     url: &str,
     dest: &Path,
     size: u64,
     sha256: &str,
-    cancel: &AtomicBool,
+    stop: &dyn Fn() -> bool,
     progress: &mut dyn FnMut(u64),
 ) -> Result<(), DownloadError> {
     let partial = partial_path(dest, sha256);
@@ -114,7 +128,7 @@ pub fn download(
     }
     let mut hasher = Sha256::new();
     if have > 0 {
-        hash_file(&partial, have, &mut hasher, cancel)?;
+        hash_file(&partial, have, &mut hasher, stop)?;
     }
     progress(have);
 
@@ -161,7 +175,7 @@ pub fn download(
         let mut body = response.into_body().into_reader();
         let mut buf = vec![0; 1 << 20];
         loop {
-            if cancel.load(Ordering::Relaxed) {
+            if stop() {
                 return Err(DownloadError::Cancelled);
             }
             let n = body.read(&mut buf)?;
@@ -199,17 +213,17 @@ pub fn download(
     Ok(())
 }
 
-/// Feeds the first `len` bytes of `path` to `hasher`, stopping early if cancelled.
+/// Feeds the first `len` bytes of `path` to `hasher`, stopping early if told to.
 fn hash_file(
     path: &Path,
     len: u64,
     hasher: &mut Sha256,
-    cancel: &AtomicBool,
+    stop: &dyn Fn() -> bool,
 ) -> Result<(), DownloadError> {
     let mut file = File::open(path)?.take(len);
     let mut buf = vec![0; 1 << 20];
     loop {
-        if cancel.load(Ordering::Relaxed) {
+        if stop() {
             return Err(DownloadError::Cancelled);
         }
         let n = file.read(&mut buf)?;
@@ -217,6 +231,53 @@ fn hash_file(
             return Ok(());
         }
         hasher.update(&buf[..n]);
+    }
+}
+
+/// Downloads like `download`, but only while `costly` says the network costs nothing:
+/// until then it waits, and a download under way when the network turns costly stops
+/// and waits again, keeping what arrived. `waiting` hears when it starts and stops
+/// waiting. Only `cancel` ends it early.
+#[allow(clippy::too_many_arguments)]
+pub fn download_when_free(
+    agent: &ureq::Agent,
+    url: &str,
+    dest: &Path,
+    size: u64,
+    sha256: &str,
+    cancel: &AtomicBool,
+    costly: &dyn Fn() -> bool,
+    waiting: &mut dyn FnMut(bool),
+    progress: &mut dyn FnMut(u64),
+) -> Result<(), DownloadError> {
+    loop {
+        if costly() {
+            waiting(true);
+            while costly() {
+                if cancel.load(Ordering::Relaxed) {
+                    return Err(DownloadError::Cancelled);
+                }
+                std::thread::sleep(WAIT_STEP);
+            }
+            waiting(false);
+        }
+        let paused = Cell::new(false);
+        let checked = Cell::new(Instant::now());
+        let stop = || {
+            if cancel.load(Ordering::Relaxed) {
+                return true;
+            }
+            if !paused.get() && checked.get().elapsed() >= CHECK_EVERY {
+                checked.set(Instant::now());
+                paused.set(costly());
+            }
+            paused.get()
+        };
+        match download(agent, url, dest, size, sha256, &stop, progress) {
+            // Not cancelled: the network turned costly, so wait for a free one.
+            Err(DownloadError::Cancelled) if !cancel.load(Ordering::Relaxed) => {}
+            result => return result,
+        }
     }
 }
 
@@ -233,6 +294,8 @@ pub fn fits(device: Device, size: u64) -> bool {
 struct Download {
     bytes: u64,
     running: bool,
+    /// Waiting for Wi-Fi.
+    waiting: bool,
     error: Option<String>,
     cancel: Arc<AtomicBool>,
 }
@@ -254,6 +317,8 @@ pub struct Models {
     device: Device,
     /// A `.gguf` file named by `PR3_MODEL`, which overrides any choice.
     forced: Option<PathBuf>,
+    /// The user lets downloads use mobile data (phones only).
+    mobile_data: AtomicBool,
     downloads: Mutex<HashMap<String, Download>>,
     /// Held while a model is chosen or installed, so they happen in order.
     running: Mutex<Running>,
@@ -279,6 +344,8 @@ pub struct ModelView {
     /// Bytes downloaded so far, if a download is unfinished.
     partial: u64,
     downloading: bool,
+    /// Downloading, but waiting for Wi-Fi.
+    waiting: bool,
     /// Why the last download stopped.
     error: Option<String>,
     /// Running, or loading to run.
@@ -294,6 +361,8 @@ pub struct ModelsInfo {
     forced: Option<String>,
     /// Why the config could not be read, if it could not.
     problem: Option<String>,
+    /// Whether downloads may use mobile data; none on a computer, which never asks.
+    mobile_data: Option<bool>,
     models: Vec<ModelView>,
 }
 
@@ -304,6 +373,8 @@ struct Progress {
     bytes: u64,
     size: u64,
     done: bool,
+    /// Waiting for Wi-Fi.
+    waiting: bool,
     error: Option<String>,
 }
 
@@ -320,6 +391,9 @@ impl Models {
             config,
             device: Device::current(),
             forced: std::env::var_os("PR3_MODEL").map(PathBuf::from),
+            mobile_data: AtomicBool::new(
+                data_dir.is_some_and(|d| d.join("model").join(MOBILE_DATA).is_file()),
+            ),
             downloads: Mutex::default(),
             running: Mutex::default(),
             generation: AtomicU64::new(0),
@@ -484,6 +558,7 @@ impl Models {
                     folder: None,
                     forced: None,
                     problem: Some(e),
+                    mobile_data: self.mobile_data(),
                     models: Vec::new(),
                 };
             }
@@ -511,6 +586,7 @@ impl Models {
                     in_repository: !downloaded && self.locate(entry).is_some(),
                     partial: download.filter(|d| d.running).map_or(partial, |d| d.bytes),
                     downloading: download.is_some_and(|d| d.running),
+                    waiting: download.is_some_and(|d| d.running && d.waiting),
                     error: download.and_then(|d| d.error.clone()),
                     active: running.id.as_deref() == Some(id.as_str()),
                 }
@@ -520,12 +596,36 @@ impl Models {
             folder: self.dir.as_ref().map(|d| d.display().to_string()),
             forced: self.forced.as_ref().map(|p| p.display().to_string()),
             problem: None,
+            mobile_data: self.mobile_data(),
             models,
         }
     }
 
-    /// Starts downloading model `id` in the background. When it is whole and verified,
-    /// it runs at once if the device had no model yet.
+    fn mobile_data(&self) -> Option<bool> {
+        network::PHONE.then(|| self.mobile_data.load(Ordering::Relaxed))
+    }
+
+    /// Lets downloads use mobile data, or makes them wait for Wi-Fi, from now on and on
+    /// later starts. A download waiting for Wi-Fi goes on at once when allowed.
+    pub fn set_mobile_data(&self, allowed: bool) -> Result<(), String> {
+        let dir = self.dir()?;
+        let path = dir.join(MOBILE_DATA);
+        let result = if allowed {
+            fs::create_dir_all(dir).and_then(|()| fs::write(&path, "allowed\n"))
+        } else {
+            match fs::remove_file(&path) {
+                Err(e) if e.kind() != io::ErrorKind::NotFound => Err(e),
+                _ => Ok(()),
+            }
+        };
+        result.map_err(|e| e.to_string())?;
+        self.mobile_data.store(allowed, Ordering::Relaxed);
+        Ok(())
+    }
+
+    /// Starts downloading model `id` in the background; on a phone on mobile data it waits
+    /// for Wi-Fi unless the user allows mobile data. When it is whole and verified, it
+    /// runs at once if the device had no model yet.
     pub fn download(&self, app: &tauri::AppHandle, id: &str) -> Result<(), String> {
         let entry = self.entry(id)?.clone();
         if !fits(self.device, entry.size) {
@@ -551,6 +651,7 @@ impl Models {
                 Download {
                     bytes: fs::metadata(partial_path(&dest, &entry.sha256)).map_or(0, |m| m.len()),
                     running: true,
+                    waiting: false,
                     error: None,
                     cancel: Arc::clone(&cancel),
                 },
@@ -561,13 +662,40 @@ impl Models {
         std::thread::spawn(move || {
             let models = handle.state::<Models>();
             let mut last = Instant::now() - PROGRESS_EVERY;
-            let result = download(
+            let costly = || {
+                network::PHONE
+                    && !models.mobile_data.load(Ordering::Relaxed)
+                    && network::metered(&handle)
+            };
+            let result = download_when_free(
                 &agent(),
                 &entry.url(),
                 &dest,
                 entry.size,
                 &entry.sha256,
                 &cancel,
+                &costly,
+                &mut |waiting| {
+                    let bytes = {
+                        let mut downloads = lock(&models.downloads);
+                        let download = downloads.get_mut(&id);
+                        download.map_or(0, |d| {
+                            d.waiting = waiting;
+                            d.bytes
+                        })
+                    };
+                    let _ = handle.emit(
+                        MODEL_DOWNLOAD,
+                        Progress {
+                            id: id.clone(),
+                            bytes,
+                            size: entry.size,
+                            done: false,
+                            waiting,
+                            error: None,
+                        },
+                    );
+                },
                 &mut |bytes| {
                     if let Some(d) = lock(&models.downloads).get_mut(&id) {
                         d.bytes = bytes;
@@ -581,6 +709,7 @@ impl Models {
                                 bytes,
                                 size: entry.size,
                                 done: false,
+                                waiting: false,
                                 error: None,
                             },
                         );
@@ -622,6 +751,7 @@ impl Models {
                     bytes: 0,
                     size: entry.size,
                     done: true,
+                    waiting: false,
                     error,
                 },
             );
@@ -707,6 +837,11 @@ pub fn cancel_download(id: String, models: tauri::State<'_, Models>) {
 }
 
 #[tauri::command]
+pub fn set_mobile_data(allowed: bool, models: tauri::State<'_, Models>) -> Result<(), String> {
+    models.set_mobile_data(allowed)
+}
+
+#[tauri::command]
 pub fn use_model(
     app: tauri::AppHandle,
     id: String,
@@ -767,9 +902,10 @@ mod tests {
                     )
                 };
                 let start = if ranges { from.min(body.len()) } else { 0 };
-                stream.write_all(head.as_bytes()).unwrap();
+                // A client that stops early hangs up mid-body; the next request still comes.
+                let _ = stream.write_all(head.as_bytes());
                 if !head.contains(" 416 ") {
-                    stream.write_all(&body[start..]).unwrap();
+                    let _ = stream.write_all(&body[start..]);
                 }
             }
         });
@@ -800,7 +936,7 @@ mod tests {
             dest,
             body.len() as u64,
             sha256,
-            &AtomicBool::new(false),
+            &|| false,
             &mut |bytes| last = bytes,
         )
         .map(|()| last)
@@ -879,7 +1015,7 @@ mod tests {
             &dest,
             body.len() as u64,
             &sha256,
-            &cancel,
+            &|| cancel.load(Ordering::Relaxed),
             &mut |bytes| {
                 if bytes > 0 {
                     cancel.store(true, Ordering::Relaxed);
@@ -904,10 +1040,115 @@ mod tests {
             &std::env::temp_dir().join("pr3-never.gguf"),
             1,
             &"0".repeat(64),
-            &AtomicBool::new(false),
+            &|| false,
             &mut |_| {},
         );
         assert!(matches!(result, Err(DownloadError::Http(_))), "{result:?}");
+    }
+
+    /// Makes the network free again after a moment, as if the phone found Wi-Fi.
+    fn wifi_returns(costly: &Arc<AtomicBool>) {
+        let costly = Arc::clone(costly);
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(300));
+            costly.store(false, Ordering::Relaxed);
+        });
+    }
+
+    #[test]
+    fn on_mobile_data_a_download_waits_for_wifi() {
+        let (body, sha256) = body();
+        let dir = folder("wait");
+        let dest = dir.join("model.gguf");
+        let costly = Arc::new(AtomicBool::new(true));
+        let mut events = Vec::new();
+        wifi_returns(&costly);
+        download_when_free(
+            &agent_for(false),
+            &serve(body.clone(), true, 1),
+            &dest,
+            body.len() as u64,
+            &sha256,
+            &AtomicBool::new(false),
+            &|| costly.load(Ordering::Relaxed),
+            &mut |waiting| events.push(waiting),
+            &mut |_| {},
+        )
+        .unwrap();
+        assert_eq!(events, [true, false]);
+        assert_eq!(fs::read(&dest).unwrap(), body);
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_download_pauses_on_mobile_data_and_resumes_on_wifi() {
+        let (body, sha256) = body();
+        let dir = folder("pause");
+        let dest = dir.join("model.gguf");
+        let costly = Arc::new(AtomicBool::new(false));
+        let mut events = Vec::new();
+        let mut paused_at = 0;
+        let left_wifi = Cell::new(false);
+        download_when_free(
+            &agent_for(false),
+            &serve(body.clone(), true, 2),
+            &dest,
+            body.len() as u64,
+            &sha256,
+            &AtomicBool::new(false),
+            &|| costly.load(Ordering::Relaxed),
+            &mut |waiting| {
+                if waiting {
+                    paused_at = fs::metadata(partial_path(&dest, &sha256)).unwrap().len();
+                    wifi_returns(&costly);
+                }
+                events.push(waiting);
+            },
+            &mut |bytes| {
+                // The phone leaves Wi-Fi once the first megabyte is in.
+                if bytes > 0 && !left_wifi.replace(true) {
+                    costly.store(true, Ordering::Relaxed);
+                }
+            },
+        )
+        .unwrap();
+        assert_eq!(events, [true, false]);
+        assert!(
+            paused_at > 0 && paused_at < body.len() as u64,
+            "{paused_at}"
+        );
+        assert_eq!(fs::read(&dest).unwrap(), body);
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_download_waiting_for_wifi_can_be_cancelled() {
+        let (_, sha256) = body();
+        let dir = folder("wait-cancel");
+        let dest = dir.join("model.gguf");
+        let cancel = Arc::new(AtomicBool::new(false));
+        let later = Arc::clone(&cancel);
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(300));
+            later.store(true, Ordering::Relaxed);
+        });
+        let result = download_when_free(
+            &agent_for(false),
+            "http://127.0.0.1:9/never.gguf",
+            &dest,
+            1,
+            &sha256,
+            &cancel,
+            &|| true,
+            &mut |_| {},
+            &mut |_| {},
+        );
+        assert!(
+            matches!(result, Err(DownloadError::Cancelled)),
+            "{result:?}"
+        );
+        assert!(!partial_path(&dest, &sha256).exists());
+        let _ = fs::remove_dir_all(dir);
     }
 
     #[test]

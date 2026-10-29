@@ -13,6 +13,7 @@
 		7427BC4D15C0DA4BDE2BD3BC /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CD462428EE1B8BA8826265DB /* UIKit.framework */; };
 		787B29C7853B3458A601576A /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 45E731ED03065D74FD39CA78 /* LaunchScreen.storyboard */; };
 		9412B79F34E558488EBA4645 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 566583939892A2083F3FC1C4 /* assets */; };
+		A1C3E5F7092B4D6F8E0A1C35 /* Network.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B2D4F6A8103C5E7A9F1B2D46 /* Network.framework */; };
 		CF39F87B0A09BD5AFEA0B981 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2DF6D968132FD457BF928660 /* Security.framework */; };
 		D1D3250B6B2BB566CF309A1F /* libapp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 395D91536909A4B62B763AF2 /* libapp.a */; };
 		DD87AE35E84CAEE240D6BAF4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2A8B09CA1E12D64FC7E0558 /* Assets.xcassets */; };
@@ -40,6 +41,7 @@
 		8D9E8DB6861B50B42B10806F /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
 		A2A8B09CA1E12D64FC7E0558 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A59687A645D9D20ABA34F2CF /* pr3-app_iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "pr3-app_iOS.entitlements"; sourceTree = "<group>"; };
+		B2D4F6A8103C5E7A9F1B2D46 /* Network.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Network.framework; path = System/Library/Frameworks/Network.framework; sourceTree = SDKROOT; };
 		CD462428EE1B8BA8826265DB /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
 		D95CA583F3488216482894B5 /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
 		DA866A08EC855DB49C9D37E3 /* llama.rs */ = {isa = PBXFileReference; path = llama.rs; sourceTree = "<group>"; };
@@ -58,6 +60,7 @@
 				25E471701A2E19F29E845BF2 /* CoreGraphics.framework in Frameworks */,
 				E485096551ABEAF99B3B3C29 /* Metal.framework in Frameworks */,
 				F124A680FF350C8FD1E69E1F /* MetalKit.framework in Frameworks */,
+				A1C3E5F7092B4D6F8E0A1C35 /* Network.framework in Frameworks */,
 				5B61BEF0087A6B4CD85F740F /* QuartzCore.framework in Frameworks */,
 				CF39F87B0A09BD5AFEA0B981 /* Security.framework in Frameworks */,
 				7427BC4D15C0DA4BDE2BD3BC /* UIKit.framework in Frameworks */,
@@ -120,6 +123,7 @@
 				395D91536909A4B62B763AF2 /* libapp.a */,
 				2DC91D4A0C3211EB505030AB /* Metal.framework */,
 				41FAD0AEEA35510C4C4D1AB0 /* MetalKit.framework */,
+				B2D4F6A8103C5E7A9F1B2D46 /* Network.framework */,
 				580A74EE8C89FD7F06EF5217 /* QuartzCore.framework */,
 				2DF6D968132FD457BF928660 /* Security.framework */,
 				CD462428EE1B8BA8826265DB /* UIKit.framework */,

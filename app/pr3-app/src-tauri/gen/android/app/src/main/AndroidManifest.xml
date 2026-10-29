@@ -3,6 +3,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Push-to-talk voice notes, recognized on the phone (SpeechPlugin.kt). -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Whether the phone is on mobile data, before downloading a model (NetworkPlugin.kt). -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- Apps targeting Android 11+ must declare the speech services they bind to. -->
     <queries>

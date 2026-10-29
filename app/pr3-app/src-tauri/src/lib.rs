@@ -12,6 +12,7 @@ mod hybrid;
 mod llama;
 mod memory;
 mod models;
+mod network;
 mod speech;
 mod trace_export;
 
@@ -362,7 +363,8 @@ pub fn run() {
     #[cfg(target_os = "android")]
     let builder = builder
         .plugin(android_vault::plugin())
-        .plugin(android_speech::plugin());
+        .plugin(android_speech::plugin())
+        .plugin(network::plugin());
     let app = builder
         .setup(|app| {
             prepare_data_dir(app.handle());
@@ -406,6 +408,7 @@ pub fn run() {
             models::list_models,
             models::download_model,
             models::cancel_download,
+            models::set_mobile_data,
             models::use_model,
             models::delete_model
         ])

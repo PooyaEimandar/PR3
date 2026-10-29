@@ -77,6 +77,8 @@ targets:
       - sdk: CoreGraphics.framework
       - sdk: Metal.framework
       - sdk: MetalKit.framework
+      # Whether a phone is on mobile data, before downloading a model (network.rs).
+      - sdk: Network.framework
       - sdk: QuartzCore.framework
       - sdk: Security.framework
       - sdk: UIKit.framework

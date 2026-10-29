@@ -767,6 +767,8 @@ interface ModelView {
   /** Bytes downloaded so far, if a download is unfinished. */
   partial: number;
   downloading: boolean;
+  /** Downloading, but waiting for Wi-Fi. */
+  waiting: boolean;
   /** Why the last download stopped. */
   error: string | null;
   /** Running, or loading to run. */
@@ -779,6 +781,8 @@ interface ModelsInfo {
   /** PR3_MODEL chooses the model, so the panel cannot. */
   forced: string | null;
   problem: string | null;
+  /** Whether downloads may use mobile data; null on a computer, which never asks. */
+  mobile_data: boolean | null;
   models: ModelView[];
 }
 
@@ -788,11 +792,13 @@ interface DownloadProgress {
   bytes: number;
   size: number;
   done: boolean;
+  /** Waiting for Wi-Fi. */
+  waiting: boolean;
   error: string | null;
 }
 
 // Where each download in the panel shows its progress, by model id.
-const progressBars = new Map<string, { bar: HTMLProgressElement; text: HTMLElement }>();
+const progressBars = new Map<string, { bar: HTMLProgressElement; text: HTMLElement; waiting: boolean }>();
 
 const amount = (n: number) => (n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : `${Math.round(n / 1e6)} MB`);
 const progressText = (bytes: number, size: number) =>
@@ -818,8 +824,25 @@ async function renderModels(problem?: string): Promise<void> {
   if (problem) modelsPane.append(el("p", problem, "error-text"));
   if (info.problem) modelsPane.append(el("p", info.problem, "error-text"));
   if (info.forced) modelsPane.append(el("p", `PR3_MODEL chooses the model: ${info.forced}`, "meta"));
+  if (info.mobile_data !== null) modelsPane.append(mobileDataToggle(info.mobile_data));
   for (const m of info.models) modelsPane.append(modelItem(m, info.forced !== null));
   if (info.folder) modelsPane.append(el("p", `Stored in ${info.folder}`, "meta"));
+}
+
+// On a phone, downloads wait for Wi-Fi unless the user allows mobile data; a download
+// that is waiting goes on as soon as they do.
+function mobileDataToggle(allowed: boolean): HTMLLabelElement {
+  const toggle = el("label", undefined, "toggle");
+  const box = el("input");
+  box.type = "checkbox";
+  box.checked = allowed;
+  box.addEventListener("change", () => {
+    invoke("set_mobile_data", { allowed: box.checked })
+      .then(() => renderModels())
+      .catch((err) => renderModels(String(err)));
+  });
+  toggle.append(box, el("span", "Download over mobile data"));
+  return toggle;
 }
 
 function modelItem(m: ModelView, forced: boolean): HTMLDivElement {
@@ -841,8 +864,12 @@ function modelItem(m: ModelView, forced: boolean): HTMLDivElement {
     bar.max = m.size;
     bar.value = m.partial;
     const text = el("p", progressText(m.partial, m.size), "meta");
-    progressBars.set(m.id, { bar, text });
+    progressBars.set(m.id, { bar, text, waiting: m.waiting });
     item.append(bar, text);
+    if (m.waiting) {
+      text.textContent = `Waiting for Wi-Fi · ${amount(m.partial)} of ${amount(m.size)}`;
+      item.append(el("p", "To go on now, check Download over mobile data above.", "meta"));
+    }
   }
   if (m.error) item.append(el("p", `Stopped: ${m.error}`, "error-text"));
 
@@ -879,7 +906,7 @@ function modelItem(m: ModelView, forced: boolean): HTMLDivElement {
 window.__TAURI__.event.listen<DownloadProgress>("model-download", ({ payload: p }) => {
   if (!showing("models")) return;
   const shown = progressBars.get(p.id);
-  if (p.done || !shown) {
+  if (p.done || !shown || p.waiting !== shown.waiting) {
     renderModels();
     return;
   }
