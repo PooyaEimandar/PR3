@@ -14,19 +14,38 @@ Part of the [PR3 documentation](README.md). How to build, run, configure and tes
 
 The model is chosen per device class in [`config/pr3.toml`](../config/pr3.toml): Qwen3.8-27B on computers with 30 GB of memory or more (Qwen3.5-4B below that), Qwen3.5-4B on phones with 7 GB or more and Qwen3.5-2B on smaller phones. Every model is pinned to a repository revision and SHA-256.
 
+**In the app.** No build carries a model. Open Settings (the gear beside the message field), then **Models**: it lists the models PR3 knows with their sizes, the one recommended for this device and the one in use.
+
+- **Download** fetches a model over HTTPS from its pinned Hugging Face revision and shows its progress. **Cancel**, a lost connection or closing the app keeps what has arrived, and **Resume** carries on from there. The file is named, and can be used, only once its SHA-256 matches the pin; a download that does not match is thrown away.
+- The first model downloaded while none is running is used at once. **Use** switches to another, and the choice is remembered.
+- **Delete** removes a model and **Discard** an unfinished download; both take a second tap.
+- A model that would take more than half of a phone's memory, or three quarters of a computer's, is marked too large and cannot be downloaded or used.
+
+Models live in the app's data folder, under `model/`, apart from the app itself: installing a new version keeps them, phone backups leave them out, and on a phone uninstalling PR3 removes them.
+
+| Platform | Folder |
+|---|---|
+| macOS | `~/Library/Application Support/ai.pooya.pr3/model/` |
+| Windows | `%APPDATA%\ai.pooya.pr3\model\` |
+| Linux | `~/.local/share/ai.pooya.pr3/model/` |
+| iOS | `Library/Application Support/ai.pooya.pr3/model/` in the app's container |
+| Android | `/data/user/0/ai.pooya.pr3/model/` |
+
+**From the command line.** `script/fetch-model.sh` puts models in the repository's `model/` folder, where debug builds on the Mac and in the iOS simulator also look:
+
 ```bash
 script/fetch-model.sh            # the models config/pr3.toml selects, into model/
 script/fetch-model.sh --list     # every model it knows
 script/fetch-model.sh qwen3.8-27b-q8
 ```
 
-To run another model, change the ids under `[model]`. To change anything without rebuilding, put an edited copy of `pr3.toml` in the app's data folder (on macOS `~/Library/Application Support/ai.pooya.pr3/`). `PR3_MODEL`, a path to a `.gguf` file, overrides the choice.
+To run another model, change the ids under `[model]`. To change anything without rebuilding, put an edited copy of `pr3.toml` in the app's data folder (on macOS `~/Library/Application Support/ai.pooya.pr3/`). `PR3_MODEL`, a path to a `.gguf` file, overrides every choice; Settings then still downloads and deletes models, but cannot switch.
 
 ## Build and run
 
 - **macOS:** `cd app/pr3-app && cargo tauri dev`, or `cargo tauri build --debug --bundles app` for an app bundle.
-- **iOS simulator:** `cd app/pr3-app && cargo tauri ios build --debug --target aarch64-sim`, then `xcrun simctl install booted src-tauri/gen/apple/build/arm64-sim/PR3.app`. Debug builds read models from the repository's `model/` folder.
-- **Android:** `script/build-android.sh` builds a debug APK for arm64 (it sets the ARMv8.2 dot-product flag llama.cpp needs). Install it with `adb install -r`, then copy the phone model into the app's data folder:
+- **iOS simulator:** `cd app/pr3-app && cargo tauri ios build --debug --target aarch64-sim`, then `xcrun simctl install booted src-tauri/gen/apple/build/arm64-sim/PR3.app`. Debug builds also find models in the repository's `model/` folder.
+- **Android:** `script/build-android.sh` builds a debug APK for arm64 (it sets the ARMv8.2 dot-product flag llama.cpp needs). Install it with `adb install -r`, then download the phone model in Settings, or copy it in from the repository, which is quicker:
 
   ```bash
   adb exec-in run-as ai.pooya.pr3 sh -c 'mkdir -p model && cat > model/Qwen3.5-2B-Q4_K_M.gguf' < model/Qwen3.5-2B-Q4_K_M.gguf
@@ -67,7 +86,7 @@ The webview's script is TypeScript, in `app/pr3-app/src`, checked in strict mode
 - **Windows** takes four numbers of at most 65535 each: the year, the day of the year, half the seconds since midnight, and 0. The Linux packages carry the first three.
 - **Newer, by at least two seconds.** Two commits that close together share Windows' half-second, and a commit whose clock ran behind gets a smaller version than the one before it. So Release refuses a commit less than two seconds after the newest release, and a build of `main` less than two seconds after the previous build of `main` (the commit its push replaced) warns that its APK will not install over that build without uninstalling it first; the next commit sets it right. `script/version.py --after <tag or commit>` runs the same check.
 
-All builds are the `dev` channel ([quality-gates.md](quality-gates.md)): no security claims yet. The iOS simulator and Android builds are debug builds; the Android one is debuggable, so the `adb` command above puts a model in its data folder. Every other build looks for the model in the app's data folder, under `model/`: `~/Library/Application Support/ai.pooya.pr3/model/` on macOS, `%APPDATA%\ai.pooya.pr3\model\` on Windows and `~/.local/share/ai.pooya.pr3/model/` on Linux. Until one is there, the app answers with a stand-in that names the file it needs and where.
+All builds are the `dev` channel ([quality-gates.md](quality-gates.md)): no security claims yet. The iOS simulator and Android builds are debug builds; the Android one is debuggable, so the `adb` command above can put a model in its data folder. No build carries a model: download one in Settings, **Models** ([Models](#models)). Until one is there, the app answers with a stand-in that names the file to download.
 
 llama.cpp in the Windows and Linux builds uses AVX2 and FMA, which x86 processors have had since 2013; left alone it would build for plain SSE2, several times slower. The Linux build runs on Ubuntu 22.04 so that it also runs on distributions as old as that.
 
@@ -100,7 +119,7 @@ PR3 can send email through a sandbox connector: messages land in `outbox.jsonl` 
 
 ## Voice notes
 
-Hold the talk button beside the message field, speak and let go; or tap it and speak, and the note is sent once you stop talking for two seconds (or at a second tap). No Send button is needed. The chip left of it picks the language voice notes and spoken replies use: *Auto* follows the system, and the list holds the languages this device recognizes on the device (on Android 13 and later also those it downloads on first use); the choice is remembered. In the header, **Speak replies** reads replies aloud; it is remembered. Recognition and voices run on the device, and the first voice note asks for the microphone and speech recognition.
+Hold the talk button beside the message field, speak and let go; or tap it and speak, and the note is sent once you stop talking for two seconds (or at a second tap). No Send button is needed. Settings, **Voice**, picks the language voice notes and spoken replies use: *System language* follows the system, and the list holds the languages this device recognizes on the device (on Android 13 and later also those it downloads on first use); the choice is remembered. **Speak replies**, on the same tab, reads replies aloud; it is remembered too. Recognition and voices run on the device, and the first voice note asks for the microphone and speech recognition.
 
 - **macOS and iOS:** the Speech framework's on-device recognition. If your language has none, turn on Dictation for it (System Settings, Keyboard on a Mac); its on-device model comes with it. Better voices download in the Spoken Content settings. `src-tauri/Info.plist` gives `cargo tauri dev` the usage strings macOS asks for.
 - **Android 12 and later:** the on-device recognizer. On first use Android may offer to download the language's speech model (about 60 MB). In the emulator, turn on **Virtual microphone uses host audio input** in the extended controls.
@@ -108,12 +127,12 @@ Hold the talk button beside the message field, speak and let go; or tap it and s
 
 ## Memory
 
-**Memory** in the header shows what PR3 remembers. Memories the model proposed from your words wait under *To review*: confirm them, edit them (the corrected version replaces them) or forget them, which takes a second tap and also erases the words they came from. You can add memories yourself; those are confirmed from the start. Everything is in `memory.sqlite` in the app's data folder and never leaves the device.
+Settings, **Memory**, shows what PR3 remembers. Memories the model proposed from your words wait under *To review*: confirm them, edit them (the corrected version replaces them) or forget them, which takes a second tap and also erases the words they came from. You can add memories yourself; those are confirmed from the start. Everything is in `memory.sqlite` in the app's data folder and never leaves the device.
 
 ## Pairing a phone with a computer
 
-1. On the computer, open **Devices** and choose **Pair a phone**; it shows a six-digit code, valid once for two minutes.
-2. On the phone, open **Devices** and enter the computer's address and the code.
+1. On the computer, open Settings, **Devices**, and choose **Pair a phone**; it shows a six-digit code, valid once for two minutes.
+2. On the phone, open Settings, **Devices**, and enter the computer's address and the code.
 
 The computer listens on `127.0.0.1:7313` by default, which reaches the iOS simulator and, as `10.0.2.2:7313`, the Android emulator. For a phone on your network set `listen = "0.0.0.0:7313"` under `[node]`; macOS then asks whether PR3 may accept incoming connections. A paired phone uses the computer's model and answers with its own when the computer cannot be reached. In debug builds, `PR3_PAIR_ON_START=1` prints a pairing code at startup.
 
