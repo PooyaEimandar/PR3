@@ -45,6 +45,9 @@ const CHECK_EVERY: Duration = if cfg!(test) {
 } else {
     Duration::from_secs(2)
 };
+/// How long a download cut off by the network waits for the phone to say whether it
+/// left Wi-Fi: the connection can drop before the system reports the new network.
+const SETTLE: Duration = Duration::from_secs(3);
 /// The share of memory a model file may take: a phone's app gets a little over half of
 /// its memory before the system ends it, and the model needs room to work in.
 const MOBILE_SHARE: f64 = 0.5;
@@ -235,9 +238,9 @@ fn hash_file(
 }
 
 /// Downloads like `download`, but only while `costly` says the network costs nothing:
-/// until then it waits, and a download under way when the network turns costly stops
-/// and waits again, keeping what arrived. `waiting` hears when it starts and stops
-/// waiting. Only `cancel` ends it early.
+/// until then it waits, and a download under way when the network turns costly stops,
+/// or is cut off, and waits again, keeping what arrived. `waiting` hears when it starts
+/// and stops waiting. Only `cancel` ends it early.
 #[allow(clippy::too_many_arguments)]
 pub fn download_when_free(
     agent: &ureq::Agent,
@@ -276,8 +279,24 @@ pub fn download_when_free(
         match download(agent, url, dest, size, sha256, &stop, progress) {
             // Not cancelled: the network turned costly, so wait for a free one.
             Err(DownloadError::Cancelled) if !cancel.load(Ordering::Relaxed) => {}
+            // Leaving Wi-Fi drops the connection, often before the check above sees it.
+            Err(DownloadError::Io(_) | DownloadError::Http(_)) if turns_costly(cancel, costly) => {}
             result => return result,
         }
+    }
+}
+
+/// Whether the network turns costly within `SETTLE`, unless `cancel` comes first.
+fn turns_costly(cancel: &AtomicBool, costly: &dyn Fn() -> bool) -> bool {
+    let until = Instant::now() + SETTLE;
+    loop {
+        if costly() {
+            return true;
+        }
+        if cancel.load(Ordering::Relaxed) || Instant::now() >= until {
+            return false;
+        }
+        std::thread::sleep(WAIT_STEP);
     }
 }
 
@@ -871,10 +890,23 @@ mod tests {
     /// A server for one file that answers `Range` requests like Hugging Face's, or
     /// ignores them. It stops after `requests` requests.
     fn serve(body: Vec<u8>, ranges: bool, requests: usize) -> String {
+        serve_cut(body, ranges, requests, usize::MAX, || {})
+    }
+
+    /// Like `serve`, but its first answer hangs up after `cut` bytes of the file, as a
+    /// connection does when the phone leaves Wi-Fi, and then it calls `hung_up`.
+    fn serve_cut(
+        body: Vec<u8>,
+        ranges: bool,
+        requests: usize,
+        cut: usize,
+        hung_up: impl FnOnce() + Send + 'static,
+    ) -> String {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap();
+        let mut hung_up = Some(hung_up);
         std::thread::spawn(move || {
-            for stream in listener.incoming().take(requests) {
+            for (i, stream) in listener.incoming().take(requests).enumerate() {
                 let mut stream = stream.unwrap();
                 let mut reader = BufReader::new(stream.try_clone().unwrap());
                 let mut from = 0;
@@ -902,10 +934,21 @@ mod tests {
                     )
                 };
                 let start = if ranges { from.min(body.len()) } else { 0 };
+                let end = if i == 0 {
+                    start.saturating_add(cut).min(body.len())
+                } else {
+                    body.len()
+                };
                 // A client that stops early hangs up mid-body; the next request still comes.
                 let _ = stream.write_all(head.as_bytes());
                 if !head.contains(" 416 ") {
-                    let _ = stream.write_all(&body[start..]);
+                    let _ = stream.write_all(&body[start..end]);
+                }
+                drop((reader, stream));
+                if end < body.len()
+                    && let Some(hung_up) = hung_up.take()
+                {
+                    hung_up();
                 }
             }
         });
@@ -1117,6 +1160,45 @@ mod tests {
             paused_at > 0 && paused_at < body.len() as u64,
             "{paused_at}"
         );
+        assert_eq!(fs::read(&dest).unwrap(), body);
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_download_cut_off_by_leaving_wifi_waits_and_resumes() {
+        let (body, sha256) = body();
+        let dir = folder("cut");
+        let dest = dir.join("model.gguf");
+        let costly = Arc::new(AtomicBool::new(false));
+        // The connection drops after a megabyte, and the phone reports mobile data only
+        // a moment later, once the download has failed.
+        let later = Arc::clone(&costly);
+        let url = serve_cut(body.clone(), true, 2, 1 << 20, move || {
+            std::thread::sleep(Duration::from_millis(300));
+            later.store(true, Ordering::Relaxed);
+        });
+        let mut events = Vec::new();
+        let mut cut_at = 0;
+        download_when_free(
+            &agent_for(false),
+            &url,
+            &dest,
+            body.len() as u64,
+            &sha256,
+            &AtomicBool::new(false),
+            &|| costly.load(Ordering::Relaxed),
+            &mut |waiting| {
+                if waiting {
+                    cut_at = fs::metadata(partial_path(&dest, &sha256)).unwrap().len();
+                    wifi_returns(&costly);
+                }
+                events.push(waiting);
+            },
+            &mut |_| {},
+        )
+        .unwrap();
+        assert_eq!(events, [true, false]);
+        assert_eq!(cut_at, 1 << 20);
         assert_eq!(fs::read(&dest).unwrap(), body);
         let _ = fs::remove_dir_all(dir);
     }
