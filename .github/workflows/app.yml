@@ -221,6 +221,7 @@ jobs:
         with:
           name: ${{ env.UNSIGNED }}
           path: build
+          skip-decompress: true
       - name: The APK the build job reported
         working-directory: build
         env:
@@ -457,11 +458,14 @@ jobs:
       id-token: write
       attestations: write
     steps:
+      # Each file as it was uploaded: without this, the iOS simulator's .zip would
+      # arrive unpacked, as PR3.app, and fail its digest check.
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: pr3-${{ needs.meta.outputs.name }}-*
           merge-multiple: true
           path: dist
+          skip-decompress: true
       - name: Only the files the jobs that made them reported
         working-directory: dist
         env:
@@ -501,11 +505,14 @@ jobs:
       TAG: ${{ needs.meta.outputs.tag }}
       NAME: ${{ needs.meta.outputs.name }}
     steps:
+      # Each file as it was uploaded: without this, the iOS simulator's .zip would
+      # arrive unpacked, as PR3.app, and fail its digest check.
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: pr3-${{ needs.meta.outputs.name }}-*
           merge-multiple: true
           path: dist
+          skip-decompress: true
       - name: Only the files the jobs that made them reported
         working-directory: dist
         env:
