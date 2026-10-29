@@ -177,7 +177,7 @@ async function send(text: string): Promise<void> {
     // A paired phone may have answered here or on its computer; show which.
     showPlatform();
     // The turn may have proposed a memory.
-    if (!memoryPanel.hidden) renderMemory();
+    if (showing("memory")) renderMemory();
   }
 }
 
@@ -198,7 +198,9 @@ form.addEventListener("submit", (event) => {
 // stop talking (or tap again). The words are recognized on the device and sent like
 // typed text. Replies are spoken too when the user turns that on.
 const talk = find("#talk", HTMLButtonElement);
-const speakButton = find("#speak-button", HTMLButtonElement);
+const speakRow = find("#speak-replies", HTMLLabelElement);
+const speakToggle = find("input", HTMLInputElement, speakRow);
+const voiceUnavailable = find("#voice-unavailable", HTMLParagraphElement);
 // A press shorter than this is a tap: listening continues until the next tap.
 const HOLD_MS = 300;
 // A tapped voice note is sent once the user stops talking this long.
@@ -261,6 +263,7 @@ function remember(key: string, value: string): void {
 }
 
 async function setUpSpeech(): Promise<void> {
+  renderVoiceStatus();
   try {
     // The language the user picked before, if any, else the system's.
     const picked = recall("pr3.voiceLanguage");
@@ -272,27 +275,27 @@ async function setUpSpeech(): Promise<void> {
   }
   setUpLanguages();
   talk.hidden = !speech.listen && !speech.speak;
-  speakButton.hidden = !speech.speak;
-  renderSpeakButton();
+  speakRow.hidden = !speech.speak;
+  speakToggle.checked = speakReplies;
+  renderVoiceStatus();
 }
 
-function renderSpeakButton(): void {
-  speakButton.setAttribute("aria-pressed", String(speakReplies));
-  speakButton.title = speakReplies ? "Replies are spoken; tap to stop" : "Replies are text only; tap to hear them too";
+// Why voice notes cannot be used here, if they cannot.
+function renderVoiceStatus(): void {
+  voiceUnavailable.textContent = speech.listen ? "" : speech.why_not || "Voice notes are unavailable here.";
+  voiceUnavailable.hidden = speech.listen;
 }
 
-speakButton.addEventListener("click", () => {
-  speakReplies = !speakReplies;
+speakToggle.addEventListener("change", () => {
+  speakReplies = speakToggle.checked;
   remember("pr3.speakReplies", speakReplies ? "on" : "off");
-  renderSpeakButton();
   if (!speakReplies) invoke("stop_speaking").catch(() => {});
 });
 
 // The language of voice notes and spoken replies: the system's, unless the user picks
 // one of the languages this device recognizes on the device.
-const languageChip = find("#voice-language", HTMLLabelElement);
-const languageSelect = find("select", HTMLSelectElement, languageChip);
-const languageLabel = find("span", HTMLSpanElement, languageChip);
+const languageField = find("#voice-language", HTMLLabelElement);
+const languageSelect = find("select", HTMLSelectElement, languageField);
 
 // The languages voice notes can use here (speech.rs's SpeechLanguages).
 interface SpeechLanguages {
@@ -331,26 +334,18 @@ async function setUpLanguages(): Promise<void> {
     .sort((a, b) => a.text.localeCompare(b.text));
   languageSelect.replaceChildren(new Option("System language", ""), ...options);
   languageSelect.value = languages.chosen ?? "";
-  renderLanguage();
-  languageChip.hidden = false;
-}
-
-function renderLanguage(): void {
-  const tag = languageSelect.value;
-  languageLabel.textContent = tag ? (tag.split(/[-_]/)[0] ?? tag).toUpperCase() : "Auto";
-  languageChip.title = `Voice language: ${tag ? languageName(tag) : "the system's"}`;
+  languageField.hidden = false;
 }
 
 languageSelect.addEventListener("change", async () => {
   const tag = languageSelect.value || null;
   remember("pr3.voiceLanguage", tag ?? "");
-  renderLanguage();
   try {
     speech = await invoke<SpeechStatus>("set_speech_language", { language: tag });
-    if (!speech.listen && speech.why_not) show("error", speech.why_not);
   } catch (err) {
     show("error", String(err));
   }
+  renderVoiceStatus();
 });
 
 // `held`: started by a press that may become a hold; a tap or a key leaves the note
@@ -555,7 +550,6 @@ async function renderDevices(): Promise<void> {
     panel.append(el("p", String(err), "error-text"));
     return;
   }
-  const close = makeButton("Close", () => (panel.hidden = true), "secondary small");
   if (info.role === "node") {
     panel.append(el("h2", `This computer lends its model to paired phones`));
     panel.append(el("p", `${info.name} · listening on ${info.listen}`, "meta"));
@@ -564,7 +558,7 @@ async function renderDevices(): Promise<void> {
       try {
         const p = await invoke<Pairing>("start_pairing");
         pairArea.replaceChildren(
-          el("p", "On the phone, open Devices and enter:"),
+          el("p", "On the phone, open Settings, then Devices, and enter:"),
           el("p", p.code.replace(/(\d{3})(\d{3})/, "$1 $2"), "code"),
           el("p", `Address: ${p.listen} (the Android emulator uses 10.0.2.2:${p.listen.split(":").pop()})`, "meta"),
         );
@@ -582,7 +576,7 @@ async function renderDevices(): Promise<void> {
       } catch (err) {
         pairArea.replaceChildren(el("p", String(err), "error-text"));
       }
-    });
+    }, "small");
     panel.append(pair, pairArea, el("h3", "Paired phones"));
     if (info.phones.length === 0) panel.append(el("p", "None yet.", "meta"));
     for (const phone of info.phones) {
@@ -602,10 +596,10 @@ async function renderDevices(): Promise<void> {
     panel.append(makeButton("Unpair", async () => {
       await invoke("unpair").catch((e) => show("error", String(e)));
       renderDevices();
-    }, "secondary"));
+    }, "secondary small"));
   } else if (info.role === "phone") {
     panel.append(el("h2", "Pair with your computer"));
-    panel.append(el("p", "Open Devices on the computer, tap Pair a phone, then enter its address and code.", "meta"));
+    panel.append(el("p", "On the computer, open Settings, then Devices, and tap Pair a phone. Then enter its address and code here.", "meta"));
     const form = el("form");
     const address = el("input");
     address.placeholder = document.body.classList.contains("android") ? "10.0.2.2:7313" : "127.0.0.1:7313";
@@ -636,16 +630,7 @@ async function renderDevices(): Promise<void> {
   } else {
     panel.append(el("p", "Pairing is off on this computer ([node] in pr3.toml).", "meta"));
   }
-  panel.append(close);
 }
-
-find("#devices-button", HTMLButtonElement).addEventListener("click", () => {
-  panel.hidden = !panel.hidden;
-  if (!panel.hidden) {
-    memoryPanel.hidden = true;
-    renderDevices();
-  } else clearInterval(pairingTimer);
-});
 
 // Memory: what PR3 remembers about the user. The model can only propose memories;
 // confirming, correcting, adding and forgetting happen here, by the user. Everything
@@ -677,10 +662,7 @@ async function renderMemory(problem?: string): Promise<void> {
   try {
     memories = await invoke<Memory[]>("list_memories");
   } catch (err) {
-    memoryPanel.replaceChildren(
-      el("p", String(err), "error-text"),
-      makeButton("Close", () => (memoryPanel.hidden = true), "secondary small"),
-    );
+    memoryPanel.replaceChildren(el("p", String(err), "error-text"));
     return;
   }
   memoryPanel.replaceChildren(
@@ -710,7 +692,6 @@ async function renderMemory(problem?: string): Promise<void> {
   memoryPanel.append(el("h3", `Confirmed (${confirmed.length})`));
   if (confirmed.length === 0) memoryPanel.append(el("p", "Nothing confirmed yet.", "meta"));
   for (const m of confirmed) memoryPanel.append(memoryItem(m));
-  memoryPanel.append(makeButton("Close", () => (memoryPanel.hidden = true), "secondary small"));
 }
 
 function memoryItem(m: Memory): HTMLDivElement {
@@ -765,16 +746,201 @@ async function act(command: MemoryCommand, args: Record<string, unknown>): Promi
   renderMemory(problem);
 }
 
-find("#memory-button", HTMLButtonElement).addEventListener("click", () => {
-  memoryPanel.hidden = !memoryPanel.hidden;
-  if (!memoryPanel.hidden) {
-    panel.hidden = true;
-    clearInterval(pairingTimer);
-    renderMemory();
+// Models: which of the pinned models are on this device, and which one answers. They
+// are kept apart from the app, so an update keeps them, and a download is used only if
+// it matches the SHA-256 the config pins (models.rs).
+const modelsPane = find("#models", HTMLElement);
+
+// A model as the panel shows it (models.rs's ModelView).
+interface ModelView {
+  id: string;
+  file: string;
+  size: number;
+  /** The one the config picks for this device. */
+  recommended: boolean;
+  /** Small enough for this device's memory. */
+  fits: boolean;
+  /** In the app's model folder. */
+  downloaded: boolean;
+  /** Only in the repository's model folder (debug builds): usable, not deletable. */
+  in_repository: boolean;
+  /** Bytes downloaded so far, if a download is unfinished. */
+  partial: number;
+  downloading: boolean;
+  /** Why the last download stopped. */
+  error: string | null;
+  /** Running, or loading to run. */
+  active: boolean;
+}
+
+// What the panel shows (models.rs's ModelsInfo).
+interface ModelsInfo {
+  folder: string | null;
+  /** PR3_MODEL chooses the model, so the panel cannot. */
+  forced: string | null;
+  problem: string | null;
+  models: ModelView[];
+}
+
+// A download's progress (models.rs's Progress).
+interface DownloadProgress {
+  id: string;
+  bytes: number;
+  size: number;
+  done: boolean;
+  error: string | null;
+}
+
+// Where each download in the panel shows its progress, by model id.
+const progressBars = new Map<string, { bar: HTMLProgressElement; text: HTMLElement }>();
+
+const amount = (n: number) => (n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : `${Math.round(n / 1e6)} MB`);
+const progressText = (bytes: number, size: number) =>
+  `${amount(bytes)} of ${amount(size)} (${Math.floor((100 * bytes) / size)}%)`;
+
+async function renderModels(problem?: string): Promise<void> {
+  let info: ModelsInfo;
+  try {
+    info = await invoke<ModelsInfo>("list_models");
+  } catch (err) {
+    modelsPane.replaceChildren(el("p", String(err), "error-text"));
+    return;
   }
+  progressBars.clear();
+  modelsPane.replaceChildren(
+    el("h2", "Models on this device"),
+    el(
+      "p",
+      "Kept apart from the app, so updating PR3 keeps them. Each comes from Hugging Face and is used only if it matches the SHA-256 that PR3 pins.",
+      "meta",
+    ),
+  );
+  if (problem) modelsPane.append(el("p", problem, "error-text"));
+  if (info.problem) modelsPane.append(el("p", info.problem, "error-text"));
+  if (info.forced) modelsPane.append(el("p", `PR3_MODEL chooses the model: ${info.forced}`, "meta"));
+  for (const m of info.models) modelsPane.append(modelItem(m, info.forced !== null));
+  if (info.folder) modelsPane.append(el("p", `Stored in ${info.folder}`, "meta"));
+}
+
+function modelItem(m: ModelView, forced: boolean): HTMLDivElement {
+  const item = el("div", undefined, `item${m.active ? " active" : ""}`);
+  const tags = [m.active ? "in use" : "", m.recommended ? "recommended here" : ""].filter(Boolean);
+  item.append(el("p", m.file, "name"));
+  if (tags.length) item.append(el("p", tags.join(" · "), "tags"));
+
+  const usable = m.downloaded || m.in_repository;
+  let state = amount(m.size);
+  if (m.downloaded) state += " · downloaded";
+  else if (m.in_repository) state += " · in the repository's model folder";
+  else if (!m.fits) state += " · too large for this device's memory";
+  else if (m.partial > 0 && !m.downloading) state += ` · ${Math.floor((100 * m.partial) / m.size)}% downloaded`;
+  item.append(el("p", state, "meta"));
+
+  if (m.downloading) {
+    const bar = el("progress");
+    bar.max = m.size;
+    bar.value = m.partial;
+    const text = el("p", progressText(m.partial, m.size), "meta");
+    progressBars.set(m.id, { bar, text });
+    item.append(bar, text);
+  }
+  if (m.error) item.append(el("p", `Stopped: ${m.error}`, "error-text"));
+
+  const choices = el("div", undefined, "choices");
+  const act = (command: string) => () => {
+    invoke(command, { id: m.id })
+      .then(() => renderModels())
+      .catch((err) => renderModels(String(err)));
+  };
+  if (m.downloading) {
+    choices.append(makeButton("Cancel", act("cancel_download"), "secondary small"));
+  } else if (!usable && m.fits) {
+    choices.append(makeButton(m.partial > 0 ? "Resume" : "Download", act("download_model"), "small"));
+  }
+  if (usable && !m.active && !forced && m.fits) {
+    choices.append(makeButton("Use", act("use_model"), "small"));
+  }
+  if (!m.downloading && (m.downloaded || m.partial > 0)) {
+    // Deleting cannot be undone, so it takes a second tap.
+    const label = m.downloaded ? "Delete" : "Discard";
+    const remove = makeButton(label, () => {
+      if (remove.dataset.sure) act("delete_model")();
+      else {
+        remove.dataset.sure = "yes";
+        remove.textContent = `${label} ${amount(m.downloaded ? m.size : m.partial)}?`;
+      }
+    }, "secondary small");
+    choices.append(remove);
+  }
+  if (choices.childElementCount) item.append(choices);
+  return item;
+}
+
+window.__TAURI__.event.listen<DownloadProgress>("model-download", ({ payload: p }) => {
+  if (!showing("models")) return;
+  const shown = progressBars.get(p.id);
+  if (p.done || !shown) {
+    renderModels();
+    return;
+  }
+  shown.bar.value = p.bytes;
+  shown.text.textContent = progressText(p.bytes, p.size);
 });
 
-// The model loads in the background; refresh the header when it is ready.
-window.__TAURI__.event.listen("model-changed", showPlatform);
+// Settings: models, voice, memory and pairing, one tab at a time, opened from the
+// button beside the composer.
+const settings = find("#settings", HTMLElement);
+const settingsButton = find("#settings-button", HTMLButtonElement);
+const tabs = [...settings.querySelectorAll<HTMLButtonElement>("[role=tab]")];
+const TABS = ["models", "voice", "memory", "devices"] as const;
+type Tab = (typeof TABS)[number];
+const isTab = (name: string | null | undefined): name is Tab => TABS.some((t) => t === name);
+const panes: Record<Tab, HTMLElement> = {
+  models: modelsPane,
+  voice: find("#voice", HTMLElement),
+  memory: memoryPanel,
+  devices: panel,
+};
+let tab: Tab = ((): Tab => {
+  const last = recall("pr3.settingsTab");
+  return isTab(last) ? last : "models";
+})();
+
+function showing(name: Tab): boolean {
+  return !settings.hidden && tab === name;
+}
+
+function openTab(name: Tab): void {
+  tab = name;
+  remember("pr3.settingsTab", name);
+  for (const button of tabs) button.setAttribute("aria-selected", String(button.dataset.tab === name));
+  for (const t of TABS) panes[t].hidden = t !== name;
+  clearInterval(pairingTimer);
+  if (name === "models") renderModels();
+  else if (name === "memory") renderMemory();
+  else if (name === "devices") renderDevices();
+}
+
+function showSettings(open: boolean): void {
+  settings.hidden = !open;
+  settingsButton.setAttribute("aria-expanded", String(open));
+  if (open) openTab(tab);
+  else clearInterval(pairingTimer);
+}
+
+settingsButton.addEventListener("click", () => showSettings(settings.hidden !== false));
+find("#settings-close", HTMLButtonElement).addEventListener("click", () => showSettings(false));
+for (const button of tabs) {
+  button.addEventListener("click", () => {
+    if (isTab(button.dataset.tab)) openTab(button.dataset.tab);
+  });
+}
+
+// The model loads in the background; refresh the header, and the Models tab, when it
+// changes.
+window.__TAURI__.event.listen("model-changed", () => {
+  showPlatform();
+  if (showing("models")) renderModels();
+});
 showPlatform();
 setUpSpeech();

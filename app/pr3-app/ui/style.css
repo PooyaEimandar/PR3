@@ -226,40 +226,173 @@ button.small {
   font-size: 12px;
 }
 
-#devices,
-#memory {
-  margin: 0;
+/* Settings: under the header, one tab at a time; the tab scrolls, its row stays. */
+#settings {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 60vh;
   padding: 12px 16px;
   border-bottom: 1px solid var(--line);
   background: var(--panel);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
 
-#devices[hidden],
-#memory[hidden] {
+#settings[hidden],
+#settings .pane[hidden] {
   display: none;
 }
 
-#devices h2,
-#devices h3,
-#memory h2,
-#memory h3 {
+/* One row; on a screen too narrow for it, it scrolls sideways rather than wrapping. */
+#settings .tabs {
+  display: flex;
+  flex: none;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+#settings .tabs::-webkit-scrollbar {
+  display: none;
+}
+
+#settings .tabs button {
+  flex: none;
+  white-space: nowrap;
+}
+
+#settings .tabs [aria-selected="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+#settings-close {
+  margin-left: auto;
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.pane h2,
+.pane h3 {
   margin: 0;
   font-size: 14px;
   color: var(--accent);
 }
 
-#devices p,
-#memory p {
+.pane p {
   margin: 0;
 }
 
-#devices .meta,
-#memory .meta {
+.pane .meta {
   color: var(--muted);
   font-size: 12px;
+}
+
+.pane .error-text {
+  color: var(--error);
+}
+
+.pane form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pane input:not([type="checkbox"]),
+.pane select {
+  flex: 1 1 140px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  /* iOS WebKit zooms into controls smaller than 16px on focus. */
+  font-size: 16px;
+}
+
+.pane > button {
+  align-self: flex-start;
+}
+
+/* A memory or a model. Proposed memories (dashed) wait for the user; the model in use
+   is outlined. */
+.pane .item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+
+.pane .item.proposed {
+  border-style: dashed;
+  border-color: var(--accent);
+}
+
+.pane .item.active {
+  border-color: var(--accent);
+}
+
+.pane .item .name {
+  font-weight: 700;
+}
+
+.pane .item .tags {
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.pane .choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* The memory edit field and the voice language sit in a column: no flex size, which
+   would become their height. */
+.pane .item input,
+.pane .field select {
+  flex: none;
+}
+
+.pane progress {
+  width: 100%;
+  height: 6px;
+  accent-color: var(--accent);
+}
+
+.pane .field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pane .field[hidden],
+.pane .toggle[hidden],
+.pane .meta[hidden] {
+  display: none;
+}
+
+.pane .toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pane .toggle input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent);
 }
 
 #devices .code {
@@ -275,60 +408,8 @@ button.small {
   gap: 8px;
 }
 
-#devices form,
-#memory form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-#devices input,
-#memory input {
-  flex: 1 1 140px;
-  min-width: 0;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--bg);
-  color: var(--text);
-  font: inherit;
-  font-size: 16px;
-}
-
-#devices .error-text,
-#memory .error-text {
-  color: var(--error);
-}
-
-#devices > button,
-#memory > button {
-  align-self: flex-start;
-}
-
-/* One row; on a screen too narrow for it, it scrolls sideways rather than wrapping. */
-header .actions {
-  display: flex;
-  gap: 6px;
-  margin-top: 8px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-header .actions::-webkit-scrollbar {
-  display: none;
-}
-
-header .actions button {
-  flex: none;
-  white-space: nowrap;
-}
-
-button.secondary[aria-pressed="true"] {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-/* Push-to-talk: held, so no text selection, callouts or scrolling on touch. */
+/* The composer's icon buttons: Settings, and push-to-talk. */
+#composer button.icon,
 #talk {
   display: flex;
   align-items: center;
@@ -337,6 +418,20 @@ button.secondary[aria-pressed="true"] {
   background: transparent;
   color: var(--accent);
   border: 1px solid var(--line);
+}
+
+#composer button.icon svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+#settings-button[aria-expanded="true"] {
+  border-color: var(--accent);
+}
+
+/* Push-to-talk: held, so no text selection, callouts or scrolling on touch. */
+#talk {
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
@@ -363,69 +458,4 @@ button.secondary[aria-pressed="true"] {
   50% {
     box-shadow: 0 0 0 6px rgba(57, 255, 106, 0.25);
   }
-}
-
-/* Memory: proposals (dashed) wait for the user; confirmed memories are solid. */
-#memory {
-  max-height: 60vh;
-  overflow-y: auto;
-}
-
-#memory .item {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  overflow-wrap: anywhere;
-}
-
-#memory .item.proposed {
-  border-style: dashed;
-  border-color: var(--accent);
-}
-
-#memory .choices {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-/* The edit field sits in a column: no flex size, which would become its height. */
-#memory .item input {
-  flex: none;
-}
-
-/* The voice language: a short label with the system's own picker laid over it. */
-.language {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 3.2em;
-  padding: 0 8px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  color: var(--accent);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.language[hidden] {
-  display: none;
-}
-
-.language select {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  /* iOS WebKit zooms into controls smaller than 16px on focus. */
-  font-size: 16px;
-}
-
-.language:has(select:disabled) {
-  opacity: 0.5;
 }
