@@ -9,6 +9,8 @@
 
 #![forbid(unsafe_code)]
 
+mod task;
+
 use std::path::Path;
 
 use pr3_memory::{
@@ -16,6 +18,8 @@ use pr3_memory::{
     SessionId, Source, Status, Timestamp,
 };
 use rusqlite::{Connection, OptionalExtension, Row, Transaction, params};
+
+pub use crate::task::{Said, StoredTask, TaskRecord, TaskState, WaitingCall};
 
 /// Schema migrations, applied in order; the database's `user_version` is how many have
 /// run. Never edit a released migration: add a new one.
@@ -71,6 +75,51 @@ const MIGRATIONS: &[&str] = &[
     "
     INSERT INTO memories_fts(memories_fts, rank) VALUES ('secure-delete', 1);
     INSERT INTO memories_fts(memories_fts) VALUES ('optimize');
+    ",
+    // v3: tasks (docs Sec. 4.8): each task's record, the chat the user saw, and the
+    // hash-chained events of its lifecycle, which hold states and references, not text.
+    "
+    CREATE TABLE tasks (
+        -- When it opened, in milliseconds; also its session in the runtime.
+        id INTEGER PRIMARY KEY,
+        title TEXT NOT NULL,
+        -- The task it follows up. Not a foreign key: the parent may be deleted first.
+        parent INTEGER,
+        state TEXT NOT NULL
+            CHECK (state IN ('working', 'waiting', 'done', 'failed', 'expired')),
+        -- Why its last turn did not finish ('failed').
+        reason TEXT,
+        -- The call waiting for the user's OK ('waiting'), as the runtime validated it,
+        -- and when its confirmation card runs out.
+        waiting_tool TEXT,
+        waiting_arguments TEXT,
+        waiting_until INTEGER,
+        updated_at INTEGER NOT NULL
+    );
+    CREATE TABLE messages (
+        id INTEGER PRIMARY KEY,
+        task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+        at INTEGER NOT NULL,
+        kind TEXT NOT NULL CHECK (kind IN ('user', 'reply', 'tool', 'failed')),
+        -- The words, the tool's output, or why the turn failed.
+        text TEXT NOT NULL,
+        tool TEXT,
+        arguments TEXT,
+        success INTEGER
+    );
+    CREATE INDEX messages_task ON messages(task_id, id);
+    CREATE TABLE task_events (
+        id INTEGER PRIMARY KEY,
+        -- Not a foreign key: a deleted task's events stay.
+        task_id INTEGER NOT NULL,
+        at INTEGER NOT NULL,
+        event TEXT NOT NULL CHECK (event IN ('opened', 'working', 'waiting', 'done',
+            'failed', 'expired', 'deleted', 'erased')),
+        -- For 'opened': the task it follows up.
+        parent INTEGER,
+        -- SHA-256 of the previous event's hash and this event, in hex.
+        hash TEXT NOT NULL
+    );
     ",
 ];
 
