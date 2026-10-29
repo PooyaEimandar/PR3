@@ -156,6 +156,16 @@ impl Core {
             .flat_map(|s| s.history.iter())
     }
 
+    /// Forgets a session's history, as when the user deletes the task it belongs to
+    /// (docs Sec. 4.8). Refused while the session's turn runs.
+    pub fn forget(&mut self, session: SessionId) -> Result<(), CoreError> {
+        if self.turns.contains_key(&session) {
+            return Err(CoreError::TurnInProgress(session));
+        }
+        self.sessions.remove(&session);
+        Ok(())
+    }
+
     fn on_utterance(
         &mut self,
         session: SessionId,
@@ -619,6 +629,33 @@ mod tests {
         })
         .unwrap();
         core
+    }
+
+    #[test]
+    fn a_forgotten_session_keeps_nothing_and_others_are_untouched() {
+        let other = SessionId(2);
+        let mut core = Core::new(Config::default());
+        let id = infer_id(&core.step(user("hello")).unwrap());
+        assert!(matches!(
+            core.forget(S),
+            Err(CoreError::TurnInProgress(session)) if session == S
+        ));
+        core.step(answer(id, "hi", &[], 20)).unwrap();
+        let id = infer_id(
+            &core
+                .step(Input::Utterance {
+                    session: other,
+                    content: "and you?".to_string(),
+                    notes: Vec::new(),
+                    at: Timestamp(30),
+                })
+                .unwrap(),
+        );
+        core.step(answer(id, "fine", &[], 40)).unwrap();
+
+        core.forget(S).unwrap();
+        assert_eq!(core.history(S).count(), 0);
+        assert_eq!(core.history(other).count(), 2);
     }
 
     #[test]
