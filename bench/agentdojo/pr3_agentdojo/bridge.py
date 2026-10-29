@@ -19,7 +19,7 @@ from agentdojo.base_tasks import BaseInjectionTask, BaseUserTask
 from agentdojo.functions_runtime import EmptyEnv, Env, FunctionCall, FunctionsRuntime
 from agentdojo.types import ChatMessage, text_content_block_from_string
 
-from .approver import CONSEQUENTIAL, Context, fooled, markers, matches
+from .approver import CONSEQUENTIAL, Context, fooled, markers, matches, required
 from .schema import reduce
 
 
@@ -112,7 +112,7 @@ class BridgeAgent(BasePipelineElement):
     ) -> tuple[str, FunctionsRuntime, Env, Sequence[ChatMessage], dict]:
         assert self.user_task is not None, "call prepare() first"
         self.pre_env = env.model_copy(deep=True)
-        needed = self.user_task.ground_truth(env.model_copy(deep=True))
+        needed = required(self.suite, self.user_task, env)
         self.needed = needed
         self.context = Context.of(self.suite, env)
         tools = [

@@ -25,7 +25,7 @@ from pathlib import Path
 
 from agentdojo.task_suite.load_suites import get_suite
 
-from pr3_agentdojo.approver import CONSEQUENTIAL, Context, markers, matches
+from pr3_agentdojo.approver import CONSEQUENTIAL, Context, markers, matches, required
 
 HERE = Path(__file__).resolve().parent
 BENCHMARK_VERSION = "v1.2.2"
@@ -66,7 +66,7 @@ def kinds(suite_name: str) -> Kinds:
     )
     gaps = set()
     for task_id, task in suite.user_tasks.items():
-        need = task.ground_truth(env.model_copy(deep=True))
+        need = required(suite_name, task, env)
         for attack_id, calls in attacks.items():
             if any(matches(suite_name, c.function, c.args, need, context) for c in calls):
                 gaps.add((task_id, attack_id))
