@@ -14,7 +14,7 @@ Part of the [PR3 documentation](README.md). How to build, run, configure and tes
 
 The model is chosen per device class in [`config/pr3.toml`](../config/pr3.toml): Qwen3.8-27B on computers with 30 GB of memory or more (Qwen3.5-4B below that), Qwen3.5-4B on phones with 7 GB or more and Qwen3.5-2B on smaller phones. Every model is pinned to a repository revision and SHA-256.
 
-**In the app.** No build carries a model. Open Settings (the gear beside the message field), then **Models**: it lists the models PR3 knows with their sizes, the one recommended for this device and the one in use.
+**In the app.** No build carries a model. Open Settings (the gear at the bottom left), then **Models**: it lists the models PR3 knows with their sizes, the one recommended for this device and the one in use.
 
 - **Download** fetches a model over HTTPS from its pinned Hugging Face revision and shows its progress. **Cancel**, a lost connection or closing the app keeps what has arrived, and **Resume** carries on from there.
 - On a phone, a download waits for Wi-Fi, and one under way pauses when the phone moves to mobile data, then goes on by itself once Wi-Fi is back. **Download over mobile data**, at the top of the tab, lets downloads use mobile data instead; the choice is remembered. Low Data Mode on an iPhone, and a personal hotspot, count as mobile data. Computers download on any network. The file is named, and can be used, only once its SHA-256 matches the pin; a download that does not match is thrown away.
@@ -118,9 +118,17 @@ Everything lives in [`config/pr3.toml`](../config/pr3.toml):
 
 PR3 can send email through a sandbox connector: messages land in `outbox.jsonl` in the app's data folder, never on the internet. Each one waits for your approval on a confirmation card and then for Face ID, Touch ID, a fingerprint or the passcode; the approval key lives in the Secure Enclave or the Android Keystore. On Android, set a screen lock first. Every step is recorded in a hash-chained `audit.jsonl` that is verified at each start.
 
+## Tasks
+
+PR3 groups the conversation into tasks ([Sec. 4.8](architecture.md#48-tasks-and-conversation-continuity)). For now they are kept in memory until the app closes.
+
+- A message continues the current task while PR3 is answering it or within 10 minutes of its last answer; after that, the next message opens a new task. **New topic**, under the conversation, starts one at once, and typing or saying "new topic" on its own does the same. The conversation it replaces folds into a line at the top, which opens that task.
+- **Tasks**, beside Settings, opens three pages, **To Do**, **Doing** and **Done**: swipe between them or tap a name. To Do holds tasks waiting for your OK and ones that did not finish, Doing the task the conversation is on, and Done the rest. Tap a task to read its chat; **Back** returns to the list, and **Tasks** to the conversation.
+- **Continue** brings an unfinished task back into the conversation, and **Follow up** starts a new task linked to a finished one. **Delete** takes a second tap and also erases what the runtime holds for that task. All three wait while PR3 is answering.
+
 ## Voice notes
 
-Hold the talk button beside the message field, speak and let go; or tap it and speak, and the note is sent once you stop talking for two seconds (or at a second tap). No Send button is needed. Settings, **Voice**, picks the language voice notes and spoken replies use: *System language* follows the system, and the list holds the languages this device recognizes on the device (on Android 13 and later also those it downloads on first use); the choice is remembered. **Speak replies**, on the same tab, reads replies aloud; it is remembered too. Recognition and voices run on the device, and the first voice note asks for the microphone and speech recognition.
+Hold the microphone button, between the message field and Send, speak and let go; or tap it and speak, and the note is sent once you stop talking for two seconds (or at a second tap). No Send button is needed. Settings, **Voice**, picks the language voice notes and spoken replies use: *System language* follows the system, and the list holds the languages this device recognizes on the device (on Android 13 and later also those it downloads on first use); the choice is remembered. **Speak replies**, on the same tab, reads replies aloud; it is remembered too. Recognition and voices run on the device, and the first voice note asks for the microphone and speech recognition.
 
 - **macOS and iOS:** the Speech framework's on-device recognition. If your language has none, turn on Dictation for it (System Settings, Keyboard on a Mac); its on-device model comes with it. Better voices download in the Spoken Content settings. `src-tauri/Info.plist` gives `cargo tauri dev` the usage strings macOS asks for.
 - **Android 12 and later:** the on-device recognizer. On first use Android may offer to download the language's speech model (about 60 MB). In the emulator, turn on **Virtual microphone uses host audio input** in the extended controls.

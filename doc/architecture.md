@@ -386,10 +386,10 @@ Tapping a task opens its chat, as the conversation showed it; **Back** returns t
 
 **Measured, not assumed.** The PR3-Personal corpus ([Sec. 8.3](benchmarks.md#83-ai-benchmarks-and-external-participation)) gains tasks that span sessions: resumed after a restart, followed up after a change of topic, and interrupted while waiting for approval. One task must never pick up another's context, and the model's `task.resume` proposals are scored before they are on by default.
 
-**From today's spike.** The app holds one in-memory session per launch with the last 32 messages, trimmed to fit 4,096 tokens and lost when the app closes; only confirmed memories carry over. The build order:
+**From today's spike.** Step 1 is built. Each task is its own session in the runtime, kept in memory with its last 32 messages, trimmed to fit 4,096 tokens and lost when the app closes; only confirmed memories carry over. A message continues the current task while it runs or within 10 minutes of its last turn, and otherwise opens a new one; **New topic**, tapped under the conversation or typed or said as the whole message, sets the current task aside. A task waiting for an approval, or whose last turn did not finish, is on To Do; the task the conversation is on is on Doing; the rest are on Done, with the last reply as their line. Switching tasks and deleting one wait until PR3 has answered, so a turn never changes task halfway, and deleting a task also drops its session from the runtime. The build order:
 
-1. **New topic**, the follow-up window and the **Tasks** pages, with tasks kept in memory for one launch; the microphone moves beside Send.
+1. Built: **New topic**, the follow-up window and the **Tasks** pages with Continue, Follow up and Delete, for tasks kept in memory for one launch; the microphone beside Send.
 2. Task records, chats and events in the memory database; tasks survive restarts, including a card still waiting for approval.
-3. Tasks by voice, and continue, follow up, delete, export and retention.
+3. Tasks by voice ("what is still open?", "carry on with the email to Alex"), export and retention.
 4. Summaries at checkpoints and the model's `task.resume` proposal, once measured.
 5. Delegating tasks to the paired computer (M2-E4).
