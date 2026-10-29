@@ -8,7 +8,7 @@ Part of the [PR3 documentation](README.md). Section numbers are stable; code com
 
 Local model (platform or bundled), local database, local skills/tools and policy enforcement. No cloud LLM. Must support airplane-mode tests for document Q&A, local reminders, summaries of cached data and other permitted tasks. Email sync, web content and external APIs cannot update without connectivity.
 
-Mobile-specific rules: the app is useful before any model download completes; the bundled download is Wi-Fi-only and resumable; the deterministic engine runs before the LLM so battery is spent only on explanations worth giving; proactive/background behavior is **not** promised on the phone (see [Sec. 6.3](#63-private-hybrid-mobile--desktop)).
+Mobile-specific rules: the app is useful before any model download completes; the bundled download is resumable and waits for Wi-Fi unless the user allows mobile data; the deterministic engine runs before the LLM so battery is spent only on explanations worth giving; proactive/background behavior is **not** promised on the phone (see [Sec. 6.3](#63-private-hybrid-mobile--desktop)).
 
 ### 6.2 Fully offline desktop
 

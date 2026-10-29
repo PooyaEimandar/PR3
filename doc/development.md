@@ -16,7 +16,8 @@ The model is chosen per device class in [`config/pr3.toml`](../config/pr3.toml):
 
 **In the app.** No build carries a model. Open Settings (the gear beside the message field), then **Models**: it lists the models PR3 knows with their sizes, the one recommended for this device and the one in use.
 
-- **Download** fetches a model over HTTPS from its pinned Hugging Face revision and shows its progress. **Cancel**, a lost connection or closing the app keeps what has arrived, and **Resume** carries on from there. The file is named, and can be used, only once its SHA-256 matches the pin; a download that does not match is thrown away.
+- **Download** fetches a model over HTTPS from its pinned Hugging Face revision and shows its progress. **Cancel**, a lost connection or closing the app keeps what has arrived, and **Resume** carries on from there.
+- On a phone, a download waits for Wi-Fi, and one under way pauses when the phone moves to mobile data, then goes on by itself once Wi-Fi is back. **Download over mobile data**, at the top of the tab, lets downloads use mobile data instead; the choice is remembered. Low Data Mode on an iPhone, and a personal hotspot, count as mobile data. Computers download on any network. The file is named, and can be used, only once its SHA-256 matches the pin; a download that does not match is thrown away.
 - The first model downloaded while none is running is used at once. **Use** switches to another, and the choice is remembered.
 - **Delete** removes a model and **Discard** an unfinished download; both take a second tap.
 - A model that would take more than half of a phone's memory, or three quarters of a computer's, is marked too large and cannot be downloaded or used.
