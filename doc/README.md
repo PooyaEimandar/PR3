@@ -5,7 +5,7 @@ Start with the overview; read the rest as you need it.
 | Document | What it covers |
 |---|---|
 | [Overview](overview.md) | What PR3 is and is not, its positioning and research hypothesis, the engineering principles |
-| [Architecture](architecture.md) | Modules, the Rust workspace and crate rules, inference, memory, learning, structured intents, connectors |
+| [Architecture](architecture.md) | Modules, the Rust workspace and crate rules, inference, memory, learning, structured intents, connectors, tasks |
 | [Security, privacy and trust](security.md) | Threat model, invariants, required controls, trust tiers |
 | [Deployment modes](deployment.md) | Offline mobile and desktop, the private hybrid, OEM and embedded, browsers and game engines |
 | [Benchmarking](benchmarks.md) | The comparisons PR3 commits to, evaluation dimensions, acceptance gates, and results so far |

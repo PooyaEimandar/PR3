@@ -59,6 +59,7 @@ Part of the [PR3 documentation](README.md). Section numbers are stable; code com
 | `inference_remote` | `pr3-hybrid` | Authenticated private-node inference | Optional |
 | `sync` | `pr3-hybrid` | E2EE device-state replication and conflict resolution | Optional |
 | `conversation` | `pr3-agent` | Voice and text sessions, streamed replies, conversation → memory proposals | Yes |
+| `task` | `pr3-core` (lifecycle), `pr3-memory-sqlite` (records) | Task records and lifecycle, which task a message follows up, resume, task history and retention ([Sec. 4.8](#48-tasks-and-conversation-continuity)) | Yes |
 | `speech` | `pr3-speech` | On-device speech-to-text and text-to-speech; platform engines first, whisper.cpp fallback; mouth-shape timing for the optional face | Optional per platform |
 | `client_c` | `pr3-client-c` | C11 protocol client for non-Rust hosts | Optional |
 | `app_connectors` | application plugins ([Sec. 4.7](#47-connector-and-plugin-model)) | Email, calendar, files, payments, OEM SDK | Optional and separately permissioned |
@@ -222,7 +223,7 @@ Three backend classes behind one trait. Routing is by **capability** (context, t
 
 Use **SQLite** as the first persistent engine, with FTS5 for lexical retrieval. Add small local embedding models (candidate: Qwen3-Embedding 0.6B) and vector search only after demonstrating gains on held-out tasks. Avoid heavyweight standalone vector DBs in the default distribution.
 
-Suggested tables: `sessions`, `messages`, `facts`, `sources`, `goals`, `task_events`, `tool_calls`, `policies`, `approvals`, `memory_tombstones`, `evaluations`, `device_sync_log`.
+Suggested tables: `sessions`, `messages`, `facts`, `sources`, `goals`, `tasks` ([Sec. 4.8](#48-tasks-and-conversation-continuity)), `task_events`, `tool_calls`, `policies`, `approvals`, `memory_tombstones`, `evaluations`, `device_sync_log`.
 
 Each important memory record must include: `source_id`, `created_at`, `valid_at`, `confidence`, `privacy_class`, `principal_id`, `consent_scope`, `retention_policy`, and deletion status. Memory extraction is a proposal; user-provided corrections supersede extracted inferences. Conversations - voice transcripts and text - are a memory source like any other: extracted facts and preferences are proposals the user can confirm or correct, preferences fade unless reinforced, and other people's content stays tagged with its principal and is never disclosed to third parties. Treat retrieved documents as data, never as instructions.
 
@@ -305,3 +306,71 @@ Connectors expose **typed operations**, never uncontrolled screen automation. Pr
 5. **Never** screen automation for payment, identity or credential operations.
 
 Every connector and plugin ships a **signed manifest** the policy engine reads: declared permissions (capability grants, [Sec. 7.2](security.md#72-required-controls)); data classes it may read and emit; operations with their reversibility level; confirmation rules per operation; rate limits; audit semantics; version and publisher identity. Manifests are data: a plugin cannot widen its own grants at runtime, and neither can the learning policy ([Sec. 4.5](#45-learning-architecture)). Arbitrary code is never imported by default; a WASI-component sandbox for third-party plugins is the candidate mechanism when the ecosystem opens (compare ZeroClaw's plugin host, [Sec. 5.1](related-work.md#51-zeroclaw-reuse-candidates-at-the-adapter-layer)).
+
+### 4.8 Tasks and conversation continuity
+
+PR3 carries work forward through **tasks** and **memory**, not saved chat threads. A thread grows without bound, mixes topics, keeps text the user never approved, and must be read again whole once the app has closed, which on a phone's CPU costs time and battery. Its transcript would be a second memory outside the user's control ([Sec. 4.4](#44-memory-and-knowledge-architecture)), and it would carry untrusted text from tools and pages into later days. A task is bounded instead: it has a goal, a state and an outcome, and the model receives no more of it than the next step needs ([Sec. 4.3](#43-inference-strategy)).
+
+**What a task is.** One goal of the user's that PR3 works on until it is done, cancelled or given up: "send Alex the Q3 summary", "remind me about the dentist on Friday", "what did the landlord say about the deposit?". A question answered in one turn is a task that opens and closes in that turn. A task record holds:
+
+| Field | Holds | Set by |
+|---|---|---|
+| `id`, `principal`, `created_at`, `updated_at` | Identity and times | Runtime |
+| `goal` | The request in the user's own words | The message that opened it |
+| `title` | A short name for the task list | Model proposal; the user can rename it |
+| `state` | Where it is in the lifecycle below | Runtime only |
+| `summary` | What is known and decided so far, a few sentences | Model proposal when the task waits, closes or outgrows its budget |
+| `refs` | The contacts, drafts, files, memories and messages it works on, by reference ([Sec. 4.6](#46-structured-intent-and-execution-sequence)) | Runtime, from validated calls |
+| `pending` | What it waits on: an approval, the user, a time, the paired computer, Wi-Fi | Runtime |
+| `outcome` | The result and its audit receipt, or why it stopped | Runtime |
+| `parent` | The task it follows up, if any | Runtime |
+| `retain_until` | When it is erased | Retention policy |
+
+The model proposes only the title and the summary; the deterministic runtime sets everything else, as it does for intents. A task's state is never read from model text.
+
+**Lifecycle.** Each transition is a `task_events` record in the audit hash chain ([Sec. 4.4](#44-memory-and-knowledge-architecture)), so "why did this happen?" has an answer per task:
+
+```text
+  message ---> open ---> working (a turn) ---- needs something ----> waiting
+                            ^                                          |
+                            +---------------- it arrives --------------+
+
+  working ---> done | cancelled | failed
+  waiting ---> expired | cancelled
+```
+
+A turn runs inside a task: the core's turn state (rounds, loop guard, pending tool calls) is unchanged, and the task is the layer above it that lasts between turns and across restarts. A waiting task survives the app being closed. An approval never survives as given: after a restart the confirmation card is shown again, an expired card ends the task as `expired`, and nothing is retried silently. M1-E1's lifecycle, cancellation, retry and checkpointing ([Sec. 11](roadmap.md#11-delivery-roadmap-epics--issues)) are built on this record.
+
+**Follow-ups: which task a message belongs to.** Deterministic rules first; the model only proposes, and only where the rules leave a choice:
+
+1. An answer to something the task asked - a confirmation card, a question, a choice - belongs to that task.
+2. A message within the follow-up window of the last active task (10 quiet minutes by default) continues it, unless the user said **New topic** or the message names another task.
+3. "Carry on with X", "what happened with X", or tapping X in the task list resumes task X.
+4. Otherwise a new task opens. If the model judges that it continues an older task, it may propose `task.resume(task_ref)`: the runtime resumes an unfinished task of the same principal, or opens a new task with `parent` set when the older one has finished. Tasks are never merged.
+
+**What the model sees.** The prompt for each step is assembled fresh, within the token budget and in this order: the system prompt and tools; the task's goal, summary, refs and pending step; the memories retrieved for this message; and the task's latest exchanges, oldest dropped first. Resuming a task costs a few hundred tokens rather than a whole thread, so a 4,096-token window is enough on a phone; long-context work goes to the node. Everything a task brings back is data, not instructions: a resumed task cannot widen its own scope, and each consequential step asks for approval again unless a pre-authorized scope covers it ([Sec. 4.6](#46-structured-intent-and-execution-sequence)).
+
+**What is stored, and for how long.**
+
+| Data | Kept | Where |
+|---|---|---|
+| Task record | Unfinished tasks until they finish; finished ones 30 days by default, then erased. The user can keep, delete or export any task | `tasks`, in the memory database |
+| Task events | As long as the audit chain; they hold states and references, not text | `task_events`, hash-chained |
+| The task's exchanges (messages and tool results) | Only while the task is unfinished, within the core's history bound; erased when it closes, leaving the summary | `messages`, in the memory database |
+| Memories | As today: proposed from the task, kept only if the user confirms | `memories` |
+
+Forgetting a memory removes it from every task's refs, and a summary that quotes it is erased; the task keeps its goal and state.
+
+**Task history in the app.** A task list sits beside the conversation: unfinished tasks first, with what each waits on, then finished ones by date with their outcome. Opening one shows its summary and steps and offers Resume, Cancel and Delete. Voice does the same: "what is still open?", "carry on with the email to Alex". The conversation on screen shows the current task; a finished task folds into one line with its outcome.
+
+**Across devices.** The phone owns its tasks (single writer, [Sec. 4.4](#44-memory-and-knowledge-architecture)). A task delegated to the paired computer ([Sec. 6.3](deployment.md#63-private-hybrid-mobile--desktop)) carries its goal, summary and the refs it needs, never a transcript; the result returns as the task's outcome, and approvals stay on the phone. M2-E4's delegation protocol moves task state.
+
+**Measured, not assumed.** The PR3-Personal corpus ([Sec. 8.3](benchmarks.md#83-ai-benchmarks-and-external-participation)) gains tasks that span sessions: resumed after a restart, followed up after a change of topic, and interrupted while waiting for approval. One task must never pick up another's context, and the model's `task.resume` proposals are scored before they are on by default.
+
+**From today's spike.** The app holds one in-memory session per launch with the last 32 messages, trimmed to fit 4,096 tokens and lost when the app closes; only confirmed memories carry over. The build order:
+
+1. **New topic** and the follow-up window: one task at a time, in memory.
+2. Task records and events in the memory database; unfinished tasks, including a card still waiting for approval, survive restarts.
+3. The task list in the app and by voice: resume, cancel, delete, export, retention.
+4. Summaries at checkpoints and the model's `task.resume` proposal, once measured.
+5. Delegating tasks to the paired computer (M2-E4).

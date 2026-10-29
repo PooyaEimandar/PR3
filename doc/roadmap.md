@@ -55,7 +55,7 @@ The spike ends with the 30-day user-zero diary and the AgentDojo result; togethe
 Scope note: M1 was trimmed in v1.4 to fit five weeks. iOS prebuilts move to M4 (with the iOS host), the Gemini Nano spike and Android Keystore move to M2 (with the Android host), and Kani harnesses move to M3; Proptest covers the trusted-side state machines until then.
 
 **Epics/issues:**
-- M1-E1: task state lifecycle, cancellation, retry, checkpointing in `pr3-core`/`pr3-agent`.
+- M1-E1: task state lifecycle, cancellation, retry, checkpointing in `pr3-core`/`pr3-agent`, on the task record of [Sec. 4.8](architecture.md#48-tasks-and-conversation-continuity).
 - M1-E2: tool schema, validation, registry, authorization callbacks; cargo-fuzz targets for every parser.
 - M1-E3: **`pr3-llamacpp` - the milestone's headline risk:** vendored pinned submodule, frozen C shim, bindgen on the shim, prebuilt static libs for macOS, Linux, Windows and Android arm64 with the checksummed fetch step ([Sec. 4.3](architecture.md#43-inference-strategy)), feature-per-backend, safe public API, ASan/UBSan + fuzz on the boundary.
 - M1-E4: `pr3-platform-llm` spike: Apple Foundation Models on one macOS 26 Apple Intelligence Mac, behind the shared `InferenceBackend` trait with declared `ModelCapabilities`.
@@ -74,7 +74,7 @@ Scope note: M1 was trimmed in v1.4 to fit five weeks. iOS prebuilts move to M4 (
 - M2-E1: direct Tauri Rust integration (Kotlin/JNI or UniFFI only for platform-specific capabilities); on-device 1B–4B inference benchmarks, CPU first, Vulkan measured per device class.
 - M2-E2: `pr3-node` with local 8B–32B reference model; proactive/background jobs run here.
 - M2-E3: pairing, identity registration and revocation, authenticated encrypted transport and replay control; **phone-side trusted confirmation** of node-prepared actions with biometric approval and vault-signed receipts ([Sec. 6.3](deployment.md#63-private-hybrid-mobile--desktop)); `pr3-vault` on Android Keystore/StrongBox (moved from M1).
-- M2-E4: task-state delegation protocol with a TLA+ (or Quint) model checked under node loss, message duplication, reordering and replay; interruption/duplicate-action tests derived from the model; `pr3-client-c` exercised as a second client type.
+- M2-E4: task-state delegation protocol, moving the task record of [Sec. 4.8](architecture.md#48-tasks-and-conversation-continuity) and never a transcript, with a TLA+ (or Quint) model checked under node loss, message duplication, reordering and replay; interruption/duplicate-action tests derived from the model; `pr3-client-c` exercised as a second client type.
 - M2-E5: notification through the publisher push relay with sealed wake-ups, and UnifiedPush ([Sec. 6.3](deployment.md#63-private-hybrid-mobile--desktop)); power profiling, deterministic-pre-filter-before-LLM policy; onboarding usable before the optional model download.
 - M2-E6: Gemini Nano Prompt API backend on one supported Android device (moved from M1), then the **platform model vs bundled GGUF benchmark** on PR3-Personal tasks; decide per platform whether the bundled download is default, optional or omitted.
 - M2-E7: voice notes in the Android and desktop apps - platform speech-to-text, replies as text or platform speech by the user's choice; conversation → memory proposals.
