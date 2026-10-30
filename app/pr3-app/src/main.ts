@@ -114,20 +114,92 @@ function show(kind: string, text: string): HTMLDivElement {
 
 function addToLog(node: Node): void {
   log.append(node);
-  log.scrollTop = log.scrollHeight;
+  follow();
 }
 
-// When the log gets shorter, as when the keyboard opens, the latest messages stay in
-// sight if they were.
+// The log keeps its latest messages in sight - as a reply streams in, or when it gets
+// shorter as the keyboard opens - while the user has left it at its end, so they can
+// scroll back up while PR3 answers; sending a message goes back to the end. Where they
+// left it is where their last scroll ended, not where it is once more has come in.
 let atEnd = true;
+let held = false;
 log.addEventListener("scroll", () => {
   atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 8;
 });
-new ResizeObserver(() => {
-  if (atEnd) log.scrollTop = log.scrollHeight;
-}).observe(log);
+// A wheel turned up leaves the end before the log has moved.
+log.addEventListener(
+  "wheel",
+  (event) => {
+    if (event.deltaY < 0) atEnd = false;
+  },
+  { passive: true },
+);
+// A finger on the log holds it still; let go at the end, it catches up. The touch ends on
+// the element it began on, even when a streaming reply has since replaced it and the end
+// no longer reaches the log.
+log.addEventListener(
+  "touchstart",
+  ({ target }) => {
+    held = true;
+    const release = () => {
+      held = false;
+      follow();
+    };
+    target?.addEventListener("touchend", release, { once: true });
+    target?.addEventListener("touchcancel", release, { once: true });
+  },
+  { passive: true },
+);
+new ResizeObserver(follow).observe(log);
+
+function follow(): void {
+  if (atEnd && !held) log.scrollTop = log.scrollHeight;
+}
+
+function toEnd(): void {
+  atEnd = true;
+  log.scrollTop = log.scrollHeight;
+}
 
 const toolText = (t: { name: string; arguments: string; output: string }) => `⚙ ${t.name} ${t.arguments} → ${t.output}`;
+
+// A tool line shows its first three lines, fading out if there is more; tapping it shows
+// the rest, and tapping it again folds it back.
+const toolLines = new ResizeObserver((lines) => {
+  for (const { target } of lines) {
+    const line = target as HTMLElement;
+    if (!line.classList.contains("folded")) continue;
+    const long = line.scrollHeight > line.clientHeight + 1;
+    line.classList.toggle("long", long);
+    // Only a line with more to show is something to tap.
+    if (long) {
+      line.tabIndex = 0;
+      line.setAttribute("role", "button");
+      line.setAttribute("aria-expanded", "false");
+    } else {
+      line.removeAttribute("tabindex");
+      line.removeAttribute("role");
+      line.removeAttribute("aria-expanded");
+    }
+  }
+});
+
+function toolNode(t: { name: string; arguments: string; output: string; success: boolean }): HTMLElement {
+  const line = el("div", toolText(t), `msg tool folded${t.success ? "" : " failed"}`);
+  const toggle = () => {
+    if (!line.classList.contains("long")) return;
+    const folded = line.classList.toggle("folded");
+    line.setAttribute("aria-expanded", String(!folded));
+  };
+  line.addEventListener("click", toggle);
+  line.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    toggle();
+  });
+  toolLines.observe(line);
+  return line;
+}
 
 // The confirmation card for a consequential action. What it shows comes from the
 // validated intent — the contacts' real addresses and the exact text that will be
@@ -225,6 +297,7 @@ async function send(text: string): Promise<void> {
   if (await answerTaskWords(text)) return;
   // The answer shows in the conversation, so a message sent from Tasks goes back to it.
   if (!tasksSection.hidden) showTasks(false);
+  toEnd();
   const said = show("user", text);
   const bubble = show("assistant pending", "");
   let streamed = "";
@@ -253,7 +326,7 @@ async function send(text: string): Promise<void> {
       if (answered) offerNewTask(said);
       else offer = true;
     }
-    log.scrollTop = log.scrollHeight;
+    follow();
   };
 
   setBusy(true);
@@ -265,6 +338,7 @@ async function send(text: string): Promise<void> {
       // The final reply is canonical; it replaces whatever was streamed.
       if (action.type === "reply") {
         bubble.replaceChildren(markdown(action.content));
+        follow();
         speak(plain(action.content));
       } else if (action.type === "failed") {
         bubble.remove();
@@ -399,7 +473,7 @@ async function askAgain(id: number): Promise<void> {
   onEvent.onmessage = (event) => {
     if (event.type === "approval") showApproval(event.request, bubble);
     else if (event.type === "tool") log.insertBefore(entryNode(event), bubble);
-    log.scrollTop = log.scrollHeight;
+    follow();
   };
   setBusy(true);
   try {
@@ -1261,7 +1335,7 @@ function showTasks(open: boolean): void {
   if (open) {
     showList();
   } else {
-    log.scrollTop = log.scrollHeight;
+    toEnd();
   }
 }
 
@@ -1331,7 +1405,7 @@ function entryNode(entry: Entry): HTMLElement {
       return reply;
     }
     case "tool":
-      return el("div", toolText(entry), `msg tool${entry.success ? "" : " failed"}`);
+      return toolNode(entry);
     case "failed":
       return el("div", entry.reason, "msg error");
   }
