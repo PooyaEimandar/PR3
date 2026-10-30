@@ -93,12 +93,25 @@ struct Session<'m> {
     /// Hybrid and recurrent models cannot cut their state back to an arbitrary
     /// position, so they rewind to checkpoints instead.
     needs_checkpoints: bool,
+    /// The context right after the system turn of the last call that offered tools, kept
+    /// whole, so a prompt that starts with it reads only what follows, even after a call
+    /// that started otherwise, such as a task's summary, which offers none.
+    prefix: Option<Prefix>,
+}
+
+/// A system turn's tokens and the context's whole state after them: the attention cache
+/// and any recurrent state.
+struct Prefix {
+    tokens: Vec<LlamaToken>,
+    state: SeqState,
 }
 
 /// A tokenized prompt and the positions to checkpoint at while processing it.
 struct Prompt {
     tokens: Vec<LlamaToken>,
     checkpoints: Vec<usize>,
+    /// Where the system turn ends, if there is one.
+    system_end: Option<usize>,
 }
 
 impl<'m> Session<'m> {
@@ -136,6 +149,7 @@ impl<'m> Session<'m> {
             config,
             cache: Cache::new(),
             needs_checkpoints: model.is_recurrent() || model.is_hybrid(),
+            prefix: None,
         })
     }
 
@@ -147,7 +161,20 @@ impl<'m> Session<'m> {
     /// Brings the context in line with `prompt`, keeping as much of it as still
     /// matches. Returns how many prompt tokens are already processed.
     fn reuse(&mut self, prompt: &[LlamaToken]) -> usize {
-        let kept = match self.cache.plan(prompt, !self.needs_checkpoints) {
+        let plan = self.cache.plan(prompt, !self.needs_checkpoints);
+        let keeps = match plan {
+            Rewind::None => self.cache.tokens.len(),
+            Rewind::Trim { to } => to,
+            Rewind::Restore { index } => self.cache.checkpoints.get(index).map_or(0, |c| c.pos),
+            Rewind::Clear => 0,
+        };
+        let from_prefix = self.prefix.as_ref().is_some_and(|p| {
+            keeps < p.tokens.len() && prompt.len() > p.tokens.len() && prompt.starts_with(&p.tokens)
+        });
+        if from_prefix {
+            return self.restore_prefix();
+        }
+        let kept = match plan {
             Rewind::None => Some(self.cache.tokens.len()),
             Rewind::Trim { to } => self.cut(to).then_some(to),
             Rewind::Restore { index } => {
@@ -170,6 +197,46 @@ impl<'m> Session<'m> {
                 self.reset();
                 0
             }
+        }
+    }
+
+    /// Puts the context back as it was right after the kept system turn. Returns how many
+    /// tokens it then holds: none if that failed.
+    fn restore_prefix(&mut self) -> usize {
+        self.reset();
+        let restored = match &self.prefix {
+            Some(p) => self
+                .ctx
+                .state_seq_set(&p.state, 0)
+                .is_ok()
+                .then(|| p.tokens.clone()),
+            None => None,
+        };
+        let Some(tokens) = restored else {
+            self.reset();
+            return 0;
+        };
+        self.cache.tokens = tokens;
+        // The checkpoint a hybrid model rewinds to when a later prompt differs after it.
+        if self.needs_checkpoints
+            && let Ok(state) = self.ctx.state_seq_get(0, LlamaStateSeqFlags::PARTIAL_ONLY)
+        {
+            self.cache.add_checkpoint(state);
+        }
+        self.cache.tokens.len()
+    }
+
+    /// Keeps the context as it is, right after the system turn `tokens`, unless it is
+    /// kept already. Only a copy, so failing to make one changes nothing.
+    fn keep_prefix(&mut self, tokens: &[LlamaToken]) {
+        if self.prefix.as_ref().is_some_and(|p| p.tokens == tokens) {
+            return;
+        }
+        if let Ok(state) = self.ctx.state_seq_get(0, LlamaStateSeqFlags::empty()) {
+            self.prefix = Some(Prefix {
+                tokens: tokens.to_vec(),
+                state,
+            });
         }
     }
 
@@ -219,23 +286,32 @@ impl<'m> Session<'m> {
         let Prompt {
             tokens: prompt,
             checkpoints,
+            system_end,
         } = self.prompt_tokens(messages, tools)?;
         let n_ctx = self.config.n_ctx as usize;
         let mut batch = LlamaBatch::new(n_ctx, 1);
 
-        // Process only what the context has not seen, checkpointing on the way.
+        // Process only what the context has not seen, checkpointing on the way and
+        // keeping the context after a system turn it has not kept yet.
         let reused = self.reuse(&prompt);
-        let marks = checkpoints.into_iter().filter(|&p| p > reused);
+        let mut marks: Vec<usize> = checkpoints.iter().copied().chain(system_end).collect();
+        marks.sort_unstable();
+        marks.dedup();
+        marks.retain(|&p| p > reused && p < prompt.len());
         let mut start = reused;
-        for end in marks.chain(std::iter::once(prompt.len())) {
+        for end in marks.into_iter().chain(std::iter::once(prompt.len())) {
             let segment = prompt.get(start..end).unwrap_or_default();
             self.decode(&mut batch, segment, start, end == prompt.len())?;
-            if end < prompt.len() {
+            if checkpoints.contains(&end) {
                 let state = self
                     .ctx
                     .state_seq_get(0, LlamaStateSeqFlags::PARTIAL_ONLY)
                     .map_err(|e| EngineError::Decode(e.to_string()))?;
                 self.cache.add_checkpoint(state);
+            }
+            // A call without tools, such as a summary, leaves the conversation's alone.
+            if system_end == Some(end) && !tools.is_empty() {
+                self.keep_prefix(prompt.get(..end).unwrap_or_default());
             }
             start = end;
         }
@@ -333,9 +409,11 @@ impl<'m> Session<'m> {
             Vec::new()
         };
         checkpoints.dedup();
+        let system_end = rendered.system_end.and_then(|n| ends.get(n).copied());
         Prompt {
             tokens,
             checkpoints,
+            system_end,
         }
     }
 

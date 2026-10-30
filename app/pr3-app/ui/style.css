@@ -272,6 +272,24 @@ button:disabled {
   border: 1px dashed var(--line);
   color: var(--muted);
   font-size: 12px;
+  line-height: 1.4;
+}
+
+/* Three lines and the border; a longer line fades out over its last one. Hiding the
+   rest would otherwise let the log, a flex column, shrink it further. */
+.msg.tool.folded {
+  flex-shrink: 0;
+  max-height: calc(3 * 1.4em + 10px);
+  overflow: hidden;
+}
+
+.msg.tool.long {
+  cursor: pointer;
+}
+
+.msg.tool.folded.long {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 1.6em), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 1.6em), transparent);
 }
 
 .msg.tool.failed {

@@ -1,6 +1,8 @@
 //! Real-model check that a conversation stays correct, and gets faster, as the engine
-//! reuses what earlier calls already processed: a tool round within one turn, then a
-//! follow-up turn that needs the start of the conversation. Prints each call's timing.
+//! reuses what earlier calls already processed: a tool round within one turn, a
+//! follow-up turn that needs the start of the conversation, and a turn after a call that
+//! did not start with the system turn, as a task's summary does. Prints each call's
+//! timing.
 //! Opt-in because it needs the models:
 //! script/fetch-model.sh && cargo test -p pr3-llamacpp --release --test kv_reuse -- --ignored --nocapture
 //! PR3_TEST_GPU_LAYERS=0 runs fully on the CPU, as phones and simulators do;
@@ -11,8 +13,9 @@ use std::time::Instant;
 
 use pr3_llamacpp::{ChatMessage, ChatOutput, ChatRole, Engine, EngineConfig, ToolDef};
 
-const MODELS: [&str; 3] = [
+const MODELS: [&str; 4] = [
     "Qwen3-0.6B-Q8_0.gguf",
+    "Qwen3.5-2B-Q4_K_M.gguf",
     "Qwen3.5-4B-Q4_K_M.gguf",
     "Qwen3.8-27B-Q4_K_M.gguf",
 ];
@@ -43,7 +46,7 @@ fn call(engine: &Engine, messages: &[ChatMessage], step: &str) -> ChatOutput {
 #[test]
 #[ignore = "needs the models in model/"]
 fn conversation_stays_correct_while_reusing_the_cache() {
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../models");
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../model");
     let gpu_layers = std::env::var("PR3_TEST_GPU_LAYERS")
         .ok()
         .and_then(|v| v.parse().ok())
@@ -107,6 +110,35 @@ fn conversation_stays_correct_while_reusing_the_cache() {
         );
         assert!(out.text.contains("Ada"), "{}: {out:?}", engine.label());
         assert!(out.tool_calls.is_empty(), "{}: {out:?}", engine.label());
+        messages.push(ChatMessage::new(ChatRole::Assistant, out.text));
+
+        // A call with a system turn of its own and no tools, as a task's summary is, then
+        // turn 3: the conversation's system turn is not read again.
+        let aside = [
+            ChatMessage::new(ChatRole::System, "You are PR3."),
+            ChatMessage::new(ChatRole::User, "Reply with the word OK."),
+        ];
+        let started = Instant::now();
+        let out = engine
+            .chat_with_tools(&aside, &[], &mut |_| {})
+            .expect("generates");
+        eprintln!(
+            "{} aside: {:.2?}, {out:?}",
+            engine.label(),
+            started.elapsed()
+        );
+        messages.push(ChatMessage::new(
+            ChatRole::User,
+            "Remind me, what is my name?",
+        ));
+        let out = call(&engine, &messages, "after the aside");
+        // The system turn, with the tools, at least: without it nothing is reused.
+        assert!(
+            out.reused_tokens > out.prompt_tokens / 3,
+            "{}: {out:?}",
+            engine.label()
+        );
+        assert!(out.text.contains("Ada"), "{}: {out:?}", engine.label());
     }
 }
 

@@ -190,6 +190,9 @@ pub(crate) fn render(
             }
             ChatRole::Assistant => {
                 let mut text = String::new();
+                // Not kept in Qwen3.5's earlier answers even without thinking, though the
+                // engine then reads the last answer again: with it, the 2B and 4B called
+                // tools less often and passed fewer cases (docs Sec. 8.6).
                 if let PromptFormat::Qwen35 { preserve_thinking } = format
                     && (preserve_thinking || last_query.is_none_or(|q| i > q))
                 {
