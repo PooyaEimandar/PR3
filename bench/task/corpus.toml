@@ -3,8 +3,8 @@
 #
 # A case is a list of launches, each a list of steps; the app closes between launches.
 # A step is one of:
-#   say = "..."         a message, as typed in the composer ("New topic" and task words
-#                       go to the task list, as in the app)
+#   say = "..."         a message, as typed in the composer ("New topic", "new task",
+#                       "new job" and task words go to the task list, as in the app)
 #   again = "approve"   the card a task waited on when the app closed, shown again on
 #                       opening, and the user's answer ("approve" or "decline")
 #   fill = N            the first N filler questions below, one message each
@@ -17,6 +17,10 @@
 #   forbid = [...]      words it must not have, because only another task said them
 #   sent = [...]        words the email sent at this step must have
 #   unsent = [...]      words it must not have, such as a recipient the user took off
+#   offer = "start" | "keep" | "none"   whether the answer must come with the offer of
+#                       a task of its own: "start" and "keep" say it must, and whether
+#                       the user taps Start new task or keeps it where it went; "none"
+#                       says it must not. Unchecked, an offer is left.
 # Each check is `|`-separated ways of saying it, matched ignoring case and spaces.
 
 # Unrelated questions that make a task outgrow what the model is given: its last 32
@@ -150,7 +154,7 @@ kind = "topic"
 launches = [
     [
         { say = "I'm training for a 10 km race on 21 September, and my goal is to finish in under 52 minutes." },
-        { say = "New topic" },
+        { say = "New task" },
         { say = "Suggest a name for a grey cat." },
     ],
     [
@@ -282,7 +286,7 @@ launches = [
         { say = "At the school fundraiser, our bake sale table is number 14." },
         { say = "New topic" },
         { say = "At the craft fair, our stall is number 31." },
-        { say = "New topic" },
+        { say = "new job" },
         { say = "At the farmers market on Sunday, we're at stand 22." },
     ],
     [
@@ -322,5 +326,70 @@ launches = [
         { say = "About our holiday rental: the host is Tobiah and checkout is at 10:30." },
         { fill = 15 },
         { say = "Who is the host of the rental, and when is checkout?", expect = ["Tobiah", "10:30"] },
+    ],
+]
+
+# offer: the topic changes without "New topic". The answer comes first, in the task the
+# message went to, with the offer of a task of its own; the task it came from keeps only
+# its own words. Follow-ups must not be offered one.
+
+[[case]]
+id = "offer/speech"
+kind = "offer"
+launches = [
+    [
+        { say = "I'm drafting a speech for my sister Lena's wedding on 12 July." },
+        { say = "I want to open with the story of when she rescued a goat named Biscuit.", offer = "none" },
+        { say = "What's a good way to keep basil fresh?", offer = "start" },
+        { say = "Carry on with the wedding speech" },
+        { say = "What was the goat called in the story I wanted to open with?", expect = ["Biscuit"] },
+    ],
+]
+
+[[case]]
+id = "offer/plans"
+kind = "offer"
+launches = [
+    [
+        { say = "I'm comparing two phone plans: Plan Nova at 18 euros a month with 30 GB, and Plan Orbit at 22 euros with unlimited data." },
+        { say = "How long should I boil an egg for a runny yolk?", offer = "start" },
+        { say = "Carry on with the phone plans" },
+        { say = "Which plan had unlimited data, and what did it cost?", expect = ["Orbit", "22"] },
+    ],
+]
+
+[[case]]
+id = "offer/race"
+kind = "offer"
+launches = [
+    [
+        { say = "I'm training for a 10 km race on 21 September, and my goal is to finish in under 52 minutes." },
+        { say = "Suggest a name for a grey cat.", offer = "start" },
+    ],
+    [
+        { say = "Back to the 10 km race" },
+        { say = "What was my goal time?", expect = ["52"] },
+    ],
+]
+
+[[case]]
+id = "offer/kept"
+kind = "offer"
+launches = [
+    [
+        { say = "My sister Mia lands at 6:40 pm on flight TP 214." },
+        { say = "Recommend a podcast about astronomy for beginners.", offer = "keep" },
+        { say = "Which flight was Mia on?", expect = ["TP 214|TP214"], offer = "none" },
+    ],
+]
+
+[[case]]
+id = "offer/lunch"
+kind = "offer"
+launches = [
+    [
+        { say = "Write to Sam that the team lunch is at Noodle Bar on Thursday at 12:30.", card = "approve", sent = ["sam@example.com", "Noodle Bar"] },
+        { say = "Now send the same details to Alex.", card = "approve", sent = ["alex@example.com", "Noodle Bar"], offer = "none" },
+        { say = "What time is the lunch on Thursday?", expect = ["12:30"], offer = "none" },
     ],
 ]
