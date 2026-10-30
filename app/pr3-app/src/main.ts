@@ -995,14 +995,7 @@ async function renderModels(problem?: string): Promise<void> {
     return;
   }
   progressBars.clear();
-  modelsPane.replaceChildren(
-    el("h2", "Models on this device"),
-    el(
-      "p",
-      "Kept apart from the app, so updating PR3 keeps them. Each comes from Hugging Face and is used only if it matches the SHA-256 that PR3 pins.",
-      "meta",
-    ),
-  );
+  modelsPane.replaceChildren(el("h2", "Models on this device"));
   if (problem) modelsPane.append(el("p", problem, "error-text"));
   if (info.problem) modelsPane.append(el("p", info.problem, "error-text"));
   if (info.forced) modelsPane.append(el("p", `PR3_MODEL chooses the model: ${info.forced}`, "meta"));
