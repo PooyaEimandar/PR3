@@ -10,7 +10,7 @@ use pr3_tool::SharedMemory;
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
-use crate::host::now;
+use crate::host::{Host, now};
 
 /// The memory store, shared with the host that recalls from it.
 pub struct MemoryHandle(pub SharedMemory);
@@ -161,9 +161,14 @@ pub async fn correct_memory(app: AppHandle, id: i64, text: String) -> Result<i64
     correct(&store(&app)?, id, &text, now())
 }
 
+/// Forgetting a memory also erases every task's summary, which may have drawn on it.
 #[tauri::command]
 pub async fn forget_memory(app: AppHandle, id: i64) -> Result<(), String> {
-    forget(&store(&app)?, id, now())
+    forget(&store(&app)?, id, now())?;
+    match app.try_state::<Host>() {
+        Some(host) => host.forget_summaries(),
+        None => Ok(()),
+    }
 }
 
 #[cfg(test)]

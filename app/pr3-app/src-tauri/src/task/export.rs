@@ -167,6 +167,8 @@ fn json(task: &Task, events: &[TaskEvent], intact: Option<bool>, at: (Timestamp,
             "reason": reason,
             "waiting": waiting,
             "updated_at": task.updated_at.0,
+            // The model's summary, and how many steps of the chat it covers.
+            "summary": task.summary.as_ref().map(|s| json!({"text": s.text, "steps": s.steps})),
         },
         "chat": chat,
         "events": events,

@@ -344,7 +344,7 @@ pub fn compose_host(
 #[doc(hidden)]
 pub mod bench {
     pub use crate::actions::Actions;
-    pub use crate::host::{Backend, Generation, Host, HostError, TurnEvent};
+    pub use crate::host::{Backend, Generation, Host, HostError, SUMMARY, TurnEvent};
     pub use crate::llama::LlamaBackend;
     /// The runtime the host's async calls run on.
     pub use tauri::async_runtime::block_on;

@@ -202,7 +202,8 @@ mod tests {
                 TurnEvent::Token { .. }
                 | TurnEvent::Approval { .. }
                 | TurnEvent::TaskOpened(_)
-                | TurnEvent::NewTask => None,
+                | TurnEvent::NewTask
+                | TurnEvent::Summary { .. } => None,
             })
             .collect()
     }

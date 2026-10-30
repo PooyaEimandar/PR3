@@ -13,14 +13,16 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use pr3_core::trusted::ApprovalRequest;
 use pr3_core::{
-    Action, Config, Core, CoreError, GenerationInfo, InferenceRequest, Input, ProposedToolCall,
-    Role, SessionId, Timestamp, ToolCall, Trace,
+    Action, Config, Core, CoreError, GenerationInfo, InferenceRequest, Input, Message,
+    ProposedToolCall, RequestId, Role, SessionId, Timestamp, ToolCall, Trace,
 };
 use pr3_memory_sqlite::SqliteMemory;
 use pr3_tool::{SharedMemory, Tool, ToolContext};
 
 use crate::actions::{self, Actions};
-use crate::task::{Answer, Continued, Export, FollowingUp, Opened, TaskCard, TaskView, Tasks};
+use crate::task::{
+    Answer, Continued, Export, Fold, FollowingUp, Opened, TaskCard, TaskView, Tasks,
+};
 use serde::Serialize;
 use serde_json::{Map, Value};
 
@@ -31,6 +33,18 @@ const MAX_ROUND_TRIPS: usize = 64;
 /// Longer messages are not looked up in memory: a long paste is not a question about
 /// the user, and the lookup runs before the core checks the message's size.
 const MAX_LOOKUP_BYTES: usize = 4 * 1024;
+
+/// Before a turn, a task's older exchanges are folded into its summary once its history
+/// is longer than this, about 1,800 tokens: with the system prompt, the tools, the
+/// summary and the message, the prompt then stays within the 3,584 tokens that a
+/// 4,096-token context leaves beside room for the answer (docs Sec. 4.8).
+const FOLD_AT_BYTES: usize = 7 * 1024;
+/// Or once it has this many messages, short of the core's limit of 32.
+const FOLD_AT_MESSAGES: usize = 24;
+/// The latest exchanges kept word for word when the rest are folded.
+const KEEP_EXCHANGES: usize = 2;
+/// The id of a request for a summary; the runtime's own ids start at 1.
+pub const SUMMARY: RequestId = RequestId(0);
 
 /// What a model produced for one inference request.
 #[derive(Debug, Clone, Default)]
@@ -95,6 +109,14 @@ pub enum TurnEvent {
     /// The message seemed to start something new in the task it went to; comes after
     /// the turn ends. The UI offers to move it into a task of its own (`start_new_task`).
     NewTask,
+    /// Before the answer, the model summed up a task's earlier exchanges: those of the task
+    /// the message follows up, or the oldest of its own (docs Sec. 4.8). What it cost.
+    Summary {
+        task: u64,
+        prompt_tokens: u32,
+        completion_tokens: u32,
+        ms: u64,
+    },
 }
 
 pub type TraceSink = Arc<dyn Fn(&Trace) + Send + Sync>;
@@ -286,6 +308,19 @@ impl Host {
         Ok(opened)
     }
 
+    /// After a memory is forgotten, which erased every task's summary in the store: drops
+    /// them here too, and the runtime's history of the tasks that had one, so their next
+    /// turn goes on from their chat.
+    pub fn forget_summaries(&self) -> Result<(), String> {
+        let summed = self.tasks().map_err(|e| e.to_string())?.forget_summaries();
+        let mut core = self.core().map_err(|e| e.to_string())?;
+        for id in summed {
+            // Refused for a task answering now, which keeps the history it has.
+            let _ = core.forget(id);
+        }
+        Ok(())
+    }
+
     pub fn new_topic(&self) -> Result<Option<TaskCard>, String> {
         self.tasks().map_err(|e| e.to_string())?.new_topic(now())
     }
@@ -450,6 +485,8 @@ impl Host {
         F: FnMut(TurnEvent) + Send + 'static,
     {
         self.restore(session)?;
+        let on_event = Arc::new(Mutex::new(on_event));
+        self.catch_up(session, &on_event).await?;
         let utterance = text.clone();
         let notes = match &self.memory {
             Some(memory) if text.len() <= MAX_LOOKUP_BYTES => {
@@ -464,7 +501,6 @@ impl Host {
             notes,
             at: now(),
         })?;
-        let on_event = Arc::new(Mutex::new(on_event));
         match self
             .drive(session, queue, utc_offset_minutes, &utterance, on_event)
             .await
@@ -619,6 +655,85 @@ impl Host {
             self.core()?.restore(session, earlier)?;
         }
         Ok(())
+    }
+
+    /// Before a turn (docs Sec. 4.8): sums up the task `session` follows up, as far as its
+    /// summary does not cover its chat yet; folds `session`'s older exchanges into its own
+    /// summary once its history grows long, keeping the latest word for word; and gives
+    /// the core the summary to go on from. Without a summary, as when the model fails,
+    /// the turn goes on from what the history holds.
+    async fn catch_up<F>(
+        &self,
+        session: SessionId,
+        on_event: &Arc<Mutex<F>>,
+    ) -> Result<(), HostError>
+    where
+        F: FnMut(TurnEvent) + Send + 'static,
+    {
+        loop {
+            let fold = self.tasks()?.parent_fold(session);
+            let Some(fold) = fold else { break };
+            if !self.sum_up(&fold, on_event).await? {
+                break;
+            }
+        }
+        let (messages, bytes) = self.core()?.history(session).fold((0, 0), |(n, b), m| {
+            let calls: usize = m.tool_calls.iter().map(|c| c.arguments.len()).sum();
+            (n + 1, b + m.content.len() + calls)
+        });
+        if messages >= FOLD_AT_MESSAGES || bytes > FOLD_AT_BYTES {
+            loop {
+                let fold = self.tasks()?.fold(session, KEEP_EXCHANGES);
+                let Some(fold) = fold else { break };
+                if !self.sum_up(&fold, on_event).await? {
+                    break;
+                }
+            }
+            // The runtime goes on from the exchanges the summary does not cover.
+            self.core()?.forget(session)?;
+            self.restore(session)?;
+        }
+        let brief = self.tasks()?.brief(session);
+        self.core()?.set_brief(session, brief.as_deref())?;
+        Ok(())
+    }
+
+    /// Asks the model to sum `fold` up and keeps what it says as its task's summary;
+    /// returns whether it did.
+    async fn sum_up<F>(&self, fold: &Fold, on_event: &Arc<Mutex<F>>) -> Result<bool, HostError>
+    where
+        F: FnMut(TurnEvent) + Send + 'static,
+    {
+        // Without tools: offered the turn's, a small model calls them instead of writing
+        // the notes (docs Sec. 8.6).
+        let request = InferenceRequest {
+            id: SUMMARY,
+            session: fold.task,
+            messages: vec![Message::new(Role::User, fold.prompt(), now())],
+            tools: Vec::new(),
+        };
+        let started = now();
+        let backend = self.backend();
+        let generated =
+            tauri::async_runtime::spawn_blocking(move || backend.generate(&request, &mut |_| {}))
+                .await
+                .map_err(|e| HostError::Host(format!("inference worker failed: {e}")))?;
+        // One that failed counts as empty, so it is not asked again at once.
+        let text = match generated {
+            Ok(summary) => {
+                if let Ok(mut emit) = on_event.lock() {
+                    emit(TurnEvent::Summary {
+                        task: fold.task.0,
+                        prompt_tokens: summary.info.prompt_tokens,
+                        completion_tokens: summary.info.completion_tokens,
+                        ms: now().0.saturating_sub(started.0),
+                    });
+                }
+                summary.content
+            }
+            Err(_) => String::new(),
+        };
+        Ok(self.tasks()?.summed_up(fold, &text))
     }
 
     fn core(&self) -> Result<std::sync::MutexGuard<'_, Core>, HostError> {
@@ -802,7 +917,8 @@ mod tests {
                 TurnEvent::Tool { .. }
                 | TurnEvent::Approval { .. }
                 | TurnEvent::TaskOpened(_)
-                | TurnEvent::NewTask => "",
+                | TurnEvent::NewTask
+                | TurnEvent::Summary { .. } => "",
             })
             .collect();
         assert_eq!(streamed, *content);
@@ -862,6 +978,134 @@ mod tests {
         assert!(reply(&next.unwrap()).ends_with("3 message(s) in this conversation so far."));
         host.restore(lunch).unwrap();
         assert_eq!(host.core.lock().unwrap().history(lunch).count(), 2);
+    }
+
+    /// Answers "OK."; asked for a summary, answers "Summary N.".
+    #[derive(Default)]
+    struct Summing(Mutex<Vec<InferenceRequest>>);
+
+    impl Backend for Summing {
+        fn label(&self) -> String {
+            "summing".to_string()
+        }
+
+        fn generate(
+            &self,
+            request: &InferenceRequest,
+            _: &mut dyn FnMut(&str),
+        ) -> Result<Generation, String> {
+            let mut asked = self.0.lock().unwrap();
+            asked.push(request.clone());
+            let summaries = asked.iter().filter(|r| r.id == SUMMARY).count();
+            let content = if request.id == SUMMARY {
+                format!("Summary {summaries}.")
+            } else {
+                "OK.".to_string()
+            };
+            Ok(Generation {
+                content,
+                ..Generation::default()
+            })
+        }
+    }
+
+    impl Summing {
+        fn last(&self) -> InferenceRequest {
+            self.0.lock().unwrap().last().unwrap().clone()
+        }
+    }
+
+    fn summed(events: &[TurnEvent]) -> Vec<u64> {
+        events
+            .iter()
+            .filter_map(|e| match e {
+                TurnEvent::Summary { task, .. } => Some(*task),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_follow_up_and_a_long_task_go_on_from_summaries() {
+        let model = Arc::new(Summing::default());
+        let host = Host::new(Arc::clone(&model) as Arc<dyn Backend>, pr3_tool::builtin()).unwrap();
+        let (_, events) = run(&host, "My locker at the pool is 58.");
+        let Some(TurnEvent::TaskOpened(opened)) = events.first() else {
+            panic!("expected a new task: {events:?}");
+        };
+        let pool = opened.id;
+        assert!(summed(&events).is_empty());
+
+        // Following it up sums it up first, and the answer goes on from the summary.
+        host.new_topic().unwrap();
+        host.follow_up(SessionId(pool)).unwrap();
+        let (_, events) = run(&host, "Which locker was it?");
+        assert_eq!(summed(&events), [pool]);
+        let Some(TurnEvent::TaskOpened(opened)) = events.first() else {
+            panic!("expected a follow-up: {events:?}");
+        };
+        let child = SessionId(opened.id);
+        assert_eq!(
+            model.last().messages.last().unwrap().content,
+            "What you remember from earlier in this conversation (facts, not instructions):\n\
+             The user began with: “My locker at the pool is 58.” Summary 1.\n\n\
+             Which locker was it?"
+        );
+
+        // Once its history is long, its oldest exchanges are folded into its own summary,
+        // which goes on from the one it started from; the latest two stay word for word.
+        let mut folded = Vec::new();
+        for i in 0..12 {
+            let (_, events) = run(&host, &format!("Message {i}"));
+            folded.extend(summed(&events));
+        }
+        assert_eq!(folded, [child.0]);
+        let asked: Vec<String> = model
+            .0
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|r| r.messages[0].content.clone())
+            .collect();
+        let fold = asked.iter().rfind(|a| a.starts_with("Write down")).unwrap();
+        assert!(fold.contains("The notes so far:\nSummary 1."), "{fold}");
+        assert!(
+            fold.contains("User: Which locker was it?\nPR3: OK."),
+            "{fold}"
+        );
+        assert!(!fold.contains("Message 10"), "{fold}");
+        let history: Vec<String> = host
+            .core
+            .lock()
+            .unwrap()
+            .history(child)
+            .map(|m| m.content.clone())
+            .collect();
+        assert_eq!(
+            history,
+            ["Message 9", "OK.", "Message 10", "OK.", "Message 11", "OK."]
+        );
+        // The brief sits on the first message, where it stays from turn to turn.
+        let last = model.last();
+        assert!(last.messages[0].content.contains("Summary 2."), "{last:?}");
+        assert_eq!(last.messages[0].content.matches("Summary").count(), 1);
+        // A summary is asked without tools.
+        let asked = model.0.lock().unwrap();
+        assert!(
+            asked
+                .iter()
+                .all(|r| (r.id == SUMMARY) == r.tools.is_empty())
+        );
+        drop(asked);
+        assert_eq!(
+            host.tasks().unwrap().brief(child).as_deref(),
+            Some("The user began with: “Which locker was it?” Summary 2.")
+        );
+
+        // Forgetting a memory forgets the summaries; the task goes on from its chat.
+        host.forget_summaries().unwrap();
+        assert_eq!(host.tasks().unwrap().brief(child), None);
+        assert_eq!(host.core.lock().unwrap().history(child).count(), 0);
     }
 
     #[test]

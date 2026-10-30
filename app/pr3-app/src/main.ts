@@ -36,7 +36,9 @@ type TurnEvent =
   // The message opened a new task; the one the conversation was on is set aside.
   | ({ type: "task_opened" } & Opened)
   // The message seemed to start something new; comes once the turn has ended.
-  | { type: "new_task" };
+  | { type: "new_task" }
+  // Before the answer, PR3 summed up a task's earlier exchanges; the dots stay meanwhile.
+  | { type: "summary"; task: number; prompt_tokens: number; completion_tokens: number; ms: number };
 
 // Tasks (task.rs): the page a task shows on, and the task as the list shows it.
 type PageName = "todo" | "doing" | "done";
