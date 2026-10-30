@@ -19,7 +19,7 @@ use pr3_memory::{
 };
 use rusqlite::{Connection, OptionalExtension, Row, Transaction, params};
 
-pub use crate::task::{Said, StoredTask, TaskRecord, TaskState, WaitingCall};
+pub use crate::task::{Said, StoredTask, TaskEvent, TaskRecord, TaskState, WaitingCall};
 
 /// Schema migrations, applied in order; the database's `user_version` is how many have
 /// run. Never edit a released migration: add a new one.

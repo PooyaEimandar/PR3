@@ -59,6 +59,21 @@ pub enum Said {
     Failed(String),
 }
 
+/// One event of a task's lifecycle, with the hash it chains from, so it can be checked
+/// on its own: `hash` is the SHA-256 of `previous`, the task, `at`, `event` and `parent`
+/// (see `task_events`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TaskEvent {
+    pub at: Timestamp,
+    /// 'opened', 'working', 'waiting', 'done', 'failed', 'expired', 'deleted' or 'erased'.
+    pub event: String,
+    /// For 'opened': the task it follows up.
+    pub parent: Option<u64>,
+    /// The hash of the event logged before it, of whichever task; empty for the first.
+    pub previous: String,
+    pub hash: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StoredTask {
     pub record: TaskRecord,
@@ -219,6 +234,33 @@ impl SqliteMemory {
         }
         tx.commit().map_err(error)?;
         Ok(ids.into_iter().map(unsigned).collect())
+    }
+
+    /// A task's events, oldest first. Each hash is [`Hash::of`] these parts, in order: the
+    /// previous hash as hex text, the task id and `at` as 8-byte big-endian integers, the
+    /// event name, and the parent as an 8-byte big-endian integer (empty when there is
+    /// none); each part is prefixed with its length as an 8-byte big-endian integer.
+    pub fn task_events(&self, task: u64) -> Result<Vec<TaskEvent>, MemoryError> {
+        let mut statement = self
+            .conn
+            .prepare(
+                "SELECT at, event, parent, hash, COALESCE((SELECT p.hash FROM task_events p
+                     WHERE p.id < e.id ORDER BY p.id DESC LIMIT 1), '')
+                 FROM task_events e WHERE task_id = ?1 ORDER BY id",
+            )
+            .map_err(error)?;
+        let rows = statement
+            .query_map(params![db_id(task)?], |r| {
+                Ok(TaskEvent {
+                    at: Timestamp(unsigned(r.get(0)?)),
+                    event: r.get(1)?,
+                    parent: r.get::<_, Option<i64>>(2)?.map(unsigned),
+                    hash: r.get(3)?,
+                    previous: r.get(4)?,
+                })
+            })
+            .map_err(error)?;
+        rows.collect::<Result<_, _>>().map_err(error)
     }
 
     /// Whether every task event still matches its hash: false once one is edited,
@@ -538,6 +580,33 @@ mod tests {
             erased,
             [(1, "erased".to_string()), (2, "erased".to_string())]
         );
+    }
+
+    #[test]
+    fn a_task_s_events_each_check_against_the_hash_before_them() {
+        let mut m = SqliteMemory::open_in_memory().unwrap();
+        m.save_task(&task(1, TaskState::Working, 10)).unwrap();
+        m.save_task(&TaskRecord {
+            parent: Some(1),
+            ..task(2, TaskState::Working, 20)
+        })
+        .unwrap();
+        m.save_task(&task(1, TaskState::Done, 30)).unwrap();
+        m.save_task(&task(2, TaskState::Done, 40)).unwrap();
+
+        let events = m.task_events(2).unwrap();
+        let names: Vec<&str> = events.iter().map(|e| e.event.as_str()).collect();
+        assert_eq!(names, ["opened", "done"]);
+        assert_eq!(events[0].parent, Some(1));
+        // Chained to task 1's events in between, and each checks on its own.
+        assert_eq!(events[0].previous, m.task_events(1).unwrap()[0].hash);
+        assert_eq!(events[1].previous, m.task_events(1).unwrap()[1].hash);
+        for e in &events {
+            let parent = e.parent.map(|p| p as i64);
+            let hash = event_hash(&e.previous, 2, e.at.0 as i64, &e.event, parent);
+            assert_eq!(hash, e.hash);
+        }
+        assert_eq!(m.task_events(1).unwrap()[0].previous, "");
     }
 
     #[test]
