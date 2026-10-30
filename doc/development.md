@@ -125,7 +125,8 @@ PR3 can send email through a sandbox connector: messages land in `outbox.jsonl` 
 
 PR3 groups the conversation into tasks ([Sec. 4.8](architecture.md#48-tasks-and-conversation-continuity)). They are kept in `memory.sqlite` with their chats, so they survive closing the app.
 
-- A message continues the current task while PR3 is answering it or within 10 minutes of its last answer; after that, the next message opens a new task. **New topic**, under the conversation, starts one at once, and typing or saying "new topic" on its own does the same. The conversation it replaces folds into a line at the top, which opens that task.
+- A message continues the current task while PR3 is answering it or within 10 minutes of its last answer; after that, the next message opens a new task. Typing or saying "new topic", "new task" or "new job" on its own, in any case, starts one at once. The conversation it replaces folds into a line at the top, which opens that task.
+- When a message within those 10 minutes seems to start something new - a question or a request of its own, none of whose words are in the task's title, first message or last exchange, and that does not point back ("send it to Alex instead") - PR3 answers it, then asks under the answer "Looks like a new task - start it on its own?". **Start new task** moves the message and its answer into a task of their own, and the conversation goes on there; **Keep here** leaves them in the task.
 - **Tasks**, beside Settings, opens three pages, **To Do**, **Doing** and **Done**: swipe between them or tap a name. To Do holds tasks waiting for your OK and ones that did not finish, Doing the task the conversation is on, and Done the rest. Tap a task to read its chat; **Back** returns to the list, and **Tasks** to the conversation.
 - **Continue** brings an unfinished task back into the conversation, and **Follow up** starts a new task linked to a finished one. **Delete** takes a second tap and also erases what the runtime holds for that task. All three wait while PR3 is answering.
 - When PR3 opens again, the conversation comes back if its 10 minutes have not run out, and a follow-up picks up where it left off. A confirmation card that was waiting is shown again, to approve afresh; if it ran out while PR3 was closed, nothing was sent and the task is on Done as expired. A turn cut off by closing is on To Do as not finished.
@@ -191,7 +192,7 @@ cargo build --release -p pr3-bench-agentdojo
 
 A run resumes where it stopped. Expect about 10–70 seconds per task, depending on the model.
 
-The task suite in [`bench/task`](../bench/task) measures what a task keeps across app launches, changes of topic and confirmation cards (Sec. 4.8). It runs the app's own host on a model, each launch in its own process, through the made-up cases in `corpus.toml`, and checks PR3's answers and emails for words the task said earlier and for words only another task said or the user took out. Results so far: [Sec. 8.6](benchmarks.md#86-results-so-far).
+The task suite in [`bench/task`](../bench/task) measures what a task keeps across app launches, changes of topic and confirmation cards, and when a message is offered a task of its own (Sec. 4.8). It runs the app's own host on a model, each launch in its own process, through the made-up cases in `corpus.toml`, and checks PR3's answers and emails for words the task said earlier and for words only another task said or the user took out. Results so far: [Sec. 8.6](benchmarks.md#86-results-so-far).
 
 ```bash
 cargo build --release -p pr3-bench-task
