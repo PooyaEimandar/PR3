@@ -717,6 +717,7 @@ dependencies = [
 name = "pr3-memory-sqlite"
 version = "0.1.1"
 dependencies = [
+ "pr3-core",
  "pr3-memory",
  "rusqlite",
 ]

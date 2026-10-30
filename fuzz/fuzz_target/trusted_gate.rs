@@ -75,9 +75,17 @@ fuzz_target!(|case: Case| {
     let public = key.verifying_key().to_sec1_point(false);
     let approver = ApprovalKey::from_sec1(public.as_bytes()).unwrap();
     let log: Vec<Entry> = serde_json::from_str(&case.log).unwrap_or_default();
-    let mut gate = match Gate::new(Limits::default(), approver.clone(), "mail:sandbox", &log) {
+    let mut now = 10_000_000u64;
+    let opened = Timestamp(now);
+    let mut gate = match Gate::new(
+        Limits::default(),
+        approver.clone(),
+        "mail:sandbox",
+        &log,
+        opened,
+    ) {
         Ok(gate) => gate,
-        Err(_) => Gate::new(Limits::default(), approver, "mail:sandbox", &[]).unwrap(),
+        Err(_) => Gate::new(Limits::default(), approver, "mail:sandbox", &[], opened).unwrap(),
     };
     let directory = Directory {
         contacts: vec![Contact {
@@ -85,7 +93,6 @@ fuzz_target!(|case: Case| {
             address: "alex@example.com".to_string(),
         }],
     };
-    let mut now = 10_000_000u64;
     let mut requests: Vec<String> = Vec::new();
     let mut receipts: Vec<Receipt> = Vec::new();
     let mut issued: HashSet<String> = HashSet::new();
