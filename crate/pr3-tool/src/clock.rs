@@ -35,6 +35,17 @@ pub fn date(at: Timestamp, utc_offset_minutes: i32) -> String {
     format!("{year:04}-{month:02}-{day:02}")
 }
 
+/// The local date and time to the minute, e.g. "2026-10-20 19:45".
+pub fn minute(at: Timestamp, utc_offset_minutes: i32) -> String {
+    let (days, secs_of_day) = local(at, utc_offset_minutes);
+    let (year, month, day) = civil_from_days(days);
+    format!(
+        "{year:04}-{month:02}-{day:02} {:02}:{:02}",
+        secs_of_day / 3600,
+        (secs_of_day % 3600) / 60,
+    )
+}
+
 /// Local days since 1970-01-01 and seconds into that day.
 fn local(at: Timestamp, utc_offset_minutes: i32) -> (i64, i64) {
     let secs = (at.0 / 1000) as i64 + i64::from(utc_offset_minutes) * 60;
@@ -72,6 +83,7 @@ mod tests {
         assert_eq!(describe(t, -420), "Tuesday 2026-10-20 09:15 (UTC-07:00)");
         assert_eq!(date(t, 210), "2026-10-20");
         assert_eq!(date(t, -1000), "2026-10-19");
+        assert_eq!(minute(t, 210), "2026-10-20 19:45");
     }
 
     #[test]
