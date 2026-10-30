@@ -2,6 +2,10 @@
 
 Part of the [PR3 documentation](README.md). Newest first; each version records what changed in the design and why.
 
+## v1.34 (30 October 2026) - the Android library aligned for 16 KB pages
+
+The Android app's library is linked for 16 KB memory pages, which phones from Android 15 on may use and Google Play requires of apps for Android 15 and later. NDK 27's linker aligned its segments for 4 KB, so a Galaxy S25 Ultra on Android 17 warned on opening the debug APK that it is not 16 KB-compatible. The flag is in the app's build script, for Android only, since the Tauri CLI sets Android's rustflags itself. The APK's one library, `libpr3_app_lib.so`, now has every segment aligned to 16 KB and is stored at a 16 KB boundary, and CI checks both on every build. ([Build and run](development.md#build-and-run))
+
 ## v1.33 (30 October 2026) - Settings over the whole screen, and the 4B's card answers
 
 1. **Settings over the whole screen.** Settings slides in from the left and covers the screen, with Close, an icon, at its top left instead of a button beside the tabs; Escape closes it too. The header is the name alone, without the version, platform and model beside it; Android shows the version in the app's info. The composer sits closer to the screen's edges, with narrower buttons, so "Message PR3" fits whole on a phone, and until a reply's first words its bubble shows dots that come and go, one to three, instead of a still "…". A task's **Delete** asks "Tap to confirm delete." on its first tap.

@@ -54,6 +54,8 @@ To run another model, change the ids under `[model]`. To change anything without
 
 llama.cpp's CMake step does not reconfigure an existing build: after changing a `GGML_*` flag, run `cargo clean -p llama-cpp-sys-2 --target <target>`.
 
+The Android library is linked for 16 KB memory pages (`-z max-page-size=16384`, in `app/pr3-app/src-tauri/build.rs`), which Google Play requires and without which Android warns on opening the app that it is not 16 KB-compatible; CI checks every library in the APK.
+
 The webview's script is TypeScript, in `app/pr3-app/src`, checked in strict mode. The Tauri CLI compiles it into `ui/main.js` before every build, and `cargo tauri dev` recompiles it as you edit; `npm run check` in `app/pr3-app` only type-checks it. The source keeps to types a compiler can simply erase, so tools that strip types without checking them (esbuild, swc, Node, Deno, Bun) build the same script.
 
 ## Dev builds
