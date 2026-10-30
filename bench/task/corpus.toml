@@ -329,6 +329,20 @@ launches = [
     ],
 ]
 
+# The detail comes after the opening message, which stays beside a task's summary as its
+# goal, so only the summary can keep it.
+[[case]]
+id = "long/parking"
+kind = "long"
+launches = [
+    [
+        { say = "Help me get ready for my trip to Porto next week." },
+        { say = "I left my car at the airport in car park P3, bay 117." },
+        { fill = 15 },
+        { say = "Where did I leave my car at the airport?", expect = ["P3", "117"] },
+    ],
+]
+
 # offer: the topic changes without "New topic". The answer comes first, in the task the
 # message went to, with the offer of a task of its own; the task it came from keeps only
 # its own words. Follow-ups must not be offered one.

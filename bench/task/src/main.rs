@@ -27,7 +27,9 @@ use std::process::{Command, ExitCode, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-use pr3_app_lib::bench::{Actions, Backend, Generation, Host, LlamaBackend, TurnEvent, block_on};
+use pr3_app_lib::bench::{
+    Actions, Backend, Generation, Host, LlamaBackend, SUMMARY, TurnEvent, block_on,
+};
 use pr3_app_lib::compose_host;
 use pr3_core::trusted::{Contact, Directory, Limits, Mail};
 use pr3_core::{Action, InferenceRequest, SessionId, Timestamp};
@@ -169,9 +171,20 @@ struct Done {
     /// got it, with the system prompt and tools.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     prompt_tokens: Option<u32>,
+    /// The summaries the model made before answering (docs Sec. 4.8).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    summaries: Vec<Summed>,
     seconds: f64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     error: Option<String>,
+}
+
+/// What one summary cost.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+struct Summed {
+    prompt_tokens: u32,
+    completion_tokens: u32,
+    seconds: f64,
 }
 
 /// One case's result: a line of the results file.
@@ -186,6 +199,9 @@ struct Outcome {
     /// Memories the model proposed meanwhile: besides a task's own chat, the one way
     /// what a task said reaches a later prompt.
     memories: usize,
+    /// The tasks' summaries at the end, as the model wrote them (docs Sec. 4.8).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    summaries: Vec<String>,
     steps: Vec<Done>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     error: Option<String>,
@@ -429,6 +445,7 @@ fn run_case(model: &Path, corpus: &Corpus, case: &Case, seed: u32) -> Result<Out
         planned.push(launch);
     }
     let memories = count_memories(&dir.join("memory.sqlite"));
+    let summaries = summaries(&dir.join("memory.sqlite"));
     let _ = fs::remove_dir_all(&dir);
     let checks = check(&planned, &steps);
     let leaked = checks.iter().any(|c| c.what == "forbid" && !c.ok);
@@ -441,6 +458,7 @@ fn run_case(model: &Path, corpus: &Corpus, case: &Case, seed: u32) -> Result<Out
         leaked,
         checks,
         memories,
+        summaries,
         steps,
         error,
     })
@@ -576,6 +594,18 @@ fn count_memories(path: &Path) -> usize {
         .map_or(0, |memories| memories.len())
 }
 
+fn summaries(path: &Path) -> Vec<String> {
+    SqliteMemory::open(path)
+        .and_then(|store| store.tasks())
+        .map(|tasks| {
+            tasks
+                .into_iter()
+                .filter_map(|task| task.summary.map(|s| s.text))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 fn now() -> Timestamp {
     Timestamp(
         SystemTime::now()
@@ -657,6 +687,7 @@ struct Seen {
     offered: bool,
     card: Option<String>,
     tools: Vec<String>,
+    summaries: Vec<Summed>,
 }
 
 impl App {
@@ -691,6 +722,7 @@ impl App {
             done.offered = (done.route == "turn").then_some(seen.offered);
             done.card = seen.card.clone();
             done.tools = seen.tools.clone();
+            done.summaries = seen.summaries.clone();
         }
         done.prompt_tokens = self.model.first();
         done.sent = emails_after(&self.outbox, emails);
@@ -749,6 +781,7 @@ impl App {
                                     opened: seen.opened,
                                     card: Some(shown),
                                     tools: seen.tools.clone(),
+                                    summaries: seen.summaries.clone(),
                                     prompt_tokens: model.first(),
                                     seconds: started.elapsed().as_secs_f64(),
                                     ..closing.clone()
@@ -761,6 +794,16 @@ impl App {
                         name
                     } else {
                         format!("{name} (failed)")
+                    }),
+                    TurnEvent::Summary {
+                        prompt_tokens,
+                        completion_tokens,
+                        ms,
+                        ..
+                    } => seen.summaries.push(Summed {
+                        prompt_tokens,
+                        completion_tokens,
+                        seconds: ms as f64 / 1000.0,
                     }),
                     TurnEvent::Token { .. } => {}
                 }
@@ -882,7 +925,8 @@ fn emails_after(outbox: &Path, before: usize) -> Option<String> {
     ))
 }
 
-/// The model, noting the prompt size of each call.
+/// The model, noting the prompt size of each call that answers; a summary is counted
+/// apart (`TurnEvent::Summary`).
 struct Metered {
     model: LlamaBackend,
     prompt_tokens: Mutex<Vec<u32>>,
@@ -907,8 +951,16 @@ impl Metered {
         self.prompt_tokens.lock().ok()?.first().copied()
     }
 
-    fn note(&self, generation: Result<Generation, String>) -> Result<Generation, String> {
-        if let (Ok(g), Ok(mut noted)) = (&generation, self.prompt_tokens.lock()) {
+    fn note(
+        &self,
+        request: &InferenceRequest,
+        generation: Result<Generation, String>,
+    ) -> Result<Generation, String> {
+        if let (false, Ok(g), Ok(mut noted)) = (
+            request.id == SUMMARY,
+            &generation,
+            self.prompt_tokens.lock(),
+        ) {
             noted.push(g.info.prompt_tokens);
         }
         generation
@@ -925,7 +977,7 @@ impl Backend for Metered {
         request: &InferenceRequest,
         on_token: &mut dyn FnMut(&str),
     ) -> Result<Generation, String> {
-        self.note(self.model.generate(request, on_token))
+        self.note(request, self.model.generate(request, on_token))
     }
 
     fn generate_until(
@@ -933,7 +985,7 @@ impl Backend for Metered {
         request: &InferenceRequest,
         on_token: &mut dyn FnMut(&str) -> bool,
     ) -> Result<Generation, String> {
-        self.note(self.model.generate_until(request, on_token))
+        self.note(request, self.model.generate_until(request, on_token))
     }
 
     fn stop(&self) {
@@ -999,8 +1051,8 @@ fn report(runs: &[(String, Vec<Outcome>)]) -> String {
         .collect();
     let mut out = format!(
         "Kinds - {}.\n\n\
-         | Model | Kind | Passed | Leaked | Memories proposed | New-task offers | Prompt tokens at the check | Seconds per turn |\n\
-         |---|---|---|---|---|---|---|---|\n",
+         | Model | Kind | Passed | Leaked | Memories proposed | New-task offers | Summaries | Prompt tokens at the check | Seconds per turn |\n\
+         |---|---|---|---|---|---|---|---|---|\n",
         kinds.join("; ")
     );
     for (model, outcomes) in runs {
@@ -1043,11 +1095,21 @@ fn report(runs: &[(String, Vec<Outcome>)]) -> String {
                 n => format!("{} of {n} turns", offered.iter().filter(|&&o| o).count()),
             };
             let seconds: Vec<f64> = turns.iter().map(|d| d.seconds).collect();
+            // How many, and the median seconds each took.
+            let summed: Vec<f64> = turns
+                .iter()
+                .flat_map(|d| &d.summaries)
+                .map(|s| s.seconds)
+                .collect();
+            let summaries = match median_f64(&summed) {
+                Some(each) => format!("{} ({each:.1} s each)", summed.len()),
+                None => "0".to_string(),
+            };
             let name = if first { model.as_str() } else { "" };
             first = false;
             let kind = kind.map_or("**all**".to_string(), str::to_string);
             out += &format!(
-                "| {name} | {kind} | {passed} of {} | {leaked} | {memories} | {offers} | {} | {} |\n",
+                "| {name} | {kind} | {passed} of {} | {leaked} | {memories} | {offers} | {summaries} | {} | {} |\n",
                 cases.len(),
                 median_u32(&checked).map_or("-".to_string(), |m| m.to_string()),
                 median_f64(&seconds).map_or("-".to_string(), |m| format!("{m:.1}")),
@@ -1201,6 +1263,7 @@ mod tests {
                 ok: passed,
             }],
             memories: 2,
+            summaries: Vec::new(),
             steps: vec![
                 Done {
                     route: "turn".to_string(),
@@ -1214,6 +1277,11 @@ mod tests {
                     route: "turn".to_string(),
                     offered: Some(true),
                     prompt_tokens: Some(tokens),
+                    summaries: vec![Summed {
+                        prompt_tokens: 900,
+                        completion_tokens: 60,
+                        seconds: 2.0,
+                    }],
                     seconds: 3.0,
                     ..Done::default()
                 },
@@ -1225,15 +1293,19 @@ mod tests {
             vec![outcome("restart", true, 400), outcome("topic", false, 300)],
         )]);
         assert!(
-            report.contains("| Qwen3.5-4B | restart | 1 of 1 | 0 | 2 | 1 of 2 turns | 400 | 3.0 |"),
+            report.contains("| Qwen3.5-4B | restart | 1 of 1 | 0 | 2 | 1 of 2 turns | 1 (2.0 s each) | 400 | 3.0 |"),
             "{report}"
         );
         assert!(
-            report.contains("|  | topic | 0 of 1 | 0 | 2 | 1 of 2 turns | 300 | 3.0 |"),
+            report.contains(
+                "|  | topic | 0 of 1 | 0 | 2 | 1 of 2 turns | 1 (2.0 s each) | 300 | 3.0 |"
+            ),
             "{report}"
         );
         assert!(
-            report.contains("|  | **all** | 1 of 2 | 0 | 4 | 2 of 4 turns | 400 | 3.0 |"),
+            report.contains(
+                "|  | **all** | 1 of 2 | 0 | 4 | 2 of 4 turns | 2 (2.0 s each) | 400 | 3.0 |"
+            ),
             "{report}"
         );
         assert_eq!(model_name("Qwen3-0.6B-Q8_0"), "Qwen3-0.6B");
