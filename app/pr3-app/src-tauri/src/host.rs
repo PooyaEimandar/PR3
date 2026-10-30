@@ -92,6 +92,9 @@ pub enum TurnEvent {
     },
     /// The message opened a new task (docs Sec. 4.8); comes before anything else.
     TaskOpened(Opened),
+    /// The message seemed to start something new in the task it went to; comes after
+    /// the turn ends. The UI offers to move it into a task of its own (`start_new_task`).
+    NewTask,
 }
 
 pub type TraceSink = Arc<dyn Fn(&Trace) + Send + Sync>;
@@ -267,6 +270,22 @@ impl Host {
         Ok(self.tasks().map_err(|e| e.to_string())?.current(now()))
     }
 
+    /// Moves the last exchange, which seemed to start something new, into a task of its
+    /// own (docs Sec. 4.8); the runtime forgets it in the task it came from.
+    pub fn start_new_task(&self) -> Result<Opened, String> {
+        let (from, opened) = self
+            .tasks()
+            .map_err(|e| e.to_string())?
+            .start_new_task(now())?;
+        // Both tasks get their exchanges back from the task list on their next turn.
+        self.core
+            .lock()
+            .map_err(|_| "runtime state is unavailable".to_string())?
+            .forget(from)
+            .map_err(|e| e.to_string())?;
+        Ok(opened)
+    }
+
     pub fn new_topic(&self) -> Result<Option<TaskCard>, String> {
         self.tasks().map_err(|e| e.to_string())?.new_topic(now())
     }
@@ -385,15 +404,19 @@ impl Host {
         if let Some(opened) = opened {
             on_event(TurnEvent::TaskOpened(opened));
         }
+        let on_event = Arc::new(Mutex::new(on_event));
         // The task keeps its chat as the user saw it.
         let tasks = Arc::clone(&self.tasks);
-        let on_event = move |event: TurnEvent| {
+        let emit = Arc::clone(&on_event);
+        let recorded = move |event: TurnEvent| {
             if let Ok(mut tasks) = tasks.lock() {
                 tasks.record(session, &event, now());
             }
-            on_event(event);
+            if let Ok(mut emit) = emit.lock() {
+                emit(event);
+            }
         };
-        let result = self.turn(session, text, utc_offset_minutes, on_event).await;
+        let result = self.turn(session, text, utc_offset_minutes, recorded).await;
         let outcome = match &result {
             Ok(actions) => actions
                 .iter()
@@ -405,7 +428,14 @@ impl Host {
                 .unwrap_or_else(|| Err("the turn ended without an answer".to_string())),
             Err(error) => Err(error.to_string()),
         };
-        self.tasks()?.end(session, outcome, now());
+        let seems_new = {
+            let mut tasks = self.tasks()?;
+            tasks.end(session, outcome, now());
+            tasks.seems_new(session)
+        };
+        if seems_new && let Ok(mut emit) = on_event.lock() {
+            emit(TurnEvent::NewTask);
+        }
         result
     }
 
@@ -769,9 +799,10 @@ mod tests {
             .iter()
             .map(|e| match e {
                 TurnEvent::Token { text } => text.as_str(),
-                TurnEvent::Tool { .. } | TurnEvent::Approval { .. } | TurnEvent::TaskOpened(_) => {
-                    ""
-                }
+                TurnEvent::Tool { .. }
+                | TurnEvent::Approval { .. }
+                | TurnEvent::TaskOpened(_)
+                | TurnEvent::NewTask => "",
             })
             .collect();
         assert_eq!(streamed, *content);
@@ -808,6 +839,29 @@ mod tests {
         let chat = host.task(SessionId(opened.id)).unwrap().chat;
         assert_eq!(chat.len(), 4);
         assert_eq!(host.task_cards().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn a_message_that_seems_new_is_offered_a_task_of_its_own() {
+        let host = host(MockBackend::default());
+        let (_, events) = run(&host, "Email Sam about lunch");
+        let Some(TurnEvent::TaskOpened(opened)) = events.first() else {
+            panic!("expected a new task: {events:?}");
+        };
+        let lunch = SessionId(opened.id);
+        // Answered first, then offered.
+        let (_, events) = run(&host, "Suggest a name for a grey cat");
+        assert_eq!(events.last(), Some(&TurnEvent::NewTask));
+        let opened = host.start_new_task().unwrap();
+        assert_eq!(opened.previous.unwrap().id, lunch.0);
+
+        // The runtime forgot the moved exchange: each task goes on from its own.
+        assert_eq!(host.core.lock().unwrap().history(lunch).count(), 0);
+        let (next, events) = run(&host, "Make it a short one");
+        assert!(!events.contains(&TurnEvent::NewTask));
+        assert!(reply(&next.unwrap()).ends_with("3 message(s) in this conversation so far."));
+        host.restore(lunch).unwrap();
+        assert_eq!(host.core.lock().unwrap().history(lunch).count(), 2);
     }
 
     #[test]

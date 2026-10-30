@@ -94,6 +94,22 @@ h1 {
   white-space: normal;
 }
 
+/* Under the answer to a message that seemed to start something new: an offer to move
+   it into a task of its own. */
+.msg.offer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  white-space: normal;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.msg.offer .choices {
+  display: flex;
+  gap: 8px;
+}
+
 .msg.error {
   align-self: center;
   color: var(--error);
@@ -702,9 +718,8 @@ button.task-card {
 }
 
 /* A task set aside folds into one line at the top of the conversation; tapping it opens
-   the task. New topic sits under the conversation. */
-#log button.fold,
-#log button.new-topic {
+   the task. */
+#log button.fold {
   align-self: center;
   max-width: 100%;
   padding: 4px 10px;
@@ -713,8 +728,4 @@ button.task-card {
   color: var(--muted);
   font-size: 12px;
   font-weight: 400;
-}
-
-#log button.new-topic[hidden] {
-  display: none;
 }

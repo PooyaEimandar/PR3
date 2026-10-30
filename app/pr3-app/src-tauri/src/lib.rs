@@ -458,6 +458,7 @@ pub fn run() {
             task::open_task,
             task::current_task,
             task::ask_again,
+            task::start_new_task,
             task::new_topic,
             task::continue_task,
             task::follow_up_task,

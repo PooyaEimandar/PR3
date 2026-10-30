@@ -14,15 +14,6 @@ const form = find("#composer", HTMLFormElement);
 const input = find("#text", HTMLInputElement);
 const button = find("button[type=submit]", HTMLButtonElement, form);
 
-// Sets the conversation's task aside, so the next message opens a new one (docs
-// Sec. 4.8). It stays under the conversation while there is one.
-const newTopicButton = document.createElement("button");
-newTopicButton.type = "button";
-newTopicButton.className = "new-topic";
-newTopicButton.textContent = "New topic";
-newTopicButton.hidden = true;
-log.append(newTopicButton);
-
 // A consequential action waiting for the user, built by the trusted side from the
 // validated intent (pr3-core's ApprovalRequest).
 interface ApprovalRequest {
@@ -41,7 +32,9 @@ type TurnEvent =
   | { type: "tool"; name: string; arguments: string; success: boolean; output: string }
   | { type: "approval"; request: ApprovalRequest }
   // The message opened a new task; the one the conversation was on is set aside.
-  | { type: "task_opened"; id: number; previous: TaskCard | null };
+  | ({ type: "task_opened" } & Opened)
+  // The message seemed to start something new; comes once the turn has ended.
+  | { type: "new_task" };
 
 // Tasks (task.rs): the page a task shows on, and the task as the list shows it.
 type PageName = "todo" | "doing" | "done";
@@ -74,6 +67,12 @@ interface TaskView extends TaskCard {
 
 // The conversation goes back to a task (task.rs's Continued), or the next message
 // follows up a finished one (FollowingUp); `previous` is the task set aside.
+// A task the conversation goes on in, and the one it set aside (task.rs's Opened).
+interface Opened {
+  id: number;
+  previous: TaskCard | null;
+}
+
 interface Continued {
   task: TaskView;
   previous: TaskCard | null;
@@ -109,9 +108,8 @@ function show(kind: string, text: string): HTMLDivElement {
   return el;
 }
 
-// The conversation grows above the New topic button.
 function addToLog(node: Node): void {
-  log.insertBefore(node, newTopicButton);
+  log.append(node);
   log.scrollTop = log.scrollHeight;
 }
 
@@ -199,12 +197,14 @@ function setBusy(busy: boolean): void {
   talk.disabled = busy;
   languageSelect.disabled = busy || voice !== null;
   input.placeholder = busy ? "PR3 is answering…" : "Message PR3";
-  updateNewTopic();
 }
 
 async function send(text: string): Promise<void> {
-  // "New topic", typed or said, sets the conversation's task aside instead.
-  if (/^\s*new topic[\s.!]*$/i.test(text)) {
+  // An offer to start a new task is for the message before this one.
+  for (const offer of log.querySelectorAll(".msg.offer")) offer.remove();
+  // "New topic", "new task" or "new job", typed or said, sets the conversation's task
+  // aside instead.
+  if (/^\s*new (topic|task|job)[\s.!]*$/i.test(text)) {
     startNewTopic();
     return;
   }
@@ -214,6 +214,9 @@ async function send(text: string): Promise<void> {
   const said = show("user", text);
   const bubble = show("assistant pending", "");
   let streamed = "";
+  // Whether to offer a new task, and whether the answer is in to put the offer under.
+  let offer = false;
+  let answered = false;
 
   const onEvent = new Channel<TurnEvent>();
   onEvent.onmessage = (event) => {
@@ -232,6 +235,9 @@ async function send(text: string): Promise<void> {
       bubble.textContent = "";
     } else if (event.type === "approval") {
       showApproval(event.request, bubble);
+    } else if (event.type === "new_task") {
+      if (answered) offerNewTask(said);
+      else offer = true;
     }
     log.scrollTop = log.scrollHeight;
   };
@@ -256,10 +262,39 @@ async function send(text: string): Promise<void> {
     show("error", String(err));
   } finally {
     setBusy(false);
+    answered = true;
+    if (offer) offerNewTask(said);
     // The turn may have proposed a memory.
     if (showing("memory")) renderMemory();
     if (!tasksSection.hidden && !taskList.hidden) renderTasks();
   }
+}
+
+// The message `said` seemed to start something new (docs Sec. 4.8). It was answered in
+// the conversation's task; Start new task moves it and its answer into a task of their
+// own, so that task keeps only its own words, and the conversation goes on in the new one.
+function offerNewTask(said: Element): void {
+  const card = el("div", undefined, "msg assistant offer");
+  const choices = el("div", undefined, "choices");
+  const start = makeButton(
+    "Start new task",
+    async () => {
+      start.disabled = keep.disabled = true;
+      try {
+        const opened = await invoke<Opened>("start_new_task");
+        currentTask = opened.id;
+        card.remove();
+        foldConversation(opened.previous, said);
+      } catch (err) {
+        card.replaceChildren(el("span", String(err)));
+      }
+    },
+    "small",
+  );
+  const keep = makeButton("Keep here", () => card.remove(), "secondary small");
+  choices.append(start, keep);
+  card.append(el("span", "Looks like a new task - start it on its own?"), choices);
+  addToLog(card);
 }
 
 // "What is still open?", "carry on with the email to Alex": words about the task list
@@ -1387,7 +1422,6 @@ function backTo(id: number, next: Continued, after: Node[] = []): void {
   for (const node of after) addToLog(node);
   currentTask = id;
   showTasks(false);
-  updateNewTopic();
   if (next.task.waiting) askAgain(id);
 }
 
@@ -1412,7 +1446,6 @@ function followingUp(id: number, next: FollowingUp, after: Node[] = []): void {
   line.classList.add("following");
   line.dataset.follows = "yes";
   for (const node of after) addToLog(node);
-  updateNewTopic();
   showTasks(false);
   input.focus();
 }
@@ -1429,19 +1462,16 @@ async function startNewTopic(): Promise<void> {
   }
 }
 
-newTopicButton.addEventListener("click", startNewTopic);
-
 // Takes the conversation off the home page up to `from` (the message that opened the
 // next task), and folds the task it belonged to into one line that opens it.
 function foldConversation(previous: TaskCard | null, from?: Element): void {
   for (const node of [...log.children]) {
-    if (node === from || node === newTopicButton) break;
+    if (node === from) break;
     if (!node.classList.contains("fold")) node.remove();
   }
   // A follow-up's "Following up" line goes with its conversation; the task keeps the link.
   for (const line of log.querySelectorAll("button.fold[data-follows]:not(.following)")) line.remove();
   if (previous) addFold(previous.id, `${previous.title} - in ${PAGE_NAMES[previous.page]}`);
-  updateNewTopic();
 }
 
 function addFold(id: number, text: string): HTMLButtonElement {
@@ -1456,10 +1486,6 @@ function addFold(id: number, text: string): HTMLButtonElement {
   return line;
 }
 
-function updateNewTopic(): void {
-  newTopicButton.hidden = answering || !log.querySelector(".msg, button.following");
-}
-
 // The conversation the app closed on comes back while it is still going, and a
 // confirmation card it was waiting on is asked again.
 async function restoreConversation(): Promise<void> {
@@ -1467,7 +1493,6 @@ async function restoreConversation(): Promise<void> {
   if (!task) return;
   currentTask = task.id;
   for (const entry of task.chat) addToLog(entryNode(entry));
-  updateNewTopic();
   if (task.waiting) askAgain(task.id);
 }
 

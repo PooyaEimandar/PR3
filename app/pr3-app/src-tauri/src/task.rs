@@ -155,6 +155,19 @@ struct Task {
     chat: Vec<(Timestamp, Entry)>,
 }
 
+/// A message that seemed to start something new in the task it went to, and how that
+/// task stood before it: what Start new task moves out, and what the task goes back to.
+#[derive(Debug)]
+struct Anew {
+    task: SessionId,
+    /// Where the message is in the task's chat; it and everything after it move.
+    from: usize,
+    /// When it was sent.
+    since: Timestamp,
+    updated_at: Timestamp,
+    ending: Ending,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Ending {
     Answered,
@@ -172,6 +185,8 @@ pub struct Tasks {
     current: Option<SessionId>,
     /// The next message opens a task that follows up this one.
     follows: Option<SessionId>,
+    /// The last message seemed to start something new.
+    anew: Option<Anew>,
     last_id: u64,
     store: Store,
 }
@@ -271,6 +286,17 @@ impl Tasks {
                 (id, Some(Opened { id: id.0, previous }))
             }
         };
+        // Judged against the task as it was before the message.
+        self.anew = continuing
+            .and_then(|id| self.get(id))
+            .filter(|task| task.waiting.is_none() && task.starts_anew(text))
+            .map(|task| Anew {
+                task: task.id,
+                from: task.chat.len(),
+                since: now,
+                updated_at: task.updated_at,
+                ending: task.ending.clone(),
+            });
         if let Some(task) = self.get_mut(id) {
             task.running = true;
             // A call left waiting by an earlier launch gives way to the new message.
@@ -438,6 +464,56 @@ impl Tasks {
         shown.then(|| self.view(id, now)).flatten()
     }
 
+    /// Whether the message `id`'s turn answered seemed to start something new, so the
+    /// conversation offers to move it into a task of its own.
+    pub fn seems_new(&self, id: SessionId) -> bool {
+        self.anew.as_ref().is_some_and(|anew| anew.task == id)
+    }
+
+    /// Moves the last message, which seemed to start something new, and what came of it
+    /// out of the conversation's task into a new task of its own, which the conversation
+    /// goes on in. The task it came from is as it was before the message. Returns the
+    /// task it came from, for the runtime to forget what it holds of the moved exchange,
+    /// and the new task.
+    pub fn start_new_task(&mut self, now: Timestamp) -> Result<(SessionId, Opened), String> {
+        self.idle()?;
+        let anew = self
+            .anew
+            .take()
+            .filter(|anew| self.current == Some(anew.task))
+            .ok_or("There is nothing new to move now.")?;
+        let from = self.get_mut(anew.task).ok_or(GONE)?;
+        if from.chat.len() <= anew.from {
+            return Err("There is nothing new to move now.".to_string());
+        }
+        let chat = from.chat.split_off(anew.from);
+        let updated_at = std::mem::replace(&mut from.updated_at, anew.updated_at);
+        let ending = std::mem::replace(&mut from.ending, anew.ending);
+        let said = chat.iter().find_map(|(_, entry)| match entry {
+            Entry::User { text } => Some(text.as_str()),
+            _ => None,
+        });
+        self.last_id = anew.since.0.max(self.last_id.saturating_add(1));
+        let id = SessionId(self.last_id);
+        let task = Task {
+            id,
+            title: clip(&one_line(said.unwrap_or_default()), TITLE_CHARS),
+            parent: None,
+            updated_at,
+            running: false,
+            waiting: None,
+            ending,
+            chat,
+        };
+        if let Some(from) = self.get(anew.task) {
+            self.store.split(from, &task);
+        }
+        self.tasks.push(task);
+        self.current = Some(id);
+        let previous = self.card(anew.task, now);
+        Ok((anew.task, Opened { id: id.0, previous }))
+    }
+
     /// Sets the conversation's task aside, so the next message opens a new one.
     pub fn new_topic(&mut self, now: Timestamp) -> Result<Option<TaskCard>, String> {
         self.idle()?;
@@ -584,6 +660,9 @@ impl Tasks {
         if self.follows == Some(id) {
             self.follows = None;
         }
+        if self.anew.as_ref().is_some_and(|anew| anew.task == id) {
+            self.anew = None;
+        }
         Ok(())
     }
 
@@ -598,6 +677,7 @@ impl Tasks {
 
     /// Makes `next` the conversation's task, returning the one it replaces, if any.
     fn set_aside(&mut self, next: Option<SessionId>, now: Timestamp) -> Option<TaskCard> {
+        self.anew = None;
         let previous = std::mem::replace(&mut self.current, next).filter(|&p| Some(p) != next);
         previous.and_then(|p| self.card(p, now))
     }
@@ -662,6 +742,29 @@ impl Tasks {
     }
 }
 
+impl Task {
+    /// Whether `text`, sent in this task, seems to start something new
+    /// ([`word::starts_anew`]); never before the task has an answer to go on from.
+    fn starts_anew(&self, text: &str) -> bool {
+        fn user((_, entry): &(Timestamp, Entry)) -> Option<&str> {
+            match entry {
+                Entry::User { text } => Some(text),
+                _ => None,
+            }
+        }
+        let reply = self.chat.iter().rev().find_map(|(_, entry)| match entry {
+            Entry::Reply { text } => Some(text.as_str()),
+            _ => None,
+        });
+        let opening = self.chat.iter().find_map(user);
+        let last = self.chat.iter().rev().find_map(user);
+        let (Some(reply), Some(opening), Some(last)) = (reply, opening, last) else {
+            return false;
+        };
+        word::starts_anew(text, &[&self.title, opening, last, reply])
+    }
+}
+
 const GONE: &str = "This task is no longer kept.";
 
 /// Where tasks are kept across launches, if anywhere. A failed write is logged and the
@@ -671,14 +774,15 @@ struct Store(Option<Arc<Mutex<SqliteMemory>>>);
 
 impl Store {
     fn save(&self, task: &Task) {
-        let record = TaskRecord {
-            id: task.id.0,
-            title: task.title.clone(),
-            parent: task.parent.map(|p| p.0),
-            state: state(task),
-            updated_at: task.updated_at,
-        };
+        let record = record(task);
         self.write(task.id, |db| db.save_task(&record));
+    }
+
+    /// Moves the end of `from`'s chat to `to`, a new task with that chat, as one change.
+    fn split(&self, from: &Task, to: &Task) {
+        let moved = to.chat.len();
+        let (from, to) = (record(from), record(to));
+        self.write(SessionId(to.id), |db| db.split_task(&from, moved, &to));
     }
 
     fn add(&self, id: SessionId, at: Timestamp, entry: &Entry) {
@@ -773,6 +877,16 @@ impl From<Said> for Entry {
     }
 }
 
+fn record(task: &Task) -> TaskRecord {
+    TaskRecord {
+        id: task.id.0,
+        title: task.title.clone(),
+        parent: task.parent.map(|p| p.0),
+        state: state(task),
+        updated_at: task.updated_at,
+    }
+}
+
 /// The state a task is stored in.
 fn state(task: &Task) -> TaskState {
     match (&task.waiting, task.running, &task.ending) {
@@ -833,6 +947,12 @@ pub async fn ask_again(
         let _ = on_event.send(event);
     })
     .await
+}
+
+/// Moves the last exchange, which seemed to start something new, into a task of its own.
+#[tauri::command]
+pub fn start_new_task(host: tauri::State<'_, Host>) -> Result<Opened, String> {
+    host.start_new_task()
 }
 
 /// Sets the conversation's task aside; returns it, to fold into one line.
@@ -1154,6 +1274,82 @@ mod tests {
         let (next, opened) = say(&mut tasks, "something else", at(2), "ok");
         assert_ne!(next, first);
         assert_eq!(opened.unwrap().previous, None);
+    }
+
+    #[test]
+    fn a_message_that_seems_new_moves_into_a_task_of_its_own() {
+        let store = store();
+        let mut tasks = Tasks::load(Arc::clone(&store), 30, at(0)).unwrap();
+        let lunch_said = "Email Sam that lunch is on Thursday";
+        let (lunch, _) = say(&mut tasks, lunch_said, at(0), "Sent to Sam.");
+        say(&mut tasks, "Send it to Alex too", at(1), "Sent to Alex.");
+        assert!(!tasks.seems_new(lunch));
+        // Answered in the task it went to, then offered a task of its own.
+        let basil_said = "How do I keep basil fresh?";
+        let (id, opened) = say(&mut tasks, basil_said, at(2), "In a glass of water.");
+        assert_eq!((id, opened), (lunch, None));
+        assert!(tasks.seems_new(lunch));
+
+        let (from, opened) = tasks.start_new_task(at(3)).unwrap();
+        assert_eq!(from, lunch);
+        let basil = SessionId(opened.id);
+        // The task it came from is as it was before the message.
+        let previous = opened.previous.unwrap();
+        assert_eq!(
+            (previous.id, previous.page, previous.updated_at),
+            (lunch.0, Page::Done, at(1).0)
+        );
+        assert_eq!(previous.line, "Sent to Alex.");
+        let lunch_chat = [
+            format!("user: {lunch_said}"),
+            "reply: Sent to Sam.".to_string(),
+            "user: Send it to Alex too".to_string(),
+            "reply: Sent to Alex.".to_string(),
+        ];
+        assert_eq!(texts(&tasks.view(lunch, at(3)).unwrap().chat), lunch_chat);
+        let view = tasks.view(basil, at(3)).unwrap();
+        assert_eq!(view.card.title, basil_said);
+        assert_eq!(
+            texts(&view.chat),
+            [
+                format!("user: {basil_said}"),
+                "reply: In a glass of water.".to_string()
+            ]
+        );
+        // The conversation goes on in the new task; each history is its own.
+        assert_eq!(tasks.begin("And mint?", at(4)).0, basil);
+        tasks.end(basil, Ok("The same.".to_string()), at(4));
+        assert_eq!(tasks.history(lunch).len(), 4);
+        assert_eq!(tasks.history(basil).len(), 4);
+        // Only the last message is offered, and only once.
+        assert!(!tasks.seems_new(basil));
+        assert!(tasks.start_new_task(at(5)).is_err());
+        drop(tasks);
+
+        let tasks = Tasks::load(store, 30, at(6)).unwrap();
+        assert_eq!(texts(&tasks.view(lunch, at(6)).unwrap().chat), lunch_chat);
+        assert_eq!(tasks.view(basil, at(6)).unwrap().chat.len(), 4);
+        assert_eq!(tasks.current(at(6)).unwrap().card.id, basil.0);
+    }
+
+    #[test]
+    fn an_offer_goes_when_the_conversation_moves_on() {
+        let mut tasks = Tasks::default();
+        let (lunch, _) = say(&mut tasks, "Email Sam about lunch", at(0), "Sent.");
+        say(
+            &mut tasks,
+            "Suggest a name for a grey cat",
+            at(1),
+            "Smokey.",
+        );
+        assert!(tasks.seems_new(lunch));
+        tasks.new_topic(at(2)).unwrap();
+        assert!(!tasks.seems_new(lunch));
+        assert!(tasks.start_new_task(at(2)).is_err());
+        // A message that opens a task is offered nothing.
+        let (cat, opened) = say(&mut tasks, "Suggest a name for a grey cat", at(3), "Ash.");
+        assert!(opened.is_some());
+        assert!(!tasks.seems_new(cat));
     }
 
     #[test]

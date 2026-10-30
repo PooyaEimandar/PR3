@@ -83,6 +83,73 @@ const NOT_A_NAME: &[&str] = &[
     "with", "your",
 ];
 
+/// Words that point back at what came before - "send it", "the same to Alex", "which one
+/// is cheaper", "translate the last part" - so a message with one goes on in its task.
+const GOES_ON: &str = "again also another answer both change continue correct edit either else
+    expand fix he her hers him his instead it its less longer more no nope ok okay one ones
+    other others redo repeat rephrase rest reword rewrite same she shorten shorter simpler
+    simplify summarise summarize sure that thats their them these they this those too
+    translate undo which yeah yep yes";
+
+/// How a message that goes on from the one before often starts, before [`normalize`]
+/// drops some of these.
+const GOES_ON_FROM: &[&str] = &["and", "but", "or", "also", "plus", "then"];
+
+/// Words that say nothing of what a message is about, such as what it asks PR3 to do.
+const SAYS_NOTHING: &str = "a about after all am an any anything are as at be been before best
+    but by calculate can cant check compare convert could create define describe did didnt
+    do does doesnt dont explain find for from get give go going good got great had has have
+    help here how i id if im in into is isnt ive just know let lets like long look make many
+    me much my need nice not now of often on or our out please pr3 really recommend right
+    say see should show so some something suggest tell than thank thanks the there think to
+    up us very want was way we well were what when where who why will with would write you
+    your youre";
+
+/// How a message that asks something of its own starts: a question or a request, not
+/// more detail for the task.
+const ASKS: &str = "add are book calculate can check compare convert could create define
+    describe did do does email explain find give help how is list make plan recommend remind
+    send set should show suggest tell what when where which who why will would write";
+
+/// A message needs at least this many words of its own to look new: "Thursday works"
+/// could answer anything.
+const NEW_WORDS: usize = 2;
+
+/// Whether `text`, sent in a task, seems to start something new (docs Sec. 4.8): it asks
+/// something of its own - a question or a request, not more detail for the task or an
+/// answer to PR3 - in words of its own, none of them in `earlier` (the task's title, its
+/// opening message and its last exchange), and it points back at nothing.
+pub fn starts_anew(text: &str, earlier: &[&str]) -> bool {
+    let first = text
+        .split(|c: char| !c.is_alphanumeric())
+        .find(|w| !w.is_empty())
+        .map(str::to_lowercase);
+    if first.is_some_and(|w| GOES_ON_FROM.contains(&w.as_str())) {
+        return false;
+    }
+    let said = normalize(text);
+    if said.starts_with("what about ") || said.starts_with("how about ") {
+        return false;
+    }
+    let words: Vec<&str> = said.split(' ').collect();
+    let asks = text.trim_end().ends_with('?') || words.first().is_some_and(|w| among(ASKS, w));
+    if !asks || words.iter().any(|w| among(GOES_ON, w)) {
+        return false;
+    }
+    let own: Vec<&str> = words
+        .iter()
+        .copied()
+        .filter(|w| w.chars().count() > 1 && !among(SAYS_NOTHING, w))
+        .collect();
+    if own.len() < NEW_WORDS {
+        return false;
+    }
+    let before = normalize(&earlier.join(" "));
+    let before: Vec<&str> = before.split(' ').collect();
+    !own.iter()
+        .any(|word| before.iter().any(|said| same_word(word, said)))
+}
+
 /// Reads a whole message as words about the task list, if it is one.
 pub fn parse(text: &str) -> Option<Words> {
     let said = normalize(text);
@@ -146,6 +213,11 @@ pub fn normalize(text: &str) -> String {
 pub fn covers(words: &[&str], name: &[String]) -> bool {
     name.iter()
         .all(|wanted| words.iter().any(|word| same_word(word, wanted)))
+}
+
+/// Whether `word` is one of `list`'s, which are separated by spaces.
+fn among(list: &str, word: &str) -> bool {
+    list.split_whitespace().any(|w| w == word)
 }
 
 fn same_word(a: &str, b: &str) -> bool {
@@ -220,6 +292,54 @@ mod tests {
             "Share it",
         ] {
             assert_eq!(parse(other), None, "{other}");
+        }
+    }
+
+    /// The task's title, opening message, last message and reply.
+    const LUNCH: [&str; 4] = [
+        "Email Sam that lunch is on Thursday",
+        "Email Sam that lunch is on Thursday",
+        "Email Sam that lunch is on Thursday",
+        "Sent to Sam. Want me to suggest a time too?",
+    ];
+
+    #[test]
+    fn a_question_or_request_in_words_of_its_own_starts_anew() {
+        for text in [
+            "What's the weather like in Lisbon tomorrow?",
+            "How do I keep basil fresh?",
+            // "suggest" says what to do, not what it is about.
+            "Suggest a name for a grey cat.",
+            "Remind me to water the plants at six",
+        ] {
+            assert!(starts_anew(text, &LUNCH), "{text}");
+        }
+    }
+
+    #[test]
+    fn a_message_that_goes_on_stays_in_its_task() {
+        for text in [
+            "Send it to Alex instead.",
+            "Now send the same details to Alex.",
+            "Make it shorter",
+            "Translate to German",
+            "Which one is cheaper?",
+            "And tomorrow?",
+            "But is Ana away next week?",
+            "What about Lisbon?",
+            "Thanks!",
+            "Great, perfect",
+            // Words the task said, in another form.
+            "Is Thursday's lunch at noon?",
+            "Do emails take long to arrive?",
+            // More detail for the task, or an answer to PR3: they ask nothing of their own.
+            "Friday works",
+            "Noon at Casa Lupa",
+            "The budget is 40 euros.",
+            "We want a hotel in Alfama for under 120 euros a night.",
+            "Let's plan a mushroom risotto as the main course.",
+        ] {
+            assert!(!starts_anew(text, &LUNCH), "{text}");
         }
     }
 
