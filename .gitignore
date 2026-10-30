@@ -46,7 +46,7 @@ fuzz/artifact/
 fuzz/artifacts/
 fuzz/coverage/
 
-# The app's webview script, compiled from app/pr3-app/src (npm run build), and its
+# The app's webview scripts, compiled from app/pr3-app/src (npm run build), and their
 # compiler
-/app/pr3-app/ui/main.js
+/app/pr3-app/ui/*.js
 node_modules/

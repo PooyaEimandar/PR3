@@ -1,5 +1,7 @@
 // The webview only renders. All decisions live in the Rust runtime, and the types below
 // mirror what its commands send (src-tauri/src).
+import { markdown, plain } from "./markdown.js";
+
 const { invoke, Channel } = window.__TAURI__.core;
 
 // An element of index.html, of the kind the script expects.
@@ -99,7 +101,7 @@ type Action =
   | { type: "failed"; reason: string }
   | { type: "infer" | "call_tool" | "propose" | "trace" };
 
-// Model output is untrusted: always textContent, never innerHTML.
+// Model output is untrusted: always textContent, or markdown(), never innerHTML.
 function show(kind: string, text: string): HTMLDivElement {
   const el = document.createElement("div");
   el.className = `msg ${kind}`;
@@ -227,7 +229,7 @@ async function send(text: string): Promise<void> {
       log.querySelector("button.fold.following")?.classList.remove("following");
     } else if (event.type === "token") {
       streamed += event.text;
-      bubble.textContent = streamed;
+      bubble.replaceChildren(markdown(streamed));
     } else if (event.type === "tool") {
       // Show what PR3 ran on the user's behalf, above the answer it leads to.
       log.insertBefore(entryNode(event), bubble);
@@ -250,8 +252,8 @@ async function send(text: string): Promise<void> {
     for (const action of actions) {
       // The final reply is canonical; it replaces whatever was streamed.
       if (action.type === "reply") {
-        bubble.textContent = action.content;
-        speak(action.content);
+        bubble.replaceChildren(markdown(action.content));
+        speak(plain(action.content));
       } else if (action.type === "failed") {
         bubble.remove();
         show("error", action.reason);
@@ -1311,8 +1313,11 @@ function entryNode(entry: Entry): HTMLElement {
   switch (entry.type) {
     case "user":
       return el("div", entry.text, "msg user");
-    case "reply":
-      return el("div", entry.text, "msg assistant");
+    case "reply": {
+      const reply = el("div", undefined, "msg assistant");
+      reply.append(markdown(entry.text));
+      return reply;
+    }
     case "tool":
       return el("div", toolText(entry), `msg tool${entry.success ? "" : " failed"}`);
     case "failed":
