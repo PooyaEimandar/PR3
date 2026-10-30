@@ -19,7 +19,7 @@ use pr3_memory::{
 };
 use rusqlite::{Connection, OptionalExtension, Row, Transaction, params};
 
-pub use crate::task::{Said, StoredTask, TaskEvent, TaskRecord, TaskState, WaitingCall};
+pub use crate::task::{Said, StoredTask, Summary, TaskEvent, TaskRecord, TaskState, WaitingCall};
 
 /// Schema migrations, applied in order; the database's `user_version` is how many have
 /// run. Never edit a released migration: add a new one.
@@ -120,6 +120,12 @@ const MIGRATIONS: &[&str] = &[
         -- SHA-256 of the previous event's hash and this event, in hex.
         hash TEXT NOT NULL
     );
+    ",
+    // v4: a task's summary (docs Sec. 4.8): what its chat came to, as the model summed it
+    // up, and how many steps of the chat, from the start, it covers.
+    "
+    ALTER TABLE tasks ADD COLUMN summary TEXT;
+    ALTER TABLE tasks ADD COLUMN summarized INTEGER NOT NULL DEFAULT 0;
     ",
 ];
 
@@ -416,6 +422,15 @@ impl MemoryStore for SqliteMemory {
                 "INSERT OR REPLACE INTO memory_tombstones(memory_id, deleted_at)
                  VALUES (?1, ?2)",
                 params![current, at],
+            )
+            .map_err(error)?;
+        }
+        if forgot {
+            // A task's summary may have drawn on the memory, and which one did cannot be
+            // told, so every summary goes; each is made again from its chat when needed.
+            tx.execute(
+                "UPDATE tasks SET summary = NULL, summarized = 0 WHERE summary IS NOT NULL",
+                [],
             )
             .map_err(error)?;
         }

@@ -1,5 +1,5 @@
 //! Tasks on SQLite (docs Sec. 4.8): each task's record, its chat as the conversation
-//! showed it, and the events of its lifecycle. The chat is the user's record: deleting
+//! showed it, its summary, and the events of its lifecycle. The chat is the user's record: deleting
 //! the task erases it, and `secure_delete` overwrites the pages it was on. The events
 //! hold states and references, never text, so they outlive the task; each carries the
 //! SHA-256 of the one before it, so an edited, removed or reordered event shows.
@@ -74,11 +74,21 @@ pub struct TaskEvent {
     pub hash: String,
 }
 
+/// What the start of a task's chat came to, as the model summed it up: model output,
+/// kept as data. Forgetting any memory erases every summary.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Summary {
+    pub text: String,
+    /// How many steps of the chat, from the start, it covers.
+    pub steps: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StoredTask {
     pub record: TaskRecord,
     /// Oldest first.
     pub chat: Vec<(Timestamp, Said)>,
+    pub summary: Option<Summary>,
 }
 
 impl SqliteMemory {
@@ -124,6 +134,19 @@ impl SqliteMemory {
         tx.commit().map_err(error)
     }
 
+    /// Replaces a task's summary. Not an event: a summary is model output, not a state.
+    pub fn save_summary(&mut self, task: u64, summary: &Summary) -> Result<(), MemoryError> {
+        let steps =
+            i64::try_from(summary.steps).map_err(|_| MemoryError("too many steps".into()))?;
+        self.conn
+            .execute(
+                "UPDATE tasks SET summary = ?2, summarized = ?3 WHERE id = ?1",
+                params![db_id(task)?, summary.text, steps],
+            )
+            .map_err(error)?;
+        Ok(())
+    }
+
     /// Adds a step to a task's chat.
     pub fn add_said(&mut self, task: u64, at: Timestamp, said: &Said) -> Result<(), MemoryError> {
         let (kind, text, tool, arguments, success) = match said {
@@ -161,12 +184,18 @@ impl SqliteMemory {
             .conn
             .prepare(
                 "SELECT id, title, parent, state, reason, waiting_tool, waiting_arguments,
-                     waiting_until, updated_at
+                     waiting_until, updated_at, summary, summarized
                  FROM tasks ORDER BY id",
             )
             .map_err(error)?;
         let records = records
-            .query_map([], record)
+            .query_map([], |r| {
+                let steps = usize::try_from(r.get::<_, i64>(10)?).unwrap_or(0);
+                let summary = r
+                    .get::<_, Option<String>>(9)?
+                    .map(|text| Summary { text, steps });
+                Ok((record(r)?, summary))
+            })
             .map_err(error)?
             .collect::<Result<Vec<_>, _>>()
             .map_err(error)?;
@@ -179,13 +208,17 @@ impl SqliteMemory {
             .map_err(error)?;
         records
             .into_iter()
-            .map(|record| {
+            .map(|(record, summary)| {
                 let chat = chat
                     .query_map(params![db_id(record.id)?], said)
                     .map_err(error)?
                     .collect::<Result<Vec<_>, _>>()
                     .map_err(error)?;
-                Ok(StoredTask { record, chat })
+                Ok(StoredTask {
+                    record,
+                    chat,
+                    summary,
+                })
             })
             .collect()
     }
@@ -538,6 +571,39 @@ mod tests {
             [(1, "opened"), (1, "waiting"), (1, "done"), (2, "opened")]
         );
         assert!(m.task_events_intact().unwrap());
+    }
+
+    #[test]
+    fn a_summary_is_kept_until_any_memory_is_forgotten() {
+        use pr3_memory::{MemoryId, MemoryStore};
+
+        let mut m = SqliteMemory::open_in_memory().unwrap();
+        m.save_task(&task(1, TaskState::Done, 100)).unwrap();
+        m.save_task(&task(2, TaskState::Done, 100)).unwrap();
+        let summary = Summary {
+            text: "Locker 58; the membership ends on 30 April.".to_string(),
+            steps: 4,
+        };
+        m.save_summary(1, &summary).unwrap();
+        // A record saved later keeps it, and it is no event.
+        m.save_task(&task(1, TaskState::Done, 120)).unwrap();
+        let stored = m.tasks().unwrap();
+        assert_eq!(stored[0].summary, Some(summary));
+        assert_eq!(stored[1].summary, None);
+        assert_eq!(events(&m).len(), 2);
+
+        // Forgetting nothing keeps it; forgetting a memory erases every summary.
+        assert!(!m.forget(MemoryId(99), Timestamp(130)).unwrap());
+        assert!(m.tasks().unwrap()[0].summary.is_some());
+        let id = m
+            .remember(pr3_memory::NewMemory {
+                text: "The user's locker is 58.".to_string(),
+                status: pr3_memory::Status::Confirmed,
+                provenance: pr3_memory::Provenance::from_user(Timestamp(100)),
+            })
+            .unwrap();
+        assert!(m.forget(id, Timestamp(140)).unwrap());
+        assert!(m.tasks().unwrap().iter().all(|t| t.summary.is_none()));
     }
 
     #[test]
