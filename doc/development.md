@@ -189,6 +189,16 @@ cargo build --release -p pr3-bench-agentdojo
 
 A run resumes where it stopped. Expect about 10–70 seconds per task, depending on the model.
 
+The task suite in [`bench/task`](../bench/task) measures what a task keeps across app launches, changes of topic and confirmation cards (Sec. 4.8). It runs the app's own host on a model, each launch in its own process, through the made-up cases in `corpus.toml`, and checks PR3's answers and emails for words the task said earlier and for words only another task said or the user took out. Results so far: [Sec. 8.6](benchmarks.md#86-results-so-far).
+
+```bash
+cargo build --release -p pr3-bench-task
+./target/release/pr3-bench-task run --model model/Qwen3.5-4B-Q4_K_M.gguf     # --case restart/trip for one case
+./target/release/pr3-bench-task summary bench/task/result/*.jsonl --update doc/benchmarks.md
+```
+
+A run resumes where it stopped, at one sampling seed (`--seed`, 7 by default). Expect a few seconds per message with the 4B model.
+
 ## Repository layout
 
 ```text
@@ -204,6 +214,7 @@ crate/pr3-vault          the device's approval key: Secure Enclave, Android Keys
 fuzz                     fuzz targets for the parsers of untrusted input (pinned nightly, cargo-fuzz)
 app/pr3-app              the Tauri 2 app for macOS, iOS and Android: Rust in src-tauri, the webview's TypeScript in src, its page in ui
 bench/agentdojo         AgentDojo harness (benchmark only, never shipped)
+bench/task              tasks that span app launches, on the app's own host (benchmark only, never shipped)
 config/pr3.toml           models, traces, actions and node settings
 script/                  model download, Android build, trusted-side check
 ```
