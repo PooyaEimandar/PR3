@@ -85,50 +85,42 @@ impl SqliteMemory {
     /// Stores a task's record, adding it if it is new. A new task, and each change of
     /// state, is logged as an event.
     pub fn save_task(&mut self, task: &TaskRecord) -> Result<(), MemoryError> {
-        let id = db_id(task.id)?;
-        let parent = task.parent.map(db_id).transpose()?;
-        let updated_at = db_time(task.updated_at)?;
-        let state = state_name(&task.state);
-        let (reason, waiting) = match &task.state {
-            TaskState::Failed(reason) => (Some(reason.as_str()), None),
-            TaskState::Waiting(call) => (None, Some(call)),
-            _ => (None, None),
-        };
-        let until = waiting.map(|call| db_time(call.until)).transpose()?;
         let tx = self.conn.transaction().map_err(error)?;
-        let before: Option<String> = tx
-            .query_row("SELECT state FROM tasks WHERE id = ?1", params![id], |r| {
-                r.get(0)
-            })
-            .optional()
-            .map_err(error)?;
-        tx.execute(
-            "INSERT INTO tasks(id, title, parent, state, reason, waiting_tool,
-                 waiting_arguments, waiting_until, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
-             ON CONFLICT(id) DO UPDATE SET title = excluded.title,
-                 parent = excluded.parent, state = excluded.state,
-                 reason = excluded.reason, waiting_tool = excluded.waiting_tool,
-                 waiting_arguments = excluded.waiting_arguments,
-                 waiting_until = excluded.waiting_until, updated_at = excluded.updated_at",
-            params![
+        upsert(&tx, task)?;
+        tx.commit().map_err(error)
+    }
+
+    /// Moves the last `steps` steps of `from`'s chat to `to`, a new task, and stores both
+    /// records, as one change: a message that turned out to start something new, moved
+    /// with what came of it. `to` is logged as opened and then in its state.
+    pub fn split_task(
+        &mut self,
+        from: &TaskRecord,
+        steps: usize,
+        to: &TaskRecord,
+    ) -> Result<(), MemoryError> {
+        let id = db_id(to.id)?;
+        let tx = self.conn.transaction().map_err(error)?;
+        if !upsert(&tx, to)? {
+            return Err(MemoryError(format!("task {} is already kept", to.id)));
+        }
+        if to.state != TaskState::Working {
+            log_event(
+                &tx,
                 id,
-                task.title,
-                parent,
-                state,
-                reason,
-                waiting.map(|call| call.tool.as_str()),
-                waiting.map(|call| call.arguments.as_str()),
-                until,
-                updated_at,
-            ],
+                db_time(to.updated_at)?,
+                state_name(&to.state),
+                None,
+            )?;
+        }
+        let steps = i64::try_from(steps).map_err(|_| MemoryError("too many steps".into()))?;
+        tx.execute(
+            "UPDATE messages SET task_id = ?1 WHERE id IN
+                 (SELECT id FROM messages WHERE task_id = ?2 ORDER BY id DESC LIMIT ?3)",
+            params![id, db_id(from.id)?, steps],
         )
         .map_err(error)?;
-        match before {
-            None => log_event(&tx, id, updated_at, "opened", parent)?,
-            Some(before) if before != state => log_event(&tx, id, updated_at, state, None)?,
-            Some(_) => {}
-        }
+        upsert(&tx, from)?;
         tx.commit().map_err(error)
     }
 
@@ -303,6 +295,55 @@ fn remove(tx: &Transaction<'_>, id: i64, at: i64, event: &str) -> Result<bool, M
         log_event(tx, id, at, event, None)?;
     }
     Ok(removed)
+}
+
+/// Stores a task's record and logs it as opened if it is new, or its new state if that
+/// changed; returns whether it is new.
+fn upsert(tx: &Transaction<'_>, task: &TaskRecord) -> Result<bool, MemoryError> {
+    let id = db_id(task.id)?;
+    let parent = task.parent.map(db_id).transpose()?;
+    let updated_at = db_time(task.updated_at)?;
+    let state = state_name(&task.state);
+    let (reason, waiting) = match &task.state {
+        TaskState::Failed(reason) => (Some(reason.as_str()), None),
+        TaskState::Waiting(call) => (None, Some(call)),
+        _ => (None, None),
+    };
+    let until = waiting.map(|call| db_time(call.until)).transpose()?;
+    let before: Option<String> = tx
+        .query_row("SELECT state FROM tasks WHERE id = ?1", params![id], |r| {
+            r.get(0)
+        })
+        .optional()
+        .map_err(error)?;
+    tx.execute(
+        "INSERT INTO tasks(id, title, parent, state, reason, waiting_tool,
+             waiting_arguments, waiting_until, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+         ON CONFLICT(id) DO UPDATE SET title = excluded.title,
+             parent = excluded.parent, state = excluded.state,
+             reason = excluded.reason, waiting_tool = excluded.waiting_tool,
+             waiting_arguments = excluded.waiting_arguments,
+             waiting_until = excluded.waiting_until, updated_at = excluded.updated_at",
+        params![
+            id,
+            task.title,
+            parent,
+            state,
+            reason,
+            waiting.map(|call| call.tool.as_str()),
+            waiting.map(|call| call.arguments.as_str()),
+            until,
+            updated_at,
+        ],
+    )
+    .map_err(error)?;
+    match &before {
+        None => log_event(tx, id, updated_at, "opened", parent)?,
+        Some(before) if before != state => log_event(tx, id, updated_at, state, None)?,
+        Some(_) => {}
+    }
+    Ok(before.is_none())
 }
 
 fn log_event(
@@ -497,6 +538,69 @@ mod tests {
             [(1, "opened"), (1, "waiting"), (1, "done"), (2, "opened")]
         );
         assert!(m.task_events_intact().unwrap());
+    }
+
+    #[test]
+    fn a_split_moves_the_chat_since_a_message_into_a_new_task() {
+        let mut m = SqliteMemory::open_in_memory().unwrap();
+        m.save_task(&task(1, TaskState::Working, 100)).unwrap();
+        let said = [
+            (100, Said::User("Email Sam about lunch".to_string())),
+            (110, Said::Reply("Sent to Sam.".to_string())),
+            (200, Said::User("How do I keep basil fresh?".to_string())),
+            (210, Said::Reply("In water, like flowers.".to_string())),
+        ];
+        for (at, said) in &said {
+            m.add_said(1, Timestamp(*at), said).unwrap();
+        }
+        m.save_task(&task(1, TaskState::Failed("closed".to_string()), 210))
+            .unwrap();
+
+        m.split_task(
+            &task(1, TaskState::Done, 110),
+            2,
+            &task(200, TaskState::Done, 210),
+        )
+        .unwrap();
+        let stored = m.tasks().unwrap();
+        assert_eq!(stored[0].record, task(1, TaskState::Done, 110));
+        assert_eq!(
+            stored[0].chat,
+            said[..2]
+                .iter()
+                .map(|(at, s)| (Timestamp(*at), s.clone()))
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(stored[1].record, task(200, TaskState::Done, 210));
+        assert_eq!(
+            stored[1].chat,
+            said[2..]
+                .iter()
+                .map(|(at, s)| (Timestamp(*at), s.clone()))
+                .collect::<Vec<_>>()
+        );
+        let names: Vec<(i64, String)> = events(&m);
+        assert_eq!(
+            names,
+            [
+                (1, "opened".to_string()),
+                (1, "failed".to_string()),
+                (200, "opened".to_string()),
+                (200, "done".to_string()),
+                (1, "done".to_string()),
+            ]
+        );
+        assert!(m.task_events_intact().unwrap());
+        // A task already kept is not split into.
+        assert!(
+            m.split_task(
+                &task(1, TaskState::Done, 110),
+                2,
+                &task(200, TaskState::Done, 210)
+            )
+            .is_err()
+        );
+        assert_eq!(m.tasks().unwrap()[0].chat.len(), 2);
     }
 
     #[test]
