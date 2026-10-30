@@ -100,11 +100,16 @@ h1 {
   font-size: 13px;
 }
 
+/* Close to the screen's edges, with narrow buttons, so the text box gets the width. */
 #composer {
   display: flex;
   gap: 8px;
-  padding: 10px 12px 14px;
+  padding: 10px 6px 14px;
   border-top: 1px solid var(--line);
+}
+
+#composer button[type="submit"] {
+  padding: 10px 12px;
 }
 
 /* Four buttons share the row with the text box; on small phones they sit closer, so
@@ -118,7 +123,7 @@ h1 {
 #text {
   flex: 1;
   min-width: 0;
-  padding: 10px 12px;
+  padding: 10px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--panel);
@@ -144,6 +149,39 @@ button {
 
 .msg.pending {
   color: var(--muted);
+}
+
+/* Until the reply's first words: dots that come and go, ". .. ... .. .", a step at a
+   time. They are clipped rather than resized, so the bubble keeps its width; the font is
+   monospace, so each dot is 1ch. */
+.msg.pending:empty::after {
+  content: "...";
+  display: inline-block;
+  animation: dots 1.2s step-end infinite;
+}
+
+@keyframes dots {
+  0% {
+    clip-path: inset(0 2ch 0 0);
+  }
+  25% {
+    clip-path: inset(0 1ch 0 0);
+  }
+  50% {
+    clip-path: inset(0);
+  }
+  75% {
+    clip-path: inset(0 1ch 0 0);
+  }
+  100% {
+    clip-path: inset(0 2ch 0 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .msg.pending:empty::after {
+    animation: none;
+  }
 }
 
 button:disabled {
@@ -456,7 +494,7 @@ button.small {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 10px;
+  padding: 0 8px;
   background: transparent;
   color: var(--accent);
   border: 1px solid var(--line);

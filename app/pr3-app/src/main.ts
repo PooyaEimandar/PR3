@@ -212,7 +212,7 @@ async function send(text: string): Promise<void> {
   // The answer shows in the conversation, so a message sent from Tasks goes back to it.
   if (!tasksSection.hidden) showTasks(false);
   const said = show("user", text);
-  const bubble = show("assistant pending", "…");
+  const bubble = show("assistant pending", "");
   let streamed = "";
 
   const onEvent = new Channel<TurnEvent>();
@@ -229,7 +229,7 @@ async function send(text: string): Promise<void> {
       // Show what PR3 ran on the user's behalf, above the answer it leads to.
       log.insertBefore(entryNode(event), bubble);
       streamed = "";
-      bubble.textContent = "…";
+      bubble.textContent = "";
     } else if (event.type === "approval") {
       showApproval(event.request, bubble);
     }
@@ -345,7 +345,7 @@ function speak(text: string): void {
 // A confirmation card that was waiting when the app closed is shown again: the trusted
 // side takes it as a new request, and the task ends with what came of it.
 async function askAgain(id: number): Promise<void> {
-  const bubble = show("assistant pending", "…");
+  const bubble = show("assistant pending", "");
   const onEvent = new Channel<TurnEvent>();
   onEvent.onmessage = (event) => {
     if (event.type === "approval") showApproval(event.request, bubble);
