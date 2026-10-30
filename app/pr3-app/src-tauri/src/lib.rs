@@ -13,6 +13,7 @@ mod llama;
 mod memory;
 mod models;
 mod network;
+mod share;
 mod speech;
 mod task;
 mod trace_export;
@@ -369,10 +370,15 @@ pub fn run() {
     let builder = builder
         .plugin(android_vault::plugin())
         .plugin(android_speech::plugin())
-        .plugin(network::plugin());
+        .plugin(network::plugin())
+        .plugin(share::plugin());
     let app = builder
         .setup(|app| {
             prepare_data_dir(app.handle());
+            // An export waits in the cache for the share sheet; it holds a chat in plain text.
+            if let Ok(dir) = task::export::dir(app.handle()) {
+                task::export::clear(&dir);
+            }
             let data_dir = app.path().app_data_dir().ok();
             let config = config::Config::load(data_dir.as_deref());
             let actions = config.as_ref().ok().map(|c| &c.actions);
@@ -425,6 +431,7 @@ pub fn run() {
             task::continue_task,
             task::follow_up_task,
             task::task_words,
+            task::export_task,
             task::delete_task
         ])
         .build(tauri::generate_context!());

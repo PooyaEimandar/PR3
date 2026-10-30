@@ -1,8 +1,8 @@
 //! Task words (docs Sec. 4.8): what the user says or types about their tasks - "what is
-//! still open?", "carry on with the email to Alex", "what happened with the dentist?" -
-//! answered from the task list by fixed rules, never by the model. Only a whole message
-//! counts, and words that name no kept task are an ordinary message for the model, so
-//! "continue the story" still reaches it.
+//! still open?", "carry on with the email to Alex", "what happened with the dentist?",
+//! "export the trip plan" - answered from the task list by fixed rules, never by the
+//! model. Only a whole message counts, and words that name no kept task are an ordinary
+//! message for the model, so "continue the story" still reaches it.
 
 /// What a message asks of the task list.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -13,6 +13,8 @@ pub enum Words {
     CarryOn(Vec<String>),
     /// How the task these words name stands.
     WhatHappened(Vec<String>),
+    /// Hand the task these words name to the share sheet.
+    Export(Vec<String>),
 }
 
 /// Whole messages asking what is open, as [`normalize`] leaves them.
@@ -71,6 +73,9 @@ const WHAT_HAPPENED: &[&str] = &[
     "any news about",
 ];
 
+/// How a message exporting a task starts.
+const EXPORT: &[&str] = &["export", "share"];
+
 /// Words that name no task: left out of a task's name before it is looked up.
 const NOT_A_NAME: &[&str] = &[
     "a", "about", "again", "an", "and", "at", "for", "from", "i", "in", "it", "its", "me", "my",
@@ -92,6 +97,9 @@ pub fn parse(text: &str) -> Option<Words> {
     }
     if let Some(name) = WHAT_HAPPENED.iter().find_map(|start| after(&said, start)) {
         return named(name).map(Words::WhatHappened);
+    }
+    if let Some(name) = EXPORT.iter().find_map(|start| after(&said, start)) {
+        return named(name).map(Words::Export);
     }
     CARRY_ON
         .iter()
@@ -194,6 +202,10 @@ mod tests {
             parse("How did the email to Alex go?"),
             Some(Words::WhatHappened(name(&["email", "alex"])))
         );
+        assert_eq!(
+            parse("Export the trip plan"),
+            Some(Words::Export(name(&["trip", "plan"])))
+        );
     }
 
     #[test]
@@ -205,6 +217,7 @@ mod tests {
             "Is the shop open?",
             "Remind me to continue the report",
             "What happened?",
+            "Share it",
         ] {
             assert_eq!(parse(other), None, "{other}");
         }

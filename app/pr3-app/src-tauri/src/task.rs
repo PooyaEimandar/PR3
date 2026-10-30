@@ -8,13 +8,19 @@
 use std::sync::{Arc, Mutex};
 
 use pr3_core::{Message, Role, SessionId, Timestamp, ToolCall};
-use pr3_memory_sqlite::{Said, SqliteMemory, StoredTask, TaskRecord, TaskState, WaitingCall};
+use pr3_memory_sqlite::{
+    Said, SqliteMemory, StoredTask, TaskEvent, TaskRecord, TaskState, WaitingCall,
+};
 use serde::Serialize;
+use tauri::Manager;
 use tauri::ipc::Channel;
 
 use crate::host::{Host, TurnEvent};
 
+pub mod export;
 mod word;
+
+pub use export::Export;
 
 /// A message this long after its task's last one opens a new task: 10 quiet minutes.
 pub const FOLLOW_UP_MS: u64 = 10 * 60 * 1000;
@@ -128,6 +134,8 @@ pub enum Answer {
     Choose { cards: Vec<TaskCard> },
     /// How the task the words name stands.
     Status { card: TaskCard },
+    /// The task the words name, for the UI to export.
+    Export { card: TaskCard },
 }
 
 /// At most this many tasks to choose between.
@@ -484,6 +492,11 @@ impl Tasks {
                 .into_iter()
                 .next()
                 .map(|card| Answer::Status { card })),
+            word::Words::Export(name) => Ok(self
+                .named(&name, now)
+                .into_iter()
+                .next()
+                .map(|card| Answer::Export { card })),
             word::Words::CarryOn(name) => {
                 let named = self.named(&name, now);
                 let mut open: Vec<TaskCard> = named
@@ -529,6 +542,27 @@ impl Tasks {
             .collect();
         cards.sort_by(|a, b| b.updated_at.cmp(&a.updated_at).then(b.id.cmp(&a.id)));
         cards
+    }
+
+    /// The task as two files: its chat to read, and its record and events to check.
+    pub fn export(
+        &self,
+        id: SessionId,
+        now: Timestamp,
+        utc_offset_minutes: i32,
+    ) -> Result<Export, String> {
+        let task = self.get(id).ok_or(GONE)?;
+        let (events, intact) = self.store.events(id)?;
+        let parent = task.parent.and_then(|p| self.get(p));
+        let card = self.card_of(task, now);
+        Ok(export::build(
+            task,
+            &card,
+            parent,
+            &events,
+            intact,
+            (now, utc_offset_minutes),
+        ))
     }
 
     /// Whether `id` can be deleted now: it exists and no turn runs for it.
@@ -637,18 +671,11 @@ struct Store(Option<Arc<Mutex<SqliteMemory>>>);
 
 impl Store {
     fn save(&self, task: &Task) {
-        let state = match (&task.waiting, task.running, &task.ending) {
-            (Some(call), _, _) => TaskState::Waiting(call.clone()),
-            (None, true, _) => TaskState::Working,
-            (None, false, Ending::Answered) => TaskState::Done,
-            (None, false, Ending::Failed(reason)) => TaskState::Failed(reason.clone()),
-            (None, false, Ending::Expired) => TaskState::Expired,
-        };
         let record = TaskRecord {
             id: task.id.0,
             title: task.title.clone(),
             parent: task.parent.map(|p| p.0),
-            state,
+            state: state(task),
             updated_at: task.updated_at,
         };
         self.write(task.id, |db| db.save_task(&record));
@@ -670,6 +697,20 @@ impl Store {
         db.delete_task(id.0, now)
             .map(|_| ())
             .map_err(|e| e.to_string())
+    }
+
+    /// The task's events, and whether the whole chain still checks; neither without the
+    /// memory database.
+    fn events(&self, id: SessionId) -> Result<(Vec<TaskEvent>, Option<bool>), String> {
+        let Some(store) = &self.0 else {
+            return Ok((Vec::new(), None));
+        };
+        let db = store
+            .lock()
+            .map_err(|_| "the memory database is unavailable")?;
+        let events = db.task_events(id.0).map_err(|e| e.to_string())?;
+        let intact = db.task_events_intact().map_err(|e| e.to_string())?;
+        Ok((events, Some(intact)))
     }
 
     fn write(
@@ -729,6 +770,17 @@ impl From<Said> for Entry {
             },
             Said::Failed(reason) => Self::Failed { reason },
         }
+    }
+}
+
+/// The state a task is stored in.
+fn state(task: &Task) -> TaskState {
+    match (&task.waiting, task.running, &task.ending) {
+        (Some(call), _, _) => TaskState::Waiting(call.clone()),
+        (None, true, _) => TaskState::Working,
+        (None, false, Ending::Answered) => TaskState::Done,
+        (None, false, Ending::Failed(reason)) => TaskState::Failed(reason.clone()),
+        (None, false, Ending::Expired) => TaskState::Expired,
     }
 }
 
@@ -803,6 +855,23 @@ pub fn follow_up_task(id: u64, host: tauri::State<'_, Host>) -> Result<Following
 #[tauri::command]
 pub fn task_words(text: String, host: tauri::State<'_, Host>) -> Result<Option<Answer>, String> {
     host.task_words(&text)
+}
+
+/// Exports a task as two files and hands them to the share sheet; on a computer, saves
+/// them where the user picks. Returns what to tell the user, if anything.
+#[tauri::command]
+pub async fn export_task(
+    id: u64,
+    utc_offset_minutes: i32,
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+) -> Result<Option<String>, String> {
+    let export = app
+        .state::<Host>()
+        .export_task(SessionId(id), utc_offset_minutes)?;
+    let dir = export::dir(&app)?;
+    let files = export::write(&dir, &export)?;
+    crate::share::files(&app, &window, &files).await
 }
 
 /// Deletes a task, its chat and what the runtime remembers of it.

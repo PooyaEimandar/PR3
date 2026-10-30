@@ -90,7 +90,8 @@ type Answer =
   | ({ type: "continued" } & Continued)
   | ({ type: "following_up" } & FollowingUp)
   | { type: "choose"; cards: TaskCard[] }
-  | { type: "status"; card: TaskCard };
+  | { type: "status"; card: TaskCard }
+  | { type: "export"; card: TaskCard };
 
 // What a finished turn asks of the host (pr3-core's Action); the UI shows the reply or
 // the failure, and the host has handled the rest.
@@ -300,6 +301,15 @@ async function answerTaskWords(text: string): Promise<boolean> {
       const reply = taskAnswer("Which one?", answer.cards, (id) => continueTask(id, reply));
       addToLog(reply);
       speak(`Which one: ${titles(answer.cards)}?`);
+      break;
+    }
+    case "export": {
+      const line = `Exporting “${answer.card.title}”.`;
+      const reply = el("div", line, "msg assistant");
+      addToLog(said);
+      addToLog(reply);
+      speak(line);
+      exportTask(answer.card.id, reply);
       break;
     }
     case "continued": {
@@ -1316,6 +1326,7 @@ async function openTask(id: number): Promise<void> {
   } else {
     choices.append(waitForAnswer(makeButton("Continue", () => continueTask(task.id, status), "small")));
   }
+  choices.append(makeButton("Export", () => exportTask(task.id, status), "secondary small"));
   // Deleting cannot be undone, so it takes a second tap.
   const remove = makeButton("Delete", async () => {
     if (!remove.dataset.sure) {
@@ -1340,6 +1351,18 @@ async function openTask(id: number): Promise<void> {
   parts.push(choices);
   taskDetail.replaceChildren(...parts);
   taskDetail.scrollTop = 0;
+}
+
+// The task's chat as Markdown and its record and events as JSON, handed to the share
+// sheet; on a computer, saved where the user picks. `status` says where they went.
+async function exportTask(id: number, status: HTMLElement): Promise<void> {
+  const utcOffsetMinutes = -new Date().getTimezoneOffset();
+  try {
+    const saved = await invoke<string | null>("export_task", { id, utcOffsetMinutes });
+    if (saved) status.textContent = saved;
+  } catch (err) {
+    status.textContent = String(err);
+  }
 }
 
 async function continueTask(id: number, status: HTMLElement): Promise<void> {

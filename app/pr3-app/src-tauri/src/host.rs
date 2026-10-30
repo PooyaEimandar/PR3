@@ -20,7 +20,7 @@ use pr3_memory_sqlite::SqliteMemory;
 use pr3_tool::{SharedMemory, Tool, ToolContext};
 
 use crate::actions::{self, Actions};
-use crate::task::{Answer, Continued, FollowingUp, Opened, TaskCard, TaskView, Tasks};
+use crate::task::{Answer, Continued, Export, FollowingUp, Opened, TaskCard, TaskView, Tasks};
 use serde::Serialize;
 use serde_json::{Map, Value};
 
@@ -251,6 +251,12 @@ impl Host {
             .map_err(|e| e.to_string())?
             .view(id, now())
             .ok_or_else(|| "This task is no longer kept.".to_string())
+    }
+
+    pub fn export_task(&self, id: SessionId, utc_offset_minutes: i32) -> Result<Export, String> {
+        self.tasks()
+            .map_err(|e| e.to_string())?
+            .export(id, now(), utc_offset_minutes)
     }
 
     pub fn task_words(&self, text: &str) -> Result<Option<Answer>, String> {
