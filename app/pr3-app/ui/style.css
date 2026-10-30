@@ -26,20 +26,8 @@ body {
   background: var(--bg);
   color: var(--text);
   font: 15px/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  padding: var(--inset-top) env(safe-area-inset-right, 0px) var(--inset-bottom)
-    env(safe-area-inset-left, 0px);
-}
-
-:root {
-  --inset-top: env(safe-area-inset-top, 0px);
-  --inset-bottom: env(safe-area-inset-bottom, 0px);
-}
-
-/* Android's webview reports no safe-area insets in edge-to-edge mode, so keep
-   clear of the status bar and gesture handle explicitly. */
-body.android {
-  --inset-top: max(env(safe-area-inset-top, 0px), 32px);
-  --inset-bottom: max(env(safe-area-inset-bottom, 0px), 24px);
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+    env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
 }
 
 header {
@@ -365,8 +353,8 @@ button.small {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: calc(var(--inset-top) + 12px) calc(env(safe-area-inset-right, 0px) + 16px)
-    calc(var(--inset-bottom) + 12px) calc(env(safe-area-inset-left, 0px) + 16px);
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) calc(env(safe-area-inset-right, 0px) + 16px)
+    calc(env(safe-area-inset-bottom, 0px) + 12px) calc(env(safe-area-inset-left, 0px) + 16px);
   background: var(--panel);
   overflow-wrap: anywhere;
   animation: slide-in 0.2s ease-out;

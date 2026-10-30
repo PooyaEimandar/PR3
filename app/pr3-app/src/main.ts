@@ -115,6 +115,16 @@ function addToLog(node: Node): void {
   log.scrollTop = log.scrollHeight;
 }
 
+// When the log gets shorter, as when the keyboard opens, the latest messages stay in
+// sight if they were.
+let atEnd = true;
+log.addEventListener("scroll", () => {
+  atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 8;
+});
+new ResizeObserver(() => {
+  if (atEnd) log.scrollTop = log.scrollHeight;
+}).observe(log);
+
 const toolText = (t: { name: string; arguments: string; output: string }) => `⚙ ${t.name} ${t.arguments} → ${t.output}`;
 
 // The confirmation card for a consequential action. What it shows comes from the
