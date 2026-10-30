@@ -292,31 +292,62 @@ fn open_actions(app: &tauri::AppHandle, settings: &config::Actions) -> Option<Ar
     }
 }
 
-/// The host with the built-in tools, plus memory tools, per-message recall and kept
-/// tasks when memory is available, and consequential actions when they are configured.
+/// The app's host, on the memory store and trusted path in its data folder.
 fn host(
     app: &tauri::AppHandle,
     actions: Option<&config::Actions>,
     tasks: config::Tasks,
 ) -> Result<Host, host::HostError> {
-    let backend = Arc::new(MockBackend::default());
-    let host = match open_memory(app) {
+    let store = open_memory(app);
+    if let Some(store) = &store {
+        let memory: pr3_tool::SharedMemory = store.clone();
+        // The panel where the user reviews what PR3 remembers uses the same store.
+        app.manage(memory::MemoryHandle(memory));
+    }
+    let actions = actions.and_then(|settings| open_actions(app, settings));
+    compose_host(
+        Arc::new(MockBackend::default()),
+        store,
+        actions,
+        tasks.keep_days,
+    )
+}
+
+/// The host with the built-in tools, plus memory tools, per-message recall and kept
+/// tasks when there is a memory store, and consequential actions when there is a
+/// trusted path. The task benchmark builds the same host, so it measures this one.
+pub fn compose_host(
+    backend: Arc<dyn Backend>,
+    store: Option<Arc<Mutex<pr3_memory_sqlite::SqliteMemory>>>,
+    actions: Option<Arc<Actions>>,
+    keep_days: u64,
+) -> Result<Host, host::HostError> {
+    let host = match store {
         Some(store) => {
             let memory: pr3_tool::SharedMemory = store.clone();
-            // The panel where the user reviews what PR3 remembers uses the same store.
-            app.manage(memory::MemoryHandle(Arc::clone(&memory)));
             let mut tools = pr3_tool::builtin();
             tools.extend(pr3_tool::memory_tools(Arc::clone(&memory)));
             Host::new(backend, tools)?
                 .with_memory(memory)
-                .with_tasks(store, tasks.keep_days)
+                .with_tasks(store, keep_days)
         }
         None => Host::new(backend, pr3_tool::builtin())?,
     };
-    match actions.and_then(|settings| open_actions(app, settings)) {
+    match actions {
         Some(actions) => host.with_actions(actions),
         None => Ok(host),
     }
+}
+
+/// What the task benchmark (bench/task) drives besides [`compose_host`]. Benchmark
+/// only: the app itself reaches these through their own modules.
+#[doc(hidden)]
+pub mod bench {
+    pub use crate::actions::Actions;
+    pub use crate::host::{Backend, Generation, Host, HostError, TurnEvent};
+    pub use crate::llama::LlamaBackend;
+    /// The runtime the host's async calls run on.
+    pub use tauri::async_runtime::block_on;
 }
 
 /// Finished turns are appended as OpenJarvis trace records to `traces.jsonl` in the app's

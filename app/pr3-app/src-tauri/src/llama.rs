@@ -31,6 +31,11 @@ pub struct LlamaBackend {
 
 impl LlamaBackend {
     pub fn load(path: &Path) -> Result<Self, EngineError> {
+        Self::load_seeded(path, seed())
+    }
+
+    /// Like `load`, but sampling from `seed`, so a benchmark run can be repeated.
+    pub fn load_seeded(path: &Path, seed: u32) -> Result<Self, EngineError> {
         let config = EngineConfig {
             // Metal on Macs and iPhones. CPU on Android until a Vulkan build is measured
             // per device class (docs Sec. 4.3), and in the iOS simulator, whose Metal
@@ -40,7 +45,7 @@ impl LlamaBackend {
             } else {
                 999
             },
-            seed: seed(),
+            seed,
             ..EngineConfig::default()
         };
         Ok(Self {
