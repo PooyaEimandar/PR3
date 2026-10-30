@@ -424,6 +424,7 @@ pub fn run() {
             task::new_topic,
             task::continue_task,
             task::follow_up_task,
+            task::task_words,
             task::delete_task
         ])
         .build(tauri::generate_context!());

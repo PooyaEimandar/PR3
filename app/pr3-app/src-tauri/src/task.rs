@@ -14,6 +14,8 @@ use tauri::ipc::Channel;
 
 use crate::host::{Host, TurnEvent};
 
+mod word;
+
 /// A message this long after its task's last one opens a new task: 10 quiet minutes.
 pub const FOLLOW_UP_MS: u64 = 10 * 60 * 1000;
 const DAY_MS: u64 = 24 * 60 * 60 * 1000;
@@ -111,6 +113,25 @@ pub struct FollowingUp {
     pub parent: TaskCard,
     pub previous: Option<TaskCard>,
 }
+
+/// Words about the task list, answered without the model (docs Sec. 4.8).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum Answer {
+    /// What is still open: the To Do page, newest first.
+    Open { cards: Vec<TaskCard> },
+    /// The one unfinished task the words name is the conversation's again.
+    Continued(Continued),
+    /// Only finished tasks match: the next message follows up the newest.
+    FollowingUp(FollowingUp),
+    /// Several unfinished tasks match; the user picks one.
+    Choose { cards: Vec<TaskCard> },
+    /// How the task the words name stands.
+    Status { card: TaskCard },
+}
+
+/// At most this many tasks to choose between.
+const CHOICES: usize = 4;
 
 #[derive(Debug)]
 struct Task {
@@ -443,6 +464,73 @@ impl Tasks {
         Ok(FollowingUp { parent, previous })
     }
 
+    /// Answers a whole message about the task list - "what is still open?", "carry on
+    /// with the email to Alex", "what happened with the dentist?" - or returns `None`
+    /// when it is not one, or names no kept task, and goes to the model as usual.
+    pub fn answer(&mut self, text: &str, now: Timestamp) -> Result<Option<Answer>, String> {
+        let Some(words) = word::parse(text) else {
+            return Ok(None);
+        };
+        match words {
+            word::Words::StillOpen => {
+                let cards = self.cards(now);
+                let cards = cards.into_iter().filter(|c| c.page == Page::Todo);
+                Ok(Some(Answer::Open {
+                    cards: cards.collect(),
+                }))
+            }
+            word::Words::WhatHappened(name) => Ok(self
+                .named(&name, now)
+                .into_iter()
+                .next()
+                .map(|card| Answer::Status { card })),
+            word::Words::CarryOn(name) => {
+                let named = self.named(&name, now);
+                let mut open: Vec<TaskCard> = named
+                    .iter()
+                    .filter(|c| c.page != Page::Done)
+                    .cloned()
+                    .collect();
+                match (open.len(), named.first()) {
+                    (0, None) => Ok(None),
+                    (0, Some(done)) => {
+                        let id = SessionId(done.id);
+                        Ok(Some(Answer::FollowingUp(self.follow_up(id, now)?)))
+                    }
+                    (1, _) => {
+                        let id = SessionId(open[0].id);
+                        Ok(Some(Answer::Continued(self.continue_task(id, now)?)))
+                    }
+                    _ => {
+                        open.truncate(CHOICES);
+                        Ok(Some(Answer::Choose { cards: open }))
+                    }
+                }
+            }
+        }
+    }
+
+    /// The tasks whose title or opening message holds every word of `name`, newest
+    /// first.
+    fn named(&self, name: &[String], now: Timestamp) -> Vec<TaskCard> {
+        let mut cards: Vec<TaskCard> = self
+            .tasks
+            .iter()
+            .filter(|task| {
+                let opened = task.chat.iter().find_map(|(_, entry)| match entry {
+                    Entry::User { text } => Some(text.as_str()),
+                    _ => None,
+                });
+                let said = word::normalize(&format!("{} {}", task.title, opened.unwrap_or("")));
+                let words: Vec<&str> = said.split(' ').collect();
+                word::covers(&words, name)
+            })
+            .map(|task| self.card_of(task, now))
+            .collect();
+        cards.sort_by(|a, b| b.updated_at.cmp(&a.updated_at).then(b.id.cmp(&a.id)));
+        cards
+    }
+
     /// Whether `id` can be deleted now: it exists and no turn runs for it.
     pub fn deletable(&self, id: SessionId) -> Result<(), String> {
         match self.get(id) {
@@ -709,6 +797,12 @@ pub fn continue_task(id: u64, host: tauri::State<'_, Host>) -> Result<Continued,
 #[tauri::command]
 pub fn follow_up_task(id: u64, host: tauri::State<'_, Host>) -> Result<FollowingUp, String> {
     host.follow_up(SessionId(id))
+}
+
+/// Answers a message about the task list, or `None` for one the model should answer.
+#[tauri::command]
+pub fn task_words(text: String, host: tauri::State<'_, Host>) -> Result<Option<Answer>, String> {
+    host.task_words(&text)
 }
 
 /// Deletes a task, its chat and what the runtime remembers of it.
@@ -1041,6 +1135,89 @@ mod tests {
         let (child, _) = say(&mut tasks, "And 3+3?", at(24), "6");
         let parent = tasks.view(child, at(24)).unwrap().parent.unwrap();
         assert_eq!((parent.id, parent.title.as_str()), (done.0, "What is 2+2?"));
+    }
+
+    #[test]
+    fn task_words_list_continue_or_follow_up_what_they_name() {
+        let mut tasks = Tasks::default();
+        let (alex, _) = tasks.begin("Email Alex the Q3 summary", at(0));
+        tasks.waiting(alex, &email(), at(2), at(0));
+        tasks.end(alex, Err("declined".to_string()), at(1));
+        let (trip, _) = tasks.begin("Plan the trip to Lisbon", at(20));
+        tasks.end(trip, Err("no model".to_string()), at(20));
+        let (sum, _) = say(&mut tasks, "What is 2+2?", at(40), "4");
+
+        // What is still open: the To Do page, newest first.
+        let Some(Answer::Open { cards }) = tasks.answer("What's still open?", at(41)).unwrap()
+        else {
+            panic!("not the open tasks");
+        };
+        let ids: Vec<u64> = cards.iter().map(|c| c.id).collect();
+        assert_eq!(ids, [trip.0, alex.0]);
+
+        // One unfinished match: the conversation goes back to it.
+        let Some(Answer::Continued(continued)) = tasks
+            .answer("Carry on with the email to Alex", at(42))
+            .unwrap()
+        else {
+            panic!("not continued");
+        };
+        assert_eq!(continued.task.card.id, alex.0);
+        assert_eq!(continued.previous.map(|p| p.id), Some(sum.0));
+        let (same, _) = tasks.begin("Send it now", at(43));
+        assert_eq!(same, alex);
+        tasks.end(same, Ok("Sent to Alex Rivera.".to_string()), at(43));
+
+        // Only a finished match: the next message follows it up.
+        let Some(Answer::FollowingUp(following)) =
+            tasks.answer("Back to the emails for Alex", at(60)).unwrap()
+        else {
+            panic!("not followed up");
+        };
+        assert_eq!(following.parent.id, alex.0);
+
+        // What happened: the newest match, however it stands.
+        let Some(Answer::Status { card }) = tasks
+            .answer("What happened with the trip?", at(61))
+            .unwrap()
+        else {
+            panic!("no status");
+        };
+        assert_eq!((card.id, card.page), (trip.0, Page::Todo));
+    }
+
+    #[test]
+    fn task_words_naming_several_or_none_are_left_to_choose_or_to_the_model() {
+        let mut tasks = Tasks::default();
+        for (n, text) in ["Email Alex the Q3 summary", "Email Alex about lunch"]
+            .iter()
+            .enumerate()
+        {
+            let (id, _) = tasks.begin(text, at(n as u64 * 20));
+            tasks.end(id, Err("no model".to_string()), at(n as u64 * 20));
+        }
+        let Some(Answer::Choose { cards }) = tasks
+            .answer("continue with the email to Alex", at(50))
+            .unwrap()
+        else {
+            panic!("nothing to choose");
+        };
+        assert_eq!(cards.len(), 2);
+        // The words can name a task's opening message, not only its title.
+        let Some(Answer::Continued(continued)) =
+            tasks.answer("carry on with lunch", at(51)).unwrap()
+        else {
+            panic!("not continued");
+        };
+        assert_eq!(continued.task.card.title, "Email Alex about lunch");
+
+        for other in [
+            "Continue the story",
+            "What happened to the Roman empire?",
+            "Is the shop still open?",
+        ] {
+            assert_eq!(tasks.answer(other, at(52)).unwrap(), None, "{other}");
+        }
     }
 
     #[test]

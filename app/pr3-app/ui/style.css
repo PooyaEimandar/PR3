@@ -98,6 +98,14 @@ h1 {
   border: 1px solid var(--line);
 }
 
+/* A reply that lists tasks: its line, then a card per task. */
+.msg.task-answer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  white-space: normal;
+}
+
 .msg.error {
   align-self: center;
   color: var(--error);

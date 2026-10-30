@@ -72,6 +72,26 @@ interface TaskView extends TaskCard {
   chat: Entry[];
 }
 
+// The conversation goes back to a task (task.rs's Continued), or the next message
+// follows up a finished one (FollowingUp); `previous` is the task set aside.
+interface Continued {
+  task: TaskView;
+  previous: TaskCard | null;
+}
+
+interface FollowingUp {
+  parent: TaskCard;
+  previous: TaskCard | null;
+}
+
+// Words about the task list, answered from it instead of by the model (task.rs's Answer).
+type Answer =
+  | { type: "open"; cards: TaskCard[] }
+  | ({ type: "continued" } & Continued)
+  | ({ type: "following_up" } & FollowingUp)
+  | { type: "choose"; cards: TaskCard[] }
+  | { type: "status"; card: TaskCard };
+
 // What a finished turn asks of the host (pr3-core's Action); the UI shows the reply or
 // the failure, and the host has handled the rest.
 type Action =
@@ -187,6 +207,7 @@ async function send(text: string): Promise<void> {
     startNewTopic();
     return;
   }
+  if (await answerTaskWords(text)) return;
   // The answer shows in the conversation, so a message sent from Tasks goes back to it.
   if (!tasksSection.hidden) showTasks(false);
   const said = show("user", text);
@@ -223,7 +244,7 @@ async function send(text: string): Promise<void> {
       // The final reply is canonical; it replaces whatever was streamed.
       if (action.type === "reply") {
         bubble.textContent = action.content;
-        if (speakReplies) invoke("speak", { text: action.content }).catch((err) => show("error", String(err)));
+        speak(action.content);
       } else if (action.type === "failed") {
         bubble.remove();
         show("error", action.reason);
@@ -242,6 +263,77 @@ async function send(text: string): Promise<void> {
   }
 }
 
+// "What is still open?", "carry on with the email to Alex": words about the task list
+// are answered from it. Whether they are is the host's call; when they name no task
+// they go to the model like any other message.
+async function answerTaskWords(text: string): Promise<boolean> {
+  let answer: Answer | null;
+  try {
+    answer = await invoke<Answer | null>("task_words", { text });
+  } catch (err) {
+    show("user", text);
+    show("error", String(err));
+    return true;
+  }
+  if (!answer) return false;
+  if (!tasksSection.hidden) showTasks(false);
+  const said = el("div", text, "msg user");
+  const titles = (cards: TaskCard[]) => cards.map((c) => c.title).join("; ");
+  switch (answer.type) {
+    case "open": {
+      const n = answer.cards.length;
+      const line = n ? `${n === 1 ? "One task is" : `${n} tasks are`} still open:` : "Nothing is still open.";
+      addToLog(said);
+      addToLog(taskAnswer(line, answer.cards, openTasks));
+      speak(n ? `${line} ${titles(answer.cards)}.` : line);
+      break;
+    }
+    case "status": {
+      const card = answer.card;
+      addToLog(said);
+      addToLog(taskAnswer(`It is in ${PAGE_NAMES[card.page]}:`, [card], openTasks));
+      speak(`${card.title}: ${card.line}.`);
+      break;
+    }
+    case "choose": {
+      addToLog(said);
+      const reply = taskAnswer("Which one?", answer.cards, (id) => continueTask(id, reply));
+      addToLog(reply);
+      speak(`Which one: ${titles(answer.cards)}?`);
+      break;
+    }
+    case "continued": {
+      const line = `Back to “${answer.task.title}”.`;
+      backTo(answer.task.id, answer, [said, el("div", line, "msg assistant")]);
+      speak(line);
+      break;
+    }
+    case "following_up": {
+      const line = `Your next message follows up “${answer.parent.title}”.`;
+      followingUp(answer.parent.id, answer, [said, el("div", line, "msg assistant")]);
+      speak(line);
+      break;
+    }
+  }
+  return true;
+}
+
+// A reply listing tasks: each card is a button that `pick`s it.
+function taskAnswer(line: string, cards: TaskCard[], pick: (id: number) => void): HTMLDivElement {
+  const reply = el("div", undefined, "msg assistant task-answer");
+  reply.append(el("span", line));
+  for (const card of cards) {
+    const b = makeButton("", () => pick(card.id), "task-card");
+    b.append(el("span", card.title, "title"), el("span", `${card.line} · ${ago(card.updated_at)}`, "line"));
+    reply.append(b);
+  }
+  return reply;
+}
+
+function speak(text: string): void {
+  if (speakReplies) invoke("speak", { text }).catch((err) => show("error", String(err)));
+}
+
 // A confirmation card that was waiting when the app closed is shown again: the trusted
 // side takes it as a new request, and the task ends with what came of it.
 async function askAgain(id: number): Promise<void> {
@@ -257,7 +349,7 @@ async function askAgain(id: number): Promise<void> {
     const reply = await invoke<string>("ask_again", { id, onEvent });
     bubble.classList.remove("pending");
     bubble.textContent = reply;
-    if (speakReplies) invoke("speak", { text: reply }).catch((err) => show("error", String(err)));
+    speak(reply);
   } catch (err) {
     bubble.remove();
     show("error", String(err));
@@ -1251,17 +1343,25 @@ async function openTask(id: number): Promise<void> {
 }
 
 async function continueTask(id: number, status: HTMLElement): Promise<void> {
-  let next: { task: TaskView; previous: TaskCard | null };
+  let next: Continued;
   try {
-    next = await invoke("continue_task", { id });
+    next = await invoke<Continued>("continue_task", { id });
   } catch (err) {
     status.textContent = String(err);
     return;
   }
+  backTo(id, next);
+}
+
+// The conversation goes back to a task: what was on screen folds away and its chat
+// comes back, then `after` (the words that asked for it), then its confirmation card if
+// it was waiting on one.
+function backTo(id: number, next: Continued, after: Node[] = []): void {
   log.querySelector(`button.fold[data-task="${id}"]`)?.remove();
   log.querySelector("button.fold.following")?.remove();
   foldConversation(next.previous);
   for (const entry of next.task.chat) addToLog(entryNode(entry));
+  for (const node of after) addToLog(node);
   currentTask = id;
   showTasks(false);
   updateNewTopic();
@@ -1269,19 +1369,26 @@ async function continueTask(id: number, status: HTMLElement): Promise<void> {
 }
 
 async function followUp(id: number, status: HTMLElement): Promise<void> {
-  let next: { parent: TaskCard; previous: TaskCard | null };
+  let next: FollowingUp;
   try {
-    next = await invoke("follow_up_task", { id });
+    next = await invoke<FollowingUp>("follow_up_task", { id });
   } catch (err) {
     status.textContent = String(err);
     return;
   }
+  followingUp(id, next);
+}
+
+// The next message follows up a finished task: what was on screen folds away under a
+// "Following up" line that opens it, then `after` shows.
+function followingUp(id: number, next: FollowingUp, after: Node[] = []): void {
   foldConversation(next.previous);
   currentTask = null;
   log.querySelector("button.fold.following")?.remove();
   const line = addFold(id, `Following up: ${next.parent.title}`);
   line.classList.add("following");
   line.dataset.follows = "yes";
+  for (const node of after) addToLog(node);
   updateNewTopic();
   showTasks(false);
   input.focus();
