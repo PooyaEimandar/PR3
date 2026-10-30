@@ -12,6 +12,7 @@ members = [
     "crate/pr3-vault",
     "app/pr3-app/src-tauri",
     "bench/agentdojo/bridge",
+    "bench/task",
 ]
 
 [workspace.package]

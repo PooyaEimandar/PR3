@@ -37,6 +37,9 @@ bench/agentdojo/.venv/
 bench/agentdojo/result/
 __pycache__/
 
+# Task suite: raw results
+bench/task/result/
+
 # Fuzzing: corpora and failing inputs are generated (script/fuzz.sh)
 fuzz/corpus/
 fuzz/artifact/

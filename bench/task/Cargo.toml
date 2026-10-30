@@ -1,0 +1,19 @@
+[package]
+name = "pr3-bench-task"
+description = "Benchmark only: runs the app's host, with a real model, through tasks that span app launches"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+pr3-app = { path = "../../app/pr3-app/src-tauri" }
+pr3-core = { workspace = true, features = ["std"] }
+pr3-memory = { workspace = true, features = ["std"] }
+pr3-memory-sqlite = { path = "../../crate/pr3-memory-sqlite" }
+pr3-vault = { path = "../../crate/pr3-vault" }
+serde = { workspace = true, features = ["std"] }
+serde_json = { workspace = true, features = ["std"] }
+toml = { version = "1", default-features = false, features = ["std", "serde", "parse"] }

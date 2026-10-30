@@ -2969,6 +2969,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "pr3-bench-task"
+version = "0.1.1"
+dependencies = [
+ "pr3-app",
+ "pr3-core",
+ "pr3-memory",
+ "pr3-memory-sqlite",
+ "pr3-vault",
+ "serde",
+ "serde_json",
+ "toml 1.1.8+spec-1.1.0",
+]
+
+[[package]]
 name = "pr3-core"
 version = "0.1.1"
 dependencies = [

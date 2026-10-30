@@ -1,0 +1,326 @@
+# Tasks that span app launches (docs Sec. 4.8 "Measured, not assumed"; Sec. 8.3). Every
+# person, place and number here is made up.
+#
+# A case is a list of launches, each a list of steps; the app closes between launches.
+# A step is one of:
+#   say = "..."         a message, as typed in the composer ("New topic" and task words
+#                       go to the task list, as in the app)
+#   again = "approve"   the card a task waited on when the app closed, shown again on
+#                       opening, and the user's answer ("approve" or "decline")
+#   fill = N            the first N filler questions below, one message each
+# with, on a `say`:
+#   card = "approve" | "decline" | "close"   what the user does if a confirmation card
+#                       shows; "close" closes the app while it waits. By default,
+#                       declines.
+# and the checks:
+#   expect = [...]      words the answer must have, because the task said them earlier
+#   forbid = [...]      words it must not have, because only another task said them
+#   sent = [...]        words the email sent at this step must have
+#   unsent = [...]      words it must not have, such as a recipient the user took off
+# Each check is `|`-separated ways of saying it, matched ignoring case and spaces.
+
+# Unrelated questions that make a task outgrow what the model is given: its last 32
+# messages, within 4,096 tokens.
+filler = [
+    "Give me five tips for sleeping better, one sentence each.",
+    "Explain how a heat pump works in a short paragraph.",
+    "List six vegetables that grow well in pots, with a short note on each.",
+    "What are the main differences between a crocodile and an alligator?",
+    "Suggest a simple weekly stretching routine.",
+    "How do I get a red wine stain out of a cotton shirt?",
+    "How do noise-cancelling headphones work?",
+    "What should I pack for a three-day hiking trip?",
+    "Give me four ideas for a rainy Sunday afternoon with kids.",
+    "What are some good habits for keeping a tidy kitchen?",
+    "Explain the difference between weather and climate.",
+    "Suggest five houseplants that are hard to kill.",
+    "How do I make a basic vinaigrette, and how long does it keep?",
+    "What is a good way to learn the constellations?",
+    "How can I make a small balcony feel more welcoming?",
+]
+
+# The sandbox address book, as in config/pr3.toml.
+[[contact]]
+name = "Alex Rivera"
+address = "alex@example.com"
+
+[[contact]]
+name = "Sam Chen"
+address = "sam@example.com"
+
+# restart: the task's next message comes after the app closed and opened again.
+
+[[case]]
+id = "restart/trip"
+kind = "restart"
+launches = [
+    [
+        { say = "I'm planning a trip to Lisbon with my friend Noor, from 14 to 18 May." },
+        { say = "We want a hotel in Alfama for under 120 euros a night." },
+    ],
+    [
+        { say = "Remind me, which neighbourhood did we want the hotel in, and what was the budget?", expect = ["Alfama", "120"] },
+    ],
+]
+
+[[case]]
+id = "restart/dinner"
+kind = "restart"
+launches = [
+    [
+        { say = "I'm hosting dinner on Saturday for six people. One guest, Priya, is allergic to sesame." },
+        { say = "Let's plan a mushroom risotto as the main course." },
+    ],
+    [
+        { say = "Who has an allergy again, and to what?", expect = ["Priya", "sesame"] },
+    ],
+]
+
+[[case]]
+id = "restart/cabin"
+kind = "restart"
+launches = [
+    [
+        { say = "I'm splitting a 348 euro cabin rental between 4 friends. How much is each share?" },
+    ],
+    [
+        { say = "If a fifth friend, Tomás, joins, how much less does each person pay than before?", expect = ["17.4|17,4|17.40"] },
+    ],
+]
+
+[[case]]
+id = "restart/gift"
+kind = "restart"
+launches = [
+    [
+        { say = "I need a birthday present for my nephew Kai, who turns 9 on 3 June. He loves astronomy and Lego." },
+        { say = "The budget is 40 euros." },
+    ],
+    [
+        { say = "What was the budget for Kai's present, and what is he into?", expect = ["40", "astronomy|space|stars|planets|telescope"] },
+    ],
+]
+
+[[case]]
+id = "restart/garage"
+kind = "restart"
+launches = [
+    [
+        { say = "My car's service is booked at Garage Ortiz on Thursday at 8:30." },
+        { say = "The reference number they gave me is R-5521." },
+    ],
+    [
+        { say = "What's the reference number for the car service, and when is it?", expect = ["R-5521|R5521", "Thursday"] },
+    ],
+]
+
+# topic: the user set the task aside with New topic and comes back to it with task
+# words. A finished task is followed up: a new task, linked to it.
+
+[[case]]
+id = "topic/speech"
+kind = "topic"
+launches = [
+    [
+        { say = "I'm drafting a speech for my sister Lena's wedding on 12 July." },
+        { say = "I want to open with the story of when she rescued a goat named Biscuit." },
+        { say = "New topic" },
+        { say = "What's a good way to keep basil fresh?" },
+        { say = "Carry on with the wedding speech" },
+        { say = "What was the goat called in the story I wanted to open with?", expect = ["Biscuit"] },
+    ],
+]
+
+[[case]]
+id = "topic/plans"
+kind = "topic"
+launches = [
+    [
+        { say = "I'm comparing two phone plans: Plan Nova at 18 euros a month with 30 GB, and Plan Orbit at 22 euros with unlimited data." },
+        { say = "New topic" },
+        { say = "How long should I boil an egg for a runny yolk?" },
+        { say = "Carry on with the phone plans" },
+        { say = "Which plan had unlimited data, and what did it cost?", expect = ["Orbit", "22"] },
+    ],
+]
+
+[[case]]
+id = "topic/race"
+kind = "topic"
+launches = [
+    [
+        { say = "I'm training for a 10 km race on 21 September, and my goal is to finish in under 52 minutes." },
+        { say = "New topic" },
+        { say = "Suggest a name for a grey cat." },
+    ],
+    [
+        { say = "Back to the 10 km race" },
+        { say = "What was my goal time?", expect = ["52"] },
+    ],
+]
+
+[[case]]
+id = "topic/deposit"
+kind = "topic"
+launches = [
+    [
+        { say = "My landlord, Mr. Haddad, agreed to return the 900 euro deposit by 15 November." },
+        { say = "New topic" },
+        { say = "What's a quick lunch I can make with chickpeas?" },
+    ],
+    [
+        { say = "Carry on with the deposit" },
+        { say = "How much did Mr. Haddad say he'd return, and by when?", expect = ["900", "15 November|November 15|15th November|15th of November|November 15th|15 Nov|Nov 15"] },
+    ],
+]
+
+# approval: the app closes while a confirmation card waits. On opening, the card is shown
+# again, and the task goes on after the user answers it.
+
+[[case]]
+id = "approval/dinner"
+kind = "approval"
+launches = [
+    [
+        { say = "Email Alex that dinner moves to Friday at 7:30 pm at Casa Lupa.", card = "close" },
+    ],
+    [
+        { again = "approve", sent = ["alex@example.com", "Friday", "7:30|19:30", "Casa Lupa"] },
+        { say = "What time did I say dinner was?", expect = ["7:30|19:30"] },
+    ],
+]
+
+[[case]]
+id = "approval/redirect"
+kind = "approval"
+launches = [
+    [
+        { say = "Send Sam an email saying the project review has moved to room B12 on Tuesday.", card = "close" },
+    ],
+    [
+        { again = "decline" },
+        { say = "Send it to Alex instead.", card = "approve", sent = ["alex@example.com", "B12", "Tuesday"], unsent = ["sam@example.com"] },
+    ],
+]
+
+[[case]]
+id = "approval/cabin"
+kind = "approval"
+launches = [
+    [
+        { say = "Email Alex the gate code for the cabin, 4471, and say we arrive on Saturday.", card = "close" },
+    ],
+    [
+        { again = "approve", sent = ["alex@example.com", "4471", "Saturday"] },
+        { say = "Which day did I tell Alex we arrive?", expect = ["Saturday"] },
+    ],
+]
+
+[[case]]
+id = "approval/lunch"
+kind = "approval"
+launches = [
+    [
+        { say = "Write to Sam that the team lunch is at Noodle Bar on Thursday at 12:30.", card = "close" },
+    ],
+    [
+        { again = "approve", sent = ["sam@example.com", "Noodle Bar", "Thursday", "12:30"] },
+        { say = "Now send the same details to Alex.", card = "approve", sent = ["alex@example.com", "Noodle Bar", "Thursday", "12:30"], unsent = ["sam@example.com"] },
+    ],
+]
+
+# isolation: earlier tasks said something like the current task, with other details.
+# The answer comes from the current task only.
+
+[[case]]
+id = "isolation/flight"
+kind = "isolation"
+launches = [
+    [
+        { say = "My sister Mia lands at 6:40 pm on flight TP 214." },
+        { say = "New topic" },
+        { say = "My brother Leo lands at 9:15 am on flight BA 500." },
+    ],
+    [
+        { say = "Which flight number was it, and when does it land?", expect = ["BA 500|BA500", "9:15"], forbid = ["TP 214|TP214", "6:40|18:40"] },
+    ],
+]
+
+[[case]]
+id = "isolation/code"
+kind = "isolation"
+launches = [
+    [
+        { say = "The code for the storage unit on Elm Street is 3190." },
+        { say = "New topic" },
+        { say = "The code for my gym locker is 7720." },
+    ],
+    [
+        { say = "What was the code again?", expect = ["7720"], forbid = ["3190"] },
+    ],
+]
+
+[[case]]
+id = "isolation/march"
+kind = "isolation"
+launches = [
+    [
+        { say = "My book club picked The Salt Road to read in March." },
+        { say = "New topic" },
+        { say = "My choir is rehearsing Evening Hymn in March." },
+    ],
+    [
+        { say = "Which piece was picked for March?", expect = ["Evening Hymn"], forbid = ["Salt Road"] },
+    ],
+]
+
+[[case]]
+id = "isolation/stand"
+kind = "isolation"
+launches = [
+    [
+        { say = "At the school fundraiser, our bake sale table is number 14." },
+        { say = "New topic" },
+        { say = "At the craft fair, our stall is number 31." },
+        { say = "New topic" },
+        { say = "At the farmers market on Sunday, we're at stand 22." },
+    ],
+    [
+        { say = "Which number are we at?", expect = ["22"], forbid = ["14", "31"] },
+    ],
+]
+
+# long: a task outgrows what the model is given, then needs what it said first.
+
+[[case]]
+id = "long/pool"
+kind = "long"
+launches = [
+    [
+        { say = "I'm sorting out my swimming pool membership: my locker is number 58 and the membership ends on 30 April." },
+        { fill = 15 },
+        { say = "What was my locker number at the pool?", expect = ["58"] },
+    ],
+]
+
+[[case]]
+id = "long/story"
+kind = "long"
+launches = [
+    [
+        { say = "I'm writing a short story. The detective is called Ines Varga and the town is Kettlebridge." },
+        { fill = 15 },
+        { say = "In my story, what are the detective and the town called?", expect = ["Varga", "Kettlebridge"] },
+    ],
+]
+
+[[case]]
+id = "long/rental"
+kind = "long"
+launches = [
+    [
+        { say = "About our holiday rental: the host is Tobiah and checkout is at 10:30." },
+        { fill = 15 },
+        { say = "Who is the host of the rental, and when is checkout?", expect = ["Tobiah", "10:30"] },
+    ],
+]
