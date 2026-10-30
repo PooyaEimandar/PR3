@@ -361,7 +361,7 @@ A turn runs inside a task: the core's turn state (rounds, loop guard, pending to
 
 A task's chat is the user's record, not the model's: the model reads only the task it is working on, as above, and following up a finished task starts from its summary, never its chat. Forgetting a memory removes it from every task's refs, and a summary that quotes it is erased; the task keeps its goal, state and chat.
 
-**Tasks in the app: casual, three pages.** The composer reads, left to right, **Settings**, **Tasks**, the message field, the microphone and **Send**: the microphone sits beside Send, and Tasks beside Settings. Tasks opens like Settings does, and tapping it again goes back to the conversation. It holds three full-width pages, swiped left and right, with their names on top to tap:
+**Tasks in the app: casual, three pages.** The composer reads, left to right, **Settings**, **Tasks**, the message field, the microphone and **Send**: the microphone sits beside Send, and Tasks beside Settings. Settings slides in from the left over the whole screen, with Close at its top left; Tasks opens in place of the conversation, and tapping it again goes back to it. It holds three full-width pages, swiped left and right, with their names on top to tap:
 
 ```text
   [Settings] [Tasks] [ Message PR3 ........ ] [Mic] [Send]

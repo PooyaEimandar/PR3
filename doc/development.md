@@ -81,7 +81,7 @@ The webview's script is TypeScript, in `app/pr3-app/src`, checked in strict mode
 | iOS and macOS | `2026.10.27` | `25863784` |
 | Windows and Linux | `2026.300.15092` (Windows shows `2026.300.15092.0`) | - |
 
-- **Dev builds** add `-dev+` and the commit's first 12 characters to the name, so a build names the commit it came from. The app's header shows the name; a local build says *local build*.
+- **Dev builds** add `-dev+` and the commit's first 12 characters to the name, so a build names the commit it came from. Android shows the name in the app's info.
 - **The build number** is the seconds since 1 January 2026 UTC: Android's version code and Apple's `CFBundleVersion`. It stops at 2,100,000,000, Google Play's ceiling, about 66 years on.
 - **iOS and macOS** show at most three numbers, so the version is the day alone, without leading zeros (`2026.1.5`, not `2026.01.05`); the build number orders builds within a day.
 - **Windows** takes four numbers of at most 65535 each: the year, the day of the year, half the seconds since midnight, and 0. The Linux packages carry the first three.

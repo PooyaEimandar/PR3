@@ -256,8 +256,6 @@ async function send(text: string): Promise<void> {
     show("error", String(err));
   } finally {
     setBusy(false);
-    // A paired phone may have answered here or on its computer; show which.
-    showPlatform();
     // The turn may have proposed a memory.
     if (showing("memory")) renderMemory();
     if (!tasksSection.hidden && !taskList.hidden) renderTasks();
@@ -663,6 +661,7 @@ talk.addEventListener("click", () => {
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && voice) cancelVoiceNote();
+  else if (event.key === "Escape" && !settings.hidden) showSettings(false);
 });
 
 // This build and the model answering (lib.rs's PlatformInfo).
@@ -674,15 +673,10 @@ interface PlatformInfo {
   model: string;
 }
 
-const platformLine = find("#platform", HTMLParagraphElement);
-
-function showPlatform(): void {
+// Marks the page with its OS, for the insets and defaults that differ.
+function markPlatform(): void {
   invoke<PlatformInfo>("platform_info")
-    .then((p) => {
-      document.body.classList.add(p.os);
-      platformLine.textContent = `${p.version ?? "local build"} · ${p.os}/${p.arch} · ${p.model}`;
-      platformLine.title = platformLine.textContent;
-    })
+    .then((p) => document.body.classList.add(p.os))
     .catch((err) => show("error", String(err)));
 }
 
@@ -1136,14 +1130,27 @@ function openTab(name: Tab): void {
   else if (name === "devices") renderDevices();
 }
 
+// Settings slides in from the left over the whole screen and back out when closed.
 function showSettings(open: boolean): void {
   if (open) showTasks(false);
-  settings.hidden = !open;
   settingsButton.setAttribute("aria-expanded", String(open));
-  if (open) openTab(tab);
-  else clearInterval(pairingTimer);
+  if (open) {
+    settings.classList.remove("closing");
+    settings.hidden = false;
+    openTab(tab);
+    return;
+  }
+  clearInterval(pairingTimer);
+  if (settings.hidden) return;
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) settings.hidden = true;
+  else settings.classList.add("closing");
 }
 
+settings.addEventListener("animationend", () => {
+  if (!settings.classList.contains("closing")) return;
+  settings.classList.remove("closing");
+  settings.hidden = true;
+});
 settingsButton.addEventListener("click", () => showSettings(settings.hidden !== false));
 find("#settings-close", HTMLButtonElement).addEventListener("click", () => showSettings(false));
 for (const button of tabs) {
@@ -1331,7 +1338,7 @@ async function openTask(id: number): Promise<void> {
   const remove = makeButton("Delete", async () => {
     if (!remove.dataset.sure) {
       remove.dataset.sure = "yes";
-      remove.textContent = "Delete for good?";
+      remove.textContent = "Tap to confirm delete.";
       return;
     }
     try {
@@ -1471,12 +1478,10 @@ async function restoreConversation(): Promise<void> {
   if (task.waiting) askAgain(task.id);
 }
 
-// The model loads in the background; refresh the header, and the Models tab, when it
-// changes.
+// The model loads in the background; refresh the Models tab when it changes.
 window.__TAURI__.event.listen("model-changed", () => {
-  showPlatform();
   if (showing("models")) renderModels();
 });
-showPlatform();
+markPlatform();
 setUpSpeech();
 restoreConversation();

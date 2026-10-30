@@ -48,22 +48,10 @@ header {
 }
 
 h1 {
-  flex: none;
   margin: 0;
   color: var(--accent);
   font-size: 18px;
   letter-spacing: 0.12em;
-}
-
-/* Beside the name; cut short rather than wrapped on a narrow screen. */
-#platform {
-  min-width: 0;
-  margin: 0;
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 #log {
@@ -235,33 +223,69 @@ button.secondary {
   border-color: var(--line);
 }
 
-header .title {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
-
 button.small {
   padding: 4px 10px;
   font-size: 12px;
 }
 
-/* Settings: under the header, one tab at a time; the tab scrolls, its row stays. Long
-   words, such as the models folder's path, wrap so that no tab scrolls sideways. */
+/* Settings: the whole screen, sliding in from the left over the conversation, clear of
+   the system's bars. One tab at a time; the tab scrolls, its row stays. Long words, such
+   as the models folder's path, wrap so that no tab scrolls sideways. */
 #settings {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  max-height: 60vh;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--line);
+  padding: calc(var(--inset-top) + 12px) calc(env(safe-area-inset-right, 0px) + 16px)
+    calc(var(--inset-bottom) + 12px) calc(env(safe-area-inset-left, 0px) + 16px);
   background: var(--panel);
   overflow-wrap: anywhere;
+  animation: slide-in 0.2s ease-out;
+}
+
+/* Closing: slides back out; main.ts hides it when the animation ends. */
+#settings.closing {
+  animation: slide-out 0.2s ease-in forwards;
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes slide-out {
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #settings,
+  #settings.closing {
+    animation: none;
+  }
 }
 
 #settings[hidden],
 #settings .pane[hidden] {
   display: none;
+}
+
+/* Close at the top left, then the panel's name. */
+#settings .top {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+}
+
+#settings .top h2 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--accent);
 }
 
 /* One row; on a screen too narrow for it, it scrolls sideways rather than wrapping. */
@@ -285,10 +309,6 @@ button.small {
 #settings .tabs [aria-selected="true"] {
   border-color: var(--accent);
   color: var(--accent);
-}
-
-#settings-close {
-  margin-left: auto;
 }
 
 .pane {
@@ -600,8 +620,9 @@ button.task-card {
   flex: none;
 }
 
-/* Back: an arrow, drawn like the composer's icon buttons. */
-#task-detail button.icon {
+/* A task's Back and Settings' Close: icons, drawn like the composer's icon buttons. */
+#task-detail button.icon,
+#settings-close {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -611,7 +632,8 @@ button.task-card {
   border: 1px solid var(--line);
 }
 
-#task-detail button.icon svg {
+#task-detail button.icon svg,
+#settings-close svg {
   width: 20px;
   height: 20px;
   fill: currentColor;
