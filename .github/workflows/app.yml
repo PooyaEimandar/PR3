@@ -193,6 +193,28 @@ jobs:
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: script/build-android.sh
+      # Every native library aligned for 16 KB memory pages (src-tauri/build.rs): each
+      # LOAD segment, and its place in the APK, from which Android maps it unpacked.
+      - name: 16 KB page alignment
+        run: |
+          apk=app/pr3-app/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk
+          tools="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          "$tools/zipalign" -c -P 16 4 "$apk"
+          unzip -q "$apk" 'lib/*' -d "$RUNNER_TEMP/apk"
+          status=0
+          for so in "$RUNNER_TEMP"/apk/lib/*/*.so; do
+            name="${so#"$RUNNER_TEMP"/apk/}"
+            aligns="$(readelf -lW "$so" | awk '$1 == "LOAD" { print $NF }')"
+            echo "$name: ${aligns//$'\n'/ }"
+            for align in $aligns; do
+              if (( align < 0x4000 )); then
+                echo "::error::$name has a LOAD segment aligned to $align, below 16 KB."
+                status=1
+                break
+              fi
+            done
+          done
+          exit "$status"
       - id: dist
         run: |
           mkdir dist
