@@ -7,7 +7,7 @@
 use std::num::NonZeroU32;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 
 use llama_cpp_2::context::LlamaContext;
 use llama_cpp_2::context::params::LlamaContextParams;
@@ -22,16 +22,32 @@ use crate::cache::{Cache, Rewind};
 use crate::text::{BlockExtractor, ThinkFilter, Utf8Stream};
 use crate::tool::{CALL_CLOSE, CALL_OPEN};
 use crate::{
-    ChatMessage, ChatOutput, ChatRole, EngineConfig, EngineError, PromptFormat, ToolDef, backend,
-    prompt,
+    ChatMessage, ChatOutput, ChatRole, EngineConfig, EngineError, PromptFormat, ReadAhead, ToolDef,
+    backend, prompt,
 };
 
-/// One call, sent from [`crate::Engine::chat_with_tools`].
+/// One call, sent from [`crate::Engine::chat_with_tools`] or [`crate::Engine::read_ahead`].
 pub(crate) struct Request {
     pub messages: Vec<ChatMessage>,
     pub tools: Vec<ToolDef>,
-    pub events: Sender<Event>,
+    pub job: Job,
 }
+
+pub(crate) enum Job {
+    /// Answer, streaming the visible text.
+    Answer(Sender<Event>),
+    /// Only read the conversation, as the prompt of the next answer, whose question
+    /// begins with `opening`, will show it.
+    ReadAhead {
+        opening: String,
+        done: Sender<Result<ReadAhead, EngineError>>,
+    },
+}
+
+/// How many tokens reading ahead processes at once. Before each batch it gives way to any
+/// call that has come in, so a call waits for at most one batch, which it needs anyway
+/// when it continues the conversation.
+const READ_AHEAD_BATCH: usize = 32;
 
 pub(crate) enum Event {
     Text(String),
@@ -65,16 +81,47 @@ pub(crate) fn run(
     if ready.send(Ok(session.format)).is_err() {
         return;
     }
-    for request in requests {
-        let events = request.events;
-        // A caller that stopped listening ends its answer early.
-        let mut on_text = |text: &str| events.send(Event::Text(text.to_string())).is_ok();
-        let result = session.answer(&request.messages, &request.tools, &mut on_text, stop);
-        if matches!(result, Err(EngineError::Decode(_) | EngineError::Stopped)) {
-            // The context may be part-way through a batch; start clean next time.
-            session.reset();
+    let mut waiting = None;
+    while let Some(request) = waiting.take().or_else(|| requests.recv().ok()) {
+        let Request {
+            messages,
+            tools,
+            job,
+        } = request;
+        match job {
+            Job::Answer(events) => {
+                // A caller that stopped listening ends its answer early.
+                let mut on_text = |text: &str| events.send(Event::Text(text.to_string())).is_ok();
+                let result = session.answer(&messages, &tools, &mut on_text, stop);
+                if matches!(result, Err(EngineError::Decode(_) | EngineError::Stopped)) {
+                    // The context may be part-way through a batch; start clean next time.
+                    session.reset();
+                }
+                let _ = events.send(Event::Done(result));
+            }
+            Job::ReadAhead { opening, done } => {
+                // Any other call ends the reading, keeping what was read, and goes next.
+                let mut go_on = || {
+                    if stop.load(Ordering::Relaxed) {
+                        return false;
+                    }
+                    match requests.try_recv() {
+                        Ok(next) => {
+                            waiting = Some(next);
+                            false
+                        }
+                        Err(TryRecvError::Empty) => true,
+                        Err(TryRecvError::Disconnected) => false,
+                    }
+                };
+                let result = session.read_ahead(&messages, &tools, &opening, &mut go_on);
+                // It stops only between batches, so the context is otherwise consistent.
+                if matches!(result, Err(EngineError::Decode(_))) {
+                    session.reset();
+                }
+                let _ = done.send(result);
+            }
         }
-        let _ = events.send(Event::Done(result));
     }
 }
 
@@ -283,38 +330,22 @@ impl<'m> Session<'m> {
     ) -> Result<ChatOutput, EngineError> {
         let model = self.model;
         let vocab = model.vocab();
-        let Prompt {
-            tokens: prompt,
-            checkpoints,
-            system_end,
-        } = self.prompt_tokens(messages, tools)?;
+        let prompt = self.prompt_tokens(messages, tools)?;
         let n_ctx = self.config.n_ctx as usize;
         let mut batch = LlamaBatch::new(n_ctx, 1);
 
-        // Process only what the context has not seen, checkpointing on the way and
-        // keeping the context after a system turn it has not kept yet.
-        let reused = self.reuse(&prompt);
-        let mut marks: Vec<usize> = checkpoints.iter().copied().chain(system_end).collect();
-        marks.sort_unstable();
-        marks.dedup();
-        marks.retain(|&p| p > reused && p < prompt.len());
-        let mut start = reused;
-        for end in marks.into_iter().chain(std::iter::once(prompt.len())) {
-            let segment = prompt.get(start..end).unwrap_or_default();
-            self.decode(&mut batch, segment, start, end == prompt.len())?;
-            if checkpoints.contains(&end) {
-                let state = self
-                    .ctx
-                    .state_seq_get(0, LlamaStateSeqFlags::PARTIAL_ONLY)
-                    .map_err(|e| EngineError::Decode(e.to_string()))?;
-                self.cache.add_checkpoint(state);
-            }
-            // A call without tools, such as a summary, leaves the conversation's alone.
-            if system_end == Some(end) && !tools.is_empty() {
-                self.keep_prefix(prompt.get(..end).unwrap_or_default());
-            }
-            start = end;
-        }
+        // Process only what the context has not seen.
+        let reused = self.reuse(&prompt.tokens);
+        let to = prompt.tokens.len();
+        self.fill(
+            &mut batch,
+            &prompt,
+            reused..to,
+            !tools.is_empty(),
+            n_ctx,
+            &mut || true,
+        )?;
+        let prompt = prompt.tokens;
 
         let mut sampler = LlamaSampler::chain_simple([
             // Over the answer so far, as vLLM applies Qwen's recommended penalty.
@@ -385,6 +416,101 @@ impl<'m> Session<'m> {
             reused_tokens: count(reused),
             completion_tokens,
         })
+    }
+
+    /// Reads `messages` as the prompt of the next call, which adds a question after them
+    /// that begins with `opening` and offers `tools`, will show them, so that call reads
+    /// little more than the rest of its question. Goes [`READ_AHEAD_BATCH`] tokens at a
+    /// time and ends early, keeping what it read, once `go_on` says so.
+    fn read_ahead(
+        &mut self,
+        messages: &[ChatMessage],
+        tools: &[ToolDef],
+        opening: &str,
+        go_on: &mut dyn FnMut() -> bool,
+    ) -> Result<ReadAhead, EngineError> {
+        // Two such questions that go on differently share the tokens every one of them
+        // will: up to where the rest of a question could change how its opening is read.
+        let question = |rest: &str| {
+            let mut next = messages.to_vec();
+            next.push(ChatMessage::new(ChatRole::User, format!("{opening}{rest}")));
+            self.prompt_tokens(&next, tools)
+        };
+        let prompt = question("x")?;
+        let ahead = question("1")?
+            .tokens
+            .iter()
+            .zip(&prompt.tokens)
+            .take_while(|(a, b)| a == b)
+            .count();
+        // Against the whole prompt, so a context that already holds the conversation is
+        // not cut back to read its last token again.
+        let reused = self.reuse(&prompt.tokens).min(ahead);
+        let mut batch = LlamaBatch::new(READ_AHEAD_BATCH, 1);
+        let read = self.fill(
+            &mut batch,
+            &prompt,
+            reused..ahead,
+            !tools.is_empty(),
+            READ_AHEAD_BATCH,
+            go_on,
+        )?;
+        Ok(ReadAhead {
+            tokens: count(ahead),
+            reused_tokens: count(reused),
+            read_tokens: count(read),
+        })
+    }
+
+    /// Processes the prompt's tokens in `range`, at most `batch_size` at once,
+    /// checkpointing on the way and keeping the context after a system turn it has not
+    /// kept yet, if `offers_tools`: a call without tools, such as a summary, leaves the
+    /// conversation's alone. Logits come only for the prompt's last token. Before each
+    /// batch `go_on` may end it early; returns where it got to.
+    fn fill(
+        &mut self,
+        batch: &mut LlamaBatch,
+        prompt: &Prompt,
+        range: std::ops::Range<usize>,
+        offers_tools: bool,
+        batch_size: usize,
+        go_on: &mut dyn FnMut() -> bool,
+    ) -> Result<usize, EngineError> {
+        if range.is_empty() {
+            return Ok(range.start);
+        }
+        let mut marks: Vec<usize> = prompt
+            .checkpoints
+            .iter()
+            .copied()
+            .chain(prompt.system_end)
+            .collect();
+        marks.sort_unstable();
+        marks.dedup();
+        marks.retain(|p| range.start < *p && *p < range.end);
+        let mut start = range.start;
+        for end in marks.into_iter().chain(std::iter::once(range.end)) {
+            while start < end {
+                if !go_on() {
+                    return Ok(start);
+                }
+                let upto = end.min(start + batch_size.max(1));
+                let tokens = prompt.tokens.get(start..upto).unwrap_or_default();
+                self.decode(batch, tokens, start, upto == prompt.tokens.len())?;
+                start = upto;
+            }
+            if prompt.checkpoints.contains(&end) {
+                let state = self
+                    .ctx
+                    .state_seq_get(0, LlamaStateSeqFlags::PARTIAL_ONLY)
+                    .map_err(|e| EngineError::Decode(e.to_string()))?;
+                self.cache.add_checkpoint(state);
+            }
+            if prompt.system_end == Some(end) && offers_tools {
+                self.keep_prefix(prompt.tokens.get(..end).unwrap_or_default());
+            }
+        }
+        Ok(start)
     }
 
     /// Tokenizes a rendered prompt. Only the template's turn markers may become control

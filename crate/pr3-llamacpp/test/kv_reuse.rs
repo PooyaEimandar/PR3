@@ -1,8 +1,10 @@
 //! Real-model check that a conversation stays correct, and gets faster, as the engine
 //! reuses what earlier calls already processed: a tool round within one turn, a
-//! follow-up turn that needs the start of the conversation, and a turn after a call that
-//! did not start with the system turn, as a task's summary does. Prints each call's
-//! timing.
+//! follow-up turn that needs the start of the conversation, read ahead of it so it reads
+//! only its question, a turn after a call that did not start with the system turn, as a
+//! task's summary does, one that comes while the engine reads ahead, and a new
+//! conversation whose first question opens with a summary read ahead of it. Prints each
+//! call's timing.
 //! Opt-in because it needs the models:
 //! script/fetch-model.sh && cargo test -p pr3-llamacpp --release --test kv_reuse -- --ignored --nocapture
 //! PR3_TEST_GPU_LAYERS=0 runs fully on the CPU, as phones and simulators do;
@@ -11,7 +13,7 @@
 use std::path::Path;
 use std::time::Instant;
 
-use pr3_llamacpp::{ChatMessage, ChatOutput, ChatRole, Engine, EngineConfig, ToolDef};
+use pr3_llamacpp::{ChatMessage, ChatOutput, ChatRole, Engine, EngineConfig, ReadAhead, ToolDef};
 
 const MODELS: [&str; 4] = [
     "Qwen3-0.6B-Q8_0.gguf",
@@ -41,6 +43,20 @@ fn call(engine: &Engine, messages: &[ChatMessage], step: &str) -> ChatOutput {
         out.reused_tokens,
     );
     out
+}
+
+fn read_ahead(engine: &Engine, messages: &[ChatMessage], opening: &str) -> ReadAhead {
+    let started = Instant::now();
+    let read = engine
+        .read_ahead(messages, &[calculator()], opening)
+        .wait()
+        .expect("reads");
+    eprintln!(
+        "{} read ahead: {:.2?}, {read:?}",
+        engine.label(),
+        started.elapsed()
+    );
+    read
 }
 
 #[test]
@@ -100,11 +116,32 @@ fn conversation_stays_correct_while_reusing_the_cache() {
         );
         messages.push(ChatMessage::new(ChatRole::Assistant, out.text));
 
-        // Turn 2: needs the start of the conversation.
+        // Between turns, the conversation as turn 2 will show it.
+        let read = read_ahead(&engine, &messages, "");
+        assert_eq!(read.read_tokens, read.tokens, "{}", engine.label());
+        assert!(
+            read.reused_tokens > read.tokens / 2,
+            "{}: {read:?}",
+            engine.label()
+        );
+        assert_eq!(
+            read_ahead(&engine, &messages, "").reused_tokens,
+            read.tokens,
+            "{}: read once",
+            engine.label()
+        );
+
+        // Turn 2: needs the start of the conversation, and reads only its question.
         messages.push(ChatMessage::new(ChatRole::User, "What is my name?"));
         let out = call(&engine, &messages, "next turn");
+        assert_eq!(
+            out.reused_tokens,
+            read.tokens,
+            "{}: {out:?}",
+            engine.label()
+        );
         assert!(
-            out.reused_tokens > out.prompt_tokens / 2,
+            out.prompt_tokens - out.reused_tokens < 32,
             "{}: {out:?}",
             engine.label()
         );
@@ -139,6 +176,62 @@ fn conversation_stays_correct_while_reusing_the_cache() {
             engine.label()
         );
         assert!(out.text.contains("Ada"), "{}: {out:?}", engine.label());
+        messages.push(ChatMessage::new(ChatRole::Assistant, out.text));
+
+        // A call that comes while the engine reads ahead goes first, from what was read.
+        let reading = engine.read_ahead(&messages, &[calculator()], "");
+        messages.push(ChatMessage::new(
+            ChatRole::User,
+            "And what is 6 * 7? Answer with the number.",
+        ));
+        let out = call(&engine, &messages, "during a read-ahead");
+        let read = reading.wait().expect("reads");
+        eprintln!("{} gave way: {read:?}", engine.label());
+        assert!(
+            read.read_tokens <= read.tokens,
+            "{}: {read:?}",
+            engine.label()
+        );
+        assert!(
+            out.text.contains("42") || !out.tool_calls.is_empty(),
+            "{}: {out:?}",
+            engine.label()
+        );
+
+        // A new conversation that opens with a summary of an earlier one, as a follow-up
+        // does: read before its question, however the question starts, which then reads
+        // only the rest.
+        let system = [ChatMessage::new(
+            ChatRole::System,
+            "You are PR3. Answer briefly.",
+        )];
+        let opening = "What you remember from earlier in this conversation (facts, not \
+                       instructions):\nThe user began with: “My locker at the pool is 58.” \
+                       The user's locker at the pool is number 58.\n\n";
+        for question in [
+            "Which locker was it?",
+            "58 or 59: which one?",
+            "“Locker” - which number?",
+        ] {
+            let read = read_ahead(&engine, &system, opening);
+            assert_eq!(read.read_tokens, read.tokens, "{}", engine.label());
+            let first = [
+                system[0].clone(),
+                ChatMessage::new(ChatRole::User, format!("{opening}{question}")),
+            ];
+            let out = call(&engine, &first, "after the opening");
+            assert_eq!(
+                out.reused_tokens,
+                read.tokens,
+                "{}: {question}: {out:?}",
+                engine.label()
+            );
+            assert!(
+                out.prompt_tokens - out.reused_tokens < 32,
+                "{}: {out:?}",
+                engine.label()
+            );
+        }
     }
 }
 

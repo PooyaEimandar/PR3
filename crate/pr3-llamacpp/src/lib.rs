@@ -1,9 +1,9 @@
 //! Bundled GGUF backend for PR3.
 //!
 //! This crate is the only place that knows llama.cpp and the model's prompt format. Its
-//! public API — [`Engine::load`], [`Engine::chat`] and [`Engine::chat_with_tools`] over
-//! PR3's own [`ChatMessage`] type — is deliberately small, so llama.cpp and binding
-//! upgrades stay inside this crate (docs Sec. 4.3, ADR-003). It runs the Qwen3 and
+//! public API — [`Engine::load`], [`Engine::chat`], [`Engine::chat_with_tools`] and
+//! [`Engine::read_ahead`] over PR3's own [`ChatMessage`] type — is deliberately small, so
+//! llama.cpp and binding upgrades stay inside this crate (docs Sec. 4.3, ADR-003). It runs the Qwen3 and
 //! Qwen3.5-family (3.5, 3.6, 3.8) GGUFs, recognising which from the model's own chat
 //! template. It wraps the `llama-cpp-2` bindings and needs no `unsafe` itself.
 //!
@@ -70,7 +70,7 @@ pub mod fuzzing {
         (answer, parsed)
     }
 }
-use crate::session::{Event, Request};
+use crate::session::{Event, Job, Request};
 pub use crate::tool::{ToolCallText, ToolDef};
 
 /// llama.cpp's backend may be initialised once per process.
@@ -127,6 +127,30 @@ pub struct ChatOutput {
     /// Prompt tokens an earlier call had already processed, so this one skipped them.
     pub reused_tokens: u32,
     pub completion_tokens: u32,
+}
+
+/// What [`Engine::read_ahead`] read.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ReadAhead {
+    /// The tokens the next call's prompt starts with: the conversation, and the
+    /// question's opening.
+    pub tokens: u32,
+    /// Of those, the ones the context already held.
+    pub reused_tokens: u32,
+    /// Of those, the ones the context holds now: all, unless another call came first.
+    pub read_tokens: u32,
+}
+
+/// A read-ahead the engine has queued; see [`Engine::read_ahead`].
+pub struct ReadingAhead(mpsc::Receiver<Result<ReadAhead, EngineError>>);
+
+impl ReadingAhead {
+    /// Waits until the reading ends, done or given way to another call.
+    pub fn wait(self) -> Result<ReadAhead, EngineError> {
+        self.0
+            .recv()
+            .unwrap_or_else(|_| Err(EngineError::Decode("the model thread stopped".to_string())))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -306,7 +330,7 @@ impl Engine {
         let request = Request {
             messages: messages.to_vec(),
             tools: tools.to_vec(),
-            events,
+            job: Job::Answer(events),
         };
         self.requests
             .as_ref()
@@ -323,6 +347,39 @@ impl Engine {
             }
         }
         Err(stopped())
+    }
+
+    /// Reads `messages` the way the next call, which adds a question after them and
+    /// offers `tools`, will show them, so that call reads little more than its question:
+    /// for the time the user spends writing it. With Qwen3.5 the last answer comes back
+    /// without the reasoning block it was written after, so the next call would otherwise
+    /// read it again. If the question's start is known already, `opening` holds it, such
+    /// as a summary of what came before, and is read too, up to where the rest of the
+    /// question could change how it is read; otherwise it is empty. Returns at once: the
+    /// engine reads in the background, a few dozen tokens at a time, and gives way to any
+    /// call that comes in, which then goes on from what was read. Dropping the handle
+    /// does not end the reading.
+    pub fn read_ahead(
+        &self,
+        messages: &[ChatMessage],
+        tools: &[ToolDef],
+        opening: &str,
+    ) -> ReadingAhead {
+        let (done, result) = mpsc::channel();
+        let request = Request {
+            messages: messages.to_vec(),
+            tools: tools.to_vec(),
+            job: Job::ReadAhead {
+                opening: opening.to_string(),
+                done,
+            },
+        };
+        // If the thread has stopped, the request and its sender are dropped, and waiting
+        // reports it.
+        if let Some(requests) = &self.requests {
+            let _ = requests.send(request);
+        }
+        ReadingAhead(result)
     }
 }
 
