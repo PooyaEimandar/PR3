@@ -158,6 +158,33 @@ impl Core {
             .flat_map(|s| s.history.iter())
     }
 
+    /// Whether the session's turn is running.
+    pub fn in_turn(&self, session: SessionId) -> bool {
+        self.turns.contains_key(&session)
+    }
+
+    /// What the session's next turn shows the model before its new message: the history,
+    /// with the brief on its first message, and the tools. For a host that has the model
+    /// read it while the user writes, so the turn reads little more than its message.
+    /// `None` while the session's turn runs, or before it has any history.
+    pub fn upcoming(&self, session: SessionId) -> Option<(Vec<Message>, Vec<ToolSpec>)> {
+        if self.in_turn(session) || self.history(session).next().is_none() {
+            return None;
+        }
+        Some(self.prompt(session))
+    }
+
+    /// What a new session given `brief` ([`Self::set_brief`]) shows the model before its
+    /// first message: how that message begins, and the tools. For a host that has the
+    /// model read it while the user writes the message. `None` for a blank brief.
+    pub fn opening(&self, brief: &str) -> Option<(String, Vec<ToolSpec>)> {
+        let brief = self.fit_brief(brief)?;
+        Some((
+            with_brief(&brief, ""),
+            self.tools.specs().cloned().collect(),
+        ))
+    }
+
     /// Forgets a session's history, as when the user deletes the task it belongs to
     /// (docs Sec. 4.8). Refused while the session's turn runs.
     pub fn forget(&mut self, session: SessionId) -> Result<(), CoreError> {
@@ -177,9 +204,7 @@ impl Core {
         if self.turns.contains_key(&session) {
             return Err(CoreError::TurnInProgress(session));
         }
-        let brief = brief
-            .map(|b| truncate(one_line(b), self.config.max_notes_bytes))
-            .filter(|b| !b.is_empty());
+        let brief = brief.and_then(|b| self.fit_brief(b));
         match (brief, self.sessions.get_mut(&session)) {
             (Some(brief), _) => self.sessions.entry(session).or_default().brief = Some(brief),
             (None, Some(s)) => s.brief = None,
@@ -460,6 +485,17 @@ impl Core {
             request: id,
             since: at,
         };
+        let (messages, tools) = self.prompt(session);
+        Ok(Action::Infer(InferenceRequest {
+            id,
+            session,
+            messages,
+            tools,
+        }))
+    }
+
+    /// The session's history as the model sees it, and the tools it may call.
+    fn prompt(&self, session: SessionId) -> (Vec<Message>, Vec<ToolSpec>) {
         let mut messages: Vec<Message> = self.history(session).cloned().collect();
         // On the first message, which stays put from step to step, so the engine can
         // reuse what it has already read.
@@ -469,12 +505,7 @@ impl Core {
         {
             first.content = with_brief(brief, &first.content);
         }
-        Ok(Action::Infer(InferenceRequest {
-            id,
-            session,
-            messages,
-            tools: self.tools.specs().cloned().collect(),
-        }))
+        (messages, self.tools.specs().cloned().collect())
     }
 
     /// Ends the turn: a reply or a failure, followed by its trace.
@@ -533,6 +564,11 @@ impl Core {
         let mut message = Message::new(Role::Tool, content, at);
         message.tool_call_id = Some(call.id.clone());
         self.push_message(session, message)
+    }
+
+    /// A brief on one line, within [`Config::max_notes_bytes`]; `None` if blank.
+    fn fit_brief(&self, brief: &str) -> Option<String> {
+        Some(truncate(one_line(brief), self.config.max_notes_bytes)).filter(|b| !b.is_empty())
     }
 
     /// The host's notes that fit [`Config::max_notes_bytes`], in order, blank ones left out.
@@ -1235,6 +1271,46 @@ mod tests {
             panic!("{actions:?}")
         };
         assert_eq!(request.messages[0].content, "What was my locker?");
+    }
+
+    #[test]
+    fn the_upcoming_prompt_is_the_next_turns_before_its_message() {
+        let mut core = with_calculator();
+        assert!(core.upcoming(S).is_none());
+        core.set_brief(S, Some("The locker is 58.")).unwrap();
+        let id = infer_id(&core.step(user("What was my locker?")).unwrap());
+        assert!(!core.in_turn(SessionId(2)));
+        assert!(core.in_turn(S) && core.upcoming(S).is_none());
+        core.step(answer(id, "58.", &[], 20)).unwrap();
+        assert!(!core.in_turn(S));
+
+        let (messages, tools) = core.upcoming(S).unwrap();
+        let actions = core.step(user("And my name?")).unwrap();
+        let [Action::Infer(request)] = actions.as_slice() else {
+            panic!("{actions:?}")
+        };
+        assert_eq!(request.messages.len(), messages.len() + 1);
+        assert_eq!(request.messages[..messages.len()], messages[..]);
+        assert!(messages[0].content.contains("The locker is 58."));
+        assert_eq!(request.tools, tools);
+    }
+
+    #[test]
+    fn a_new_sessions_first_message_begins_with_its_opening() {
+        let mut core = with_calculator();
+        assert!(core.opening(" \n ").is_none());
+        let (opening, tools) = core.opening("The locker\n\nis 58.").unwrap();
+        core.set_brief(S, Some("The locker\n\nis 58.")).unwrap();
+        let actions = core.step(user("Which locker was it?")).unwrap();
+        let [Action::Infer(request)] = actions.as_slice() else {
+            panic!("{actions:?}")
+        };
+        assert_eq!(
+            request.messages[0].content,
+            format!("{opening}Which locker was it?")
+        );
+        assert!(opening.contains("The locker is 58.\n\n"), "{opening}");
+        assert_eq!(request.tools, tools);
     }
 
     #[test]
