@@ -79,49 +79,7 @@ impl Backend for LlamaBackend {
         request: &InferenceRequest,
         on_token: &mut dyn FnMut(&str) -> bool,
     ) -> Result<Generation, String> {
-        let mut messages = Vec::with_capacity(request.messages.len() + 1);
-        let mut system = SYSTEM_PROMPT.to_string();
-        if request.tools.iter().any(|t| t.name == "remember") {
-            system.push_str(MEMORY_PROMPT);
-        }
-        if request
-            .tools
-            .iter()
-            .any(|t| t.name == pr3_tool::mail::SEND_EMAIL)
-        {
-            system.push_str(MAIL_PROMPT);
-        }
-        messages.push(ChatMessage::new(ChatRole::System, system));
-        messages.extend(request.messages.iter().map(|m| {
-            let role = match m.role {
-                Role::System => ChatRole::System,
-                Role::User => ChatRole::User,
-                Role::Assistant => ChatRole::Assistant,
-                Role::Tool => ChatRole::Tool,
-            };
-            ChatMessage {
-                // The engine replays earlier calls in the model's own format.
-                tool_calls: m
-                    .tool_calls
-                    .iter()
-                    .map(|c| ToolCallText {
-                        name: c.name.clone(),
-                        arguments: c.arguments.clone(),
-                    })
-                    .collect(),
-                ..ChatMessage::new(role, m.content.clone())
-            }
-        }));
-        let tools: Vec<ToolDef> = request
-            .tools
-            .iter()
-            .map(|t| ToolDef {
-                name: t.name.clone(),
-                description: t.description.clone(),
-                parameters: t.parameters.clone(),
-            })
-            .collect();
-
+        let (messages, tools) = chat(request);
         let out = self
             .engine
             .chat_with_tools_until(&messages, &tools, on_token)
@@ -144,6 +102,62 @@ impl Backend for LlamaBackend {
             },
         })
     }
+
+    fn read_ahead(&self, request: &InferenceRequest, opening: &str) -> Box<dyn FnOnce() + Send> {
+        let (messages, tools) = chat(request);
+        let reading = self.engine.read_ahead(&messages, &tools, opening);
+        Box::new(move || {
+            let _ = reading.wait();
+        })
+    }
+}
+
+/// `request` as the engine takes it: PR3's system prompt for the tools it offers, then
+/// its messages.
+fn chat(request: &InferenceRequest) -> (Vec<ChatMessage>, Vec<ToolDef>) {
+    let mut messages = Vec::with_capacity(request.messages.len() + 1);
+    let mut system = SYSTEM_PROMPT.to_string();
+    if request.tools.iter().any(|t| t.name == "remember") {
+        system.push_str(MEMORY_PROMPT);
+    }
+    if request
+        .tools
+        .iter()
+        .any(|t| t.name == pr3_tool::mail::SEND_EMAIL)
+    {
+        system.push_str(MAIL_PROMPT);
+    }
+    messages.push(ChatMessage::new(ChatRole::System, system));
+    messages.extend(request.messages.iter().map(|m| {
+        let role = match m.role {
+            Role::System => ChatRole::System,
+            Role::User => ChatRole::User,
+            Role::Assistant => ChatRole::Assistant,
+            Role::Tool => ChatRole::Tool,
+        };
+        ChatMessage {
+            // The engine replays earlier calls in the model's own format.
+            tool_calls: m
+                .tool_calls
+                .iter()
+                .map(|c| ToolCallText {
+                    name: c.name.clone(),
+                    arguments: c.arguments.clone(),
+                })
+                .collect(),
+            ..ChatMessage::new(role, m.content.clone())
+        }
+    }));
+    let tools = request
+        .tools
+        .iter()
+        .map(|t| ToolDef {
+            name: t.name.clone(),
+            description: t.description.clone(),
+            parameters: t.parameters.clone(),
+        })
+        .collect();
+    (messages, tools)
 }
 
 /// The repository's `model/` folder, where debug builds also look for models. Debug
@@ -190,6 +204,8 @@ mod tests {
         let [Action::Reply { content, .. }] = actions.as_slice() else {
             panic!("expected one reply, got {actions:?}");
         };
+        // As the app does next: the model reads the conversation ahead of the next turn.
+        tauri::async_runtime::block_on(host.settle(|_| {})).unwrap();
         let events = events.lock().unwrap().clone();
         (content.clone(), events)
     }

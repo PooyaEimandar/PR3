@@ -45,6 +45,8 @@ const FOLD_AT_MESSAGES: usize = 24;
 const KEEP_EXCHANGES: usize = 2;
 /// The id of a request for a summary; the runtime's own ids start at 1.
 pub const SUMMARY: RequestId = RequestId(0);
+/// The id of a request a backend only reads ahead, never answers.
+const READ_AHEAD: RequestId = RequestId(u64::MAX);
 
 /// What a model produced for one inference request.
 #[derive(Debug, Clone, Default)]
@@ -81,6 +83,15 @@ pub trait Backend: Send + Sync {
         })
     }
 
+    /// Starts reading `request`, the conversation a session's next turn adds its message
+    /// to, and `opening`, how that message begins if that is known already (empty
+    /// otherwise), so that turn reads little more than the rest of its message, and
+    /// returns at once with a way to wait for the end. The reading gives way to any later
+    /// request. Backends that cannot read ahead do nothing.
+    fn read_ahead(&self, _request: &InferenceRequest, _opening: &str) -> Box<dyn FnOnce() + Send> {
+        Box::new(|| {})
+    }
+
     /// Ends a generation in progress soon, for shutting down.
     fn stop(&self) {}
 }
@@ -109,8 +120,9 @@ pub enum TurnEvent {
     /// The message seemed to start something new in the task it went to; comes after
     /// the turn ends. The UI offers to move it into a task of its own (`start_new_task`).
     NewTask,
-    /// Before the answer, the model summed up a task's earlier exchanges: those of the task
-    /// the message follows up, or the oldest of its own (docs Sec. 4.8). What it cost.
+    /// The model summed up a task's earlier exchanges: before the answer, those of the task
+    /// the message follows up, or after it, the oldest of its own once they grow long
+    /// (docs Sec. 4.8). What it cost.
     Summary {
         task: u64,
         prompt_tokens: u32,
@@ -166,6 +178,9 @@ pub struct Host {
     trace_sink: RwLock<Option<TraceSink>>,
     /// The user's tasks; each is its own core session (docs Sec. 4.8).
     tasks: Arc<Mutex<Tasks>>,
+    /// Held by a turn until the core has its message, and by [`Host::settle`], so the two
+    /// never sum up or fold a task at once.
+    settling: tauri::async_runtime::Mutex<()>,
     /// Set once the app is quitting: a model that finishes loading afterwards is
     /// dropped instead of installed.
     shutting_down: AtomicBool,
@@ -190,6 +205,7 @@ impl Host {
             trace_sink: RwLock::new(None),
             shutting_down: AtomicBool::new(false),
             tasks: Arc::new(Mutex::new(Tasks::default())),
+            settling: tauri::async_runtime::Mutex::new(()),
         })
     }
 
@@ -484,6 +500,7 @@ impl Host {
     where
         F: FnMut(TurnEvent) + Send + 'static,
     {
+        let settled = self.settling.lock().await;
         self.restore(session)?;
         let on_event = Arc::new(Mutex::new(on_event));
         self.catch_up(session, &on_event).await?;
@@ -501,6 +518,8 @@ impl Host {
             notes,
             at: now(),
         })?;
+        // Not held while the turn runs: a confirmation card can wait for minutes.
+        drop(settled);
         match self
             .drive(session, queue, utc_offset_minutes, &utterance, on_event)
             .await
@@ -516,6 +535,49 @@ impl Host {
                 Ok(self.deliver(actions))
             }
         }
+    }
+
+    /// While the user reads a reply or writes the next message, gets the task that message
+    /// goes to ready for it, doing now what its turn would otherwise do first (`Summary`
+    /// events go to `on_event`), so that turn reads little more than its message: after a
+    /// turn, folds the current task's older exchanges into its summary once they grow
+    /// long, then has the model read the conversation as the next turn will show it. A
+    /// turn waits for a summary, not for the reading, which gives way to it. Does nothing
+    /// while the task's turn runs.
+    pub async fn settle<F>(&self, on_event: F) -> Result<(), HostError>
+    where
+        F: FnMut(TurnEvent) + Send + 'static,
+    {
+        let settled = self.settling.lock().await;
+        let on_event = Arc::new(Mutex::new(on_event));
+        let Some(session) = self.tasks()?.current(now()).map(|t| SessionId(t.card.id)) else {
+            return Ok(());
+        };
+        // A task whose turn runs, or that the runtime does not hold, as when the user just
+        // moved its last exchange into a task of its own, is caught up by its next turn.
+        let idle = {
+            let core = self.core()?;
+            !core.in_turn(session) && core.history(session).next().is_some()
+        };
+        if !idle {
+            return Ok(());
+        }
+        self.catch_up(session, &on_event).await?;
+        let Some((messages, tools)) = self.core()?.upcoming(session) else {
+            return Ok(());
+        };
+        let request = InferenceRequest {
+            id: READ_AHEAD,
+            session,
+            messages,
+            tools,
+        };
+        // Started before the next turn can ask anything, so it gives way to that turn.
+        let reading = self.backend().read_ahead(&request, "");
+        drop(settled);
+        tauri::async_runtime::spawn_blocking(reading)
+            .await
+            .map_err(|e| HostError::Host(format!("inference worker failed: {e}")))
     }
 
     /// Performs the core's actions until the turn ends.
@@ -657,11 +719,11 @@ impl Host {
         Ok(())
     }
 
-    /// Before a turn (docs Sec. 4.8): sums up the task `session` follows up, as far as its
-    /// summary does not cover its chat yet; folds `session`'s older exchanges into its own
-    /// summary once its history grows long, keeping the latest word for word; and gives
-    /// the core the summary to go on from. Without a summary, as when the model fails,
-    /// the turn goes on from what the history holds.
+    /// Before a turn, and after one (docs Sec. 4.8): sums up the task `session` follows up,
+    /// as far as its summary does not cover its chat yet; folds `session`'s older exchanges
+    /// into its own summary once its history grows long, keeping the latest word for word;
+    /// and gives the core the summary to go on from. Without a summary, as when the model
+    /// fails, the turn goes on from what the history holds.
     async fn catch_up<F>(
         &self,
         session: SessionId,
@@ -1106,6 +1168,95 @@ mod tests {
         host.forget_summaries().unwrap();
         assert_eq!(host.tasks().unwrap().brief(child), None);
         assert_eq!(host.core.lock().unwrap().history(child).count(), 0);
+    }
+
+    /// Answers "OK." or, asked for a summary, "Summary."; keeps what it is asked and what
+    /// it is given to read ahead.
+    #[derive(Default)]
+    struct Ahead {
+        asked: Mutex<Vec<InferenceRequest>>,
+        read: Mutex<Vec<(InferenceRequest, String)>>,
+    }
+
+    impl Backend for Ahead {
+        fn label(&self) -> String {
+            "ahead".to_string()
+        }
+
+        fn generate(
+            &self,
+            request: &InferenceRequest,
+            _: &mut dyn FnMut(&str),
+        ) -> Result<Generation, String> {
+            self.asked.lock().unwrap().push(request.clone());
+            let content = if request.id == SUMMARY {
+                "Summary."
+            } else {
+                "OK."
+            };
+            Ok(Generation {
+                content: content.to_string(),
+                ..Generation::default()
+            })
+        }
+
+        fn read_ahead(
+            &self,
+            request: &InferenceRequest,
+            opening: &str,
+        ) -> Box<dyn FnOnce() + Send> {
+            self.read
+                .lock()
+                .unwrap()
+                .push((request.clone(), opening.to_string()));
+            Box::new(|| {})
+        }
+    }
+
+    /// Gets the next message's task ready, as the app does; returns the tasks summed up.
+    fn settle(host: &Host) -> Vec<u64> {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&events);
+        tauri::async_runtime::block_on(host.settle(move |e| sink.lock().unwrap().push(e))).unwrap();
+        summed(&events.lock().unwrap())
+    }
+
+    #[test]
+    fn after_a_reply_a_long_task_is_folded_and_read_as_its_next_turn_will_show_it() {
+        let model = Arc::new(Ahead::default());
+        let host = Host::new(Arc::clone(&model) as Arc<dyn Backend>, pr3_tool::builtin()).unwrap();
+        // Nothing to get ready before the first message.
+        assert!(settle(&host).is_empty());
+        assert!(model.read.lock().unwrap().is_empty());
+
+        let mut task = None;
+        let mut folded = Vec::new();
+        for i in 0..13 {
+            let before = model.asked.lock().unwrap().len();
+            let (_, events) = run(&host, &format!("Message {i}"));
+            if let Some(TurnEvent::TaskOpened(opened)) = events.first() {
+                task = Some(opened.id);
+            }
+            // Folded after the turn before, never at the start of this one.
+            assert!(summed(&events).is_empty(), "turn {i}: {events:?}");
+            let asked = model.asked.lock().unwrap()[before].clone();
+            // What was read is what the turn asked, but its message.
+            if i > 0 {
+                let (read, opening) = model.read.lock().unwrap().last().unwrap().clone();
+                assert_eq!(opening, "");
+                let (message, earlier) = asked.messages.split_last().unwrap();
+                assert_eq!(message.content, format!("Message {i}"));
+                assert_eq!(read.messages, earlier, "turn {i}");
+                assert_eq!(read.tools, asked.tools);
+                assert!(!read.tools.is_empty());
+            }
+            folded.extend(settle(&host));
+        }
+        // Once, after its twelfth exchange made 24 messages.
+        assert_eq!(folded, [task.unwrap()]);
+        let (read, _) = model.read.lock().unwrap().last().unwrap().clone();
+        assert!(read.messages[0].content.contains("Summary."), "{read:?}");
+        assert_eq!(read.messages.len(), 2 * KEEP_EXCHANGES + 2);
     }
 
     #[test]

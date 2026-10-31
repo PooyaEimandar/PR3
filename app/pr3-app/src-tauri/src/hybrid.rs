@@ -248,6 +248,14 @@ impl Backend for Delegating {
         self.local.generate(request, on_token)
     }
 
+    /// Only while this phone answers itself: the computer reads its own conversation.
+    fn read_ahead(&self, request: &InferenceRequest, opening: &str) -> Box<dyn FnOnce() + Send> {
+        match self.link.get() {
+            Some(_) => Box::new(|| {}),
+            None => self.local.read_ahead(request, opening),
+        }
+    }
+
     fn stop(&self) {
         self.cancel.store(true, Ordering::Relaxed);
         self.local.stop();

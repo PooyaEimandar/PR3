@@ -54,19 +54,32 @@ fn platform_info(host: tauri::State<'_, Host>) -> PlatformInfo {
 /// Runs one user turn through the core. Async, so Tauri runs it off the main thread;
 /// tokens and tool activity stream through `on_event` while the turn runs. The UI
 /// passes the device's UTC offset so tools can tell local time without a tz database.
+/// Once it has answered, the task gets ready for the next message in the background.
 #[tauri::command]
 async fn send_message(
     text: String,
     utc_offset_minutes: i32,
     on_event: Channel<TurnEvent>,
+    app: tauri::AppHandle,
     host: tauri::State<'_, Host>,
 ) -> Result<Vec<pr3_core::Action>, String> {
-    host.send(text, utc_offset_minutes, move |event| {
-        // A closed channel only means the window went away; the turn still completes.
-        let _ = on_event.send(event);
-    })
-    .await
-    .map_err(|e| e.to_string())
+    let result = host
+        .send(text, utc_offset_minutes, move |event| {
+            // A closed channel only means the window went away; the turn still completes.
+            let _ = on_event.send(event);
+        })
+        .await
+        .map_err(|e| e.to_string());
+    settle_later(app);
+    result
+}
+
+/// Gets the task the next message goes to ready for it in the background
+/// ([`Host::settle`]). Without it, that message's turn does the same first; nothing is lost.
+pub(crate) fn settle_later(app: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let _ = app.state::<Host>().settle(|_| {}).await;
+    });
 }
 
 /// On a computer: the node lending its model, if it runs, and where it listens.
