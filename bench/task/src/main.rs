@@ -171,7 +171,8 @@ struct Done {
     /// got it, with the system prompt and tools.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     prompt_tokens: Option<u32>,
-    /// The summaries the model made before answering (docs Sec. 4.8).
+    /// The summaries the model made for the step: before answering, or after it, as the
+    /// app does while the user writes (docs Sec. 4.8).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     summaries: Vec<Summed>,
     seconds: f64,
@@ -717,6 +718,28 @@ impl App {
             Ok(answer) => done.answer = answer,
             Err(e) => done.error = Some(e),
         }
+        done.seconds = started.elapsed().as_secs_f64();
+        // As the app, while the user reads the answer and writes the next message: untimed,
+        // as their writing hides it.
+        let settled = Arc::clone(&seen);
+        let _ = block_on(self.host.settle(move |event| {
+            if let (
+                TurnEvent::Summary {
+                    prompt_tokens,
+                    completion_tokens,
+                    ms,
+                    ..
+                },
+                Ok(mut seen),
+            ) = (event, settled.lock())
+            {
+                seen.summaries.push(Summed {
+                    prompt_tokens,
+                    completion_tokens,
+                    seconds: ms as f64 / 1000.0,
+                });
+            }
+        }));
         if let Ok(seen) = seen.lock() {
             done.opened = seen.opened;
             done.offered = (done.route == "turn").then_some(seen.offered);
@@ -726,7 +749,6 @@ impl App {
         }
         done.prompt_tokens = self.model.first();
         done.sent = emails_after(&self.outbox, emails);
-        done.seconds = started.elapsed().as_secs_f64();
         done
     }
 
@@ -988,6 +1010,10 @@ impl Backend for Metered {
         self.note(request, self.model.generate_until(request, on_token))
     }
 
+    fn read_ahead(&self, request: &InferenceRequest, opening: &str) -> Box<dyn FnOnce() + Send> {
+        self.model.read_ahead(request, opening)
+    }
+
     fn stop(&self) {
         self.model.stop();
     }
@@ -1095,9 +1121,10 @@ fn report(runs: &[(String, Vec<Outcome>)]) -> String {
                 n => format!("{} of {n} turns", offered.iter().filter(|&&o| o).count()),
             };
             let seconds: Vec<f64> = turns.iter().map(|d| d.seconds).collect();
-            // How many, and the median seconds each took.
-            let summed: Vec<f64> = turns
+            // How many, and the median seconds each took: made by a turn, or after any step.
+            let summed: Vec<f64> = cases
                 .iter()
+                .flat_map(|o| &o.steps)
                 .flat_map(|d| &d.summaries)
                 .map(|s| s.seconds)
                 .collect();
