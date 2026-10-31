@@ -53,12 +53,14 @@ interface TaskCard {
   updated_at: number;
 }
 
-// One step of a task's chat, as the conversation showed it (task.rs's Entry).
-type Entry =
+// One step of a task's chat, as the conversation showed it, and when, in milliseconds
+// since the epoch (task.rs's Step).
+type Entry = (
   | { type: "user"; text: string }
   | { type: "reply"; text: string }
   | { type: "tool"; name: string; arguments: string; success: boolean; output: string }
-  | { type: "failed"; reason: string };
+  | { type: "failed"; reason: string }
+) & { at: number };
 
 // A task opened from the list (task.rs's TaskView).
 interface TaskView extends TaskCard {
@@ -103,18 +105,54 @@ type Action =
   | { type: "failed"; reason: string }
   | { type: "infer" | "call_tool" | "propose" | "trace" };
 
-// Model output is untrusted: always textContent, or markdown(), never innerHTML.
+// Model output is untrusted: always textContent, or markdown(), never innerHTML. A reply
+// still coming gets its time once it is in.
 function show(kind: string, text: string): HTMLDivElement {
   const el = document.createElement("div");
   el.className = `msg ${kind}`;
   el.textContent = text;
+  if (!kind.includes("pending")) timed(el);
   addToLog(el);
   return el;
 }
 
 function addToLog(node: Node): void {
   log.append(node);
+  markDays(log);
   follow();
+}
+
+// A message's time, at its bottom right: "1:57 PM", as the device writes times.
+function timed<T extends HTMLElement>(node: T, at = Date.now()): T {
+  node.dataset.at = String(at);
+  const time = el("time", new Date(at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }), "at");
+  time.dateTime = new Date(at).toISOString();
+  node.append(time);
+  return node;
+}
+
+const sameDay = (a: number, b: number) => new Date(a).toDateString() === new Date(b).toDateString();
+
+// "Today", "24 October", or "15 November 2024" in another year.
+function dayName(at: number): string {
+  const day = new Date(at);
+  const now = new Date();
+  if (sameDay(at, now.getTime())) return "Today";
+  const month = day.toLocaleDateString(undefined, { month: "long" });
+  const year = day.getFullYear() === now.getFullYear() ? "" : ` ${day.getFullYear()}`;
+  return `${day.getDate()} ${month}${year}`;
+}
+
+// Above the first message of `chat`, and above each of another day than the one before
+// it, a line with its day.
+function markDays(chat: HTMLElement): void {
+  for (const line of chat.querySelectorAll(":scope > .day")) line.remove();
+  let last: number | null = null;
+  for (const node of chat.querySelectorAll<HTMLElement>(":scope > [data-at]")) {
+    const at = Number(node.dataset.at);
+    if (last === null || !sameDay(last, at)) node.before(el("div", dayName(at), "day"));
+    last = at;
+  }
 }
 
 // The log keeps its latest messages in sight - as a reply streams in, or when it gets
@@ -125,6 +163,7 @@ let atEnd = true;
 let held = false;
 log.addEventListener("scroll", () => {
   atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 8;
+  markEnd();
 });
 // A wheel turned up leaves the end before the log has moved.
 log.addEventListener(
@@ -154,12 +193,35 @@ new ResizeObserver(follow).observe(log);
 
 function follow(): void {
   if (atEnd && !held) log.scrollTop = log.scrollHeight;
+  markEnd();
 }
 
 function toEnd(): void {
   atEnd = true;
   log.scrollTop = log.scrollHeight;
+  markEnd();
 }
+
+// Go to the end, above Send: shown while the chat on screen - the conversation, or a task
+// opened in Tasks - is not at its end, and a tap jumps there at once.
+const toEndButton = find("#to-end", HTMLButtonElement);
+
+function chatOnScreen(): HTMLElement | null {
+  if (!log.hidden) return log;
+  return document.querySelector<HTMLElement>("#tasks:not([hidden]) #task-detail:not([hidden]) .body");
+}
+
+function markEnd(): void {
+  const chat = chatOnScreen();
+  toEndButton.hidden = !chat || chat.scrollHeight - chat.scrollTop - chat.clientHeight < 8;
+}
+
+toEndButton.addEventListener("click", () => {
+  const chat = chatOnScreen();
+  if (chat === log) toEnd();
+  else if (chat) chat.scrollTop = chat.scrollHeight;
+  markEnd();
+});
 
 const toolText = (t: { name: string; arguments: string; output: string }) => `⚙ ${t.name} ${t.arguments} → ${t.output}`;
 
@@ -317,7 +379,7 @@ async function send(text: string): Promise<void> {
       bubble.replaceChildren(markdown(streamed));
     } else if (event.type === "tool") {
       // Show what PR3 ran on the user's behalf, above the answer it leads to.
-      log.insertBefore(entryNode(event), bubble);
+      log.insertBefore(toolNode(event), bubble);
       streamed = "";
       bubble.textContent = "";
     } else if (event.type === "approval") {
@@ -338,6 +400,7 @@ async function send(text: string): Promise<void> {
       // The final reply is canonical; it replaces whatever was streamed.
       if (action.type === "reply") {
         bubble.replaceChildren(markdown(action.content));
+        timed(bubble);
         follow();
         speak(plain(action.content));
       } else if (action.type === "failed") {
@@ -399,7 +462,7 @@ async function answerTaskWords(text: string): Promise<boolean> {
   }
   if (!answer) return false;
   if (!tasksSection.hidden) showTasks(false);
-  const said = el("div", text, "msg user");
+  const said = timed(el("div", text, "msg user"));
   const titles = (cards: TaskCard[]) => cards.map((c) => c.title).join("; ");
   switch (answer.type) {
     case "open": {
@@ -426,7 +489,7 @@ async function answerTaskWords(text: string): Promise<boolean> {
     }
     case "export": {
       const line = `Exporting “${answer.card.title}”.`;
-      const reply = el("div", line, "msg assistant");
+      const reply = timed(el("div", line, "msg assistant"));
       addToLog(said);
       addToLog(reply);
       speak(line);
@@ -435,13 +498,13 @@ async function answerTaskWords(text: string): Promise<boolean> {
     }
     case "continued": {
       const line = `Back to “${answer.task.title}”.`;
-      backTo(answer.task.id, answer, [said, el("div", line, "msg assistant")]);
+      backTo(answer.task.id, answer, [said, timed(el("div", line, "msg assistant"))]);
       speak(line);
       break;
     }
     case "following_up": {
       const line = `Your next message follows up “${answer.parent.title}”.`;
-      followingUp(answer.parent.id, answer, [said, el("div", line, "msg assistant")]);
+      followingUp(answer.parent.id, answer, [said, timed(el("div", line, "msg assistant"))]);
       speak(line);
       break;
     }
@@ -458,7 +521,7 @@ function taskAnswer(line: string, cards: TaskCard[], pick: (id: number) => void)
     b.append(el("span", card.title, "title"), el("span", `${card.line} · ${ago(card.updated_at)}`, "line"));
     reply.append(b);
   }
-  return reply;
+  return timed(reply);
 }
 
 function speak(text: string): void {
@@ -472,7 +535,7 @@ async function askAgain(id: number): Promise<void> {
   const onEvent = new Channel<TurnEvent>();
   onEvent.onmessage = (event) => {
     if (event.type === "approval") showApproval(event.request, bubble);
-    else if (event.type === "tool") log.insertBefore(entryNode(event), bubble);
+    else if (event.type === "tool") log.insertBefore(toolNode(event), bubble);
     follow();
   };
   setBusy(true);
@@ -480,6 +543,7 @@ async function askAgain(id: number): Promise<void> {
     const reply = await invoke<string>("ask_again", { id, onEvent });
     bubble.classList.remove("pending");
     bubble.textContent = reply;
+    timed(bubble);
     speak(reply);
   } catch (err) {
     bubble.remove();
@@ -784,6 +848,7 @@ talk.addEventListener("click", () => {
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && voice) cancelVoiceNote();
+  else if (event.key === "Escape" && closeMenu) closeMenu();
   else if (event.key === "Escape" && !settings.hidden) showSettings(false);
 });
 
@@ -1298,8 +1363,11 @@ const pageBoxes = Object.fromEntries(
 const pageButtons = [...tasksSection.querySelectorAll<HTMLButtonElement>(".page-names button")];
 // Lines for tasks set aside stay at the top of the conversation, the latest few.
 const MAX_FOLDS = 3;
-// Back, in a task, is an arrow (Material's arrow_back).
+// Back, in a task, is an arrow (Material's arrow_back); More is three dots (more_vert).
 const BACK_ARROW = "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z";
+const MORE_DOTS =
+  "M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z";
+const deleteDialog = find("#delete-dialog", HTMLDialogElement);
 let page: PageName = "doing";
 // The task the conversation on screen belongs to.
 let currentTask: number | null = null;
@@ -1344,6 +1412,7 @@ function showList(): void {
   taskList.hidden = false;
   renderTasks();
   scrollToPage(page, false);
+  markEnd();
 }
 
 tasksButton.addEventListener("click", () => showTasks(tasksButton.getAttribute("aria-expanded") !== "true"));
@@ -1398,16 +1467,16 @@ function taskCard(card: TaskCard): HTMLButtonElement {
 function entryNode(entry: Entry): HTMLElement {
   switch (entry.type) {
     case "user":
-      return el("div", entry.text, "msg user");
+      return timed(el("div", entry.text, "msg user"), entry.at);
     case "reply": {
       const reply = el("div", undefined, "msg assistant");
       reply.append(markdown(entry.text));
-      return reply;
+      return timed(reply, entry.at);
     }
     case "tool":
       return toolNode(entry);
     case "failed":
-      return el("div", entry.reason, "msg error");
+      return timed(el("div", entry.reason, "msg error"), entry.at);
   }
 }
 
@@ -1428,56 +1497,131 @@ async function openTask(id: number): Promise<void> {
   }
   taskList.hidden = true;
   taskDetail.hidden = false;
-  const top = el("div", undefined, "top");
-  top.append(iconButton("Back", BACK_ARROW, showList), el("h2", task.title));
-  const status = el("p", `${PAGE_NAMES[task.page]} · ${task.line} · ${ago(task.updated_at)}`, "meta");
-  const parts: Node[] = [top, status];
-  const parent = task.parent;
-  if (parent) parts.push(makeButton(`Follows up: ${parent.title}`, () => openTask(parent.id), "secondary small"));
-  const chat = el("div", undefined, "chat");
-  chat.append(...task.chat.map(entryNode));
-  parts.push(chat);
-
-  const choices = el("div", undefined, "choices");
+  // What to do with the task is in More, at the top with Back and the title, so a long
+  // chat need not be scrolled to its end first; the chat opens at its end anyway. What
+  // came of a choice shows under the chat.
+  const status = el("p", undefined, "meta note");
   const waitForAnswer = (b: HTMLButtonElement) => {
     b.disabled = answering || task.running;
     return b;
   };
+  const choices: HTMLButtonElement[] = [];
   // The conversation on screen is this task's, approval cards and all, and the next
   // message goes on with it.
   if (task.id === currentTask && (task.running || task.page === "doing")) {
-    choices.append(makeButton("Back to the conversation", () => showTasks(false), "small"));
+    choices.push(makeButton("Back to the conversation", () => showTasks(false)));
   } else if (task.page === "done") {
-    choices.append(waitForAnswer(makeButton("Follow up", () => followUp(task.id, status), "small")));
+    choices.push(waitForAnswer(makeButton("Follow up", () => followUp(task.id, status))));
   } else {
-    choices.append(waitForAnswer(makeButton("Continue", () => continueTask(task.id, status), "small")));
+    choices.push(waitForAnswer(makeButton("Continue", () => continueTask(task.id, status))));
   }
-  choices.append(makeButton("Export", () => exportTask(task.id, status), "secondary small"));
-  // Deleting cannot be undone, so it takes a second tap.
-  const remove = makeButton("Delete", async () => {
-    if (!remove.dataset.sure) {
-      remove.dataset.sure = "yes";
-      remove.textContent = "Tap to confirm delete.";
-      return;
-    }
-    try {
-      await invoke("delete_task", { id: task.id });
-    } catch (err) {
-      status.textContent = String(err);
-      return;
-    }
-    log.querySelector(`button.fold[data-task="${task.id}"]`)?.remove();
-    if (currentTask === task.id) {
-      currentTask = null;
-      foldConversation(null);
-    }
-    showList();
-  }, "secondary small");
-  choices.append(waitForAnswer(remove));
-  parts.push(choices);
-  taskDetail.replaceChildren(...parts);
-  taskDetail.scrollTop = 0;
+  choices.push(makeButton("Export", () => exportTask(task.id, status)));
+  choices.push(waitForAnswer(makeButton("Delete", () => deleteTask(task.id, status), "danger")));
+  const top = el("div", undefined, "top");
+  top.append(iconButton("Back", BACK_ARROW, showList), el("h2", task.title), ...moreMenu(choices));
+
+  const body = el("div", undefined, "body");
+  const parent = task.parent;
+  if (parent) body.append(makeButton(`Follows up: ${parent.title}`, () => openTask(parent.id), "secondary small"));
+  const chat = el("div", undefined, "chat");
+  chat.append(...task.chat.map(entryNode));
+  markDays(chat);
+  body.append(chat, status);
+  taskDetail.replaceChildren(top, body);
+  // At its end as it opens, the chat stays there while it settles - as text reflows once
+  // a font arrives - until the user scrolls it.
+  let atChatEnd = true;
+  body.addEventListener("scroll", () => {
+    atChatEnd = body.scrollHeight - body.scrollTop - body.clientHeight < 8;
+    markEnd();
+  });
+  const settle = new ResizeObserver(() => {
+    if (atChatEnd) body.scrollTop = body.scrollHeight;
+    markEnd();
+  });
+  settle.observe(chat);
+  settle.observe(body);
+  body.scrollTop = body.scrollHeight;
+  markEnd();
 }
+
+// What came of a choice in a task's More - where its export went, or why a choice
+// failed - under the task's chat.
+function say(status: HTMLElement, text: string): void {
+  // A reply in the conversation keeps its time.
+  const time = status.querySelector(":scope > time");
+  status.textContent = text;
+  if (time) status.append(time);
+  const body = status.parentElement;
+  if (body) body.scrollTop = body.scrollHeight;
+}
+
+// Closes the menu that is open, if one is.
+let closeMenu: (() => void) | null = null;
+
+// More (⋮) and the menu it opens under it. Choosing, tapping anywhere else or Escape
+// closes the menu.
+function moreMenu(items: HTMLButtonElement[]): HTMLElement[] {
+  const menu = el("div", undefined, "menu");
+  menu.setAttribute("role", "menu");
+  menu.hidden = true;
+  const more = iconButton("More", MORE_DOTS, () => {
+    if (menu.hidden) open();
+    else closeMenu?.();
+  });
+  more.setAttribute("aria-haspopup", "menu");
+  more.setAttribute("aria-expanded", "false");
+  const open = () => {
+    closeMenu?.();
+    menu.hidden = false;
+    more.setAttribute("aria-expanded", "true");
+    closeMenu = () => {
+      menu.hidden = true;
+      more.setAttribute("aria-expanded", "false");
+      closeMenu = null;
+    };
+  };
+  for (const item of items) {
+    item.setAttribute("role", "menuitem");
+    item.addEventListener("click", () => closeMenu?.());
+  }
+  menu.append(...items);
+  return [more, menu];
+}
+
+document.addEventListener(
+  "pointerdown",
+  ({ target }) => {
+    const inMenu = target instanceof Element && target.closest(".menu, [aria-haspopup=menu]");
+    if (!inMenu) closeMenu?.();
+  },
+  true,
+);
+
+// Deleting cannot be undone, so the user is asked first.
+async function deleteTask(id: number, status: HTMLElement): Promise<void> {
+  deleteDialog.returnValue = "";
+  deleteDialog.showModal();
+  await new Promise((closed) => deleteDialog.addEventListener("close", closed, { once: true }));
+  if (deleteDialog.returnValue !== "delete") return;
+  try {
+    await invoke("delete_task", { id });
+  } catch (err) {
+    say(status, String(err));
+    return;
+  }
+  log.querySelector(`button.fold[data-task="${id}"]`)?.remove();
+  if (currentTask === id) {
+    currentTask = null;
+    foldConversation(null);
+  }
+  showList();
+}
+
+// A tap on the dim around the dialog cancels it, as Escape does.
+deleteDialog.addEventListener("click", ({ target }) => {
+  if (target === deleteDialog) deleteDialog.close();
+});
 
 // The task's chat as Markdown and its record and events as JSON, handed to the share
 // sheet; on a computer, saved where the user picks. `status` says where they went.
@@ -1485,9 +1629,9 @@ async function exportTask(id: number, status: HTMLElement): Promise<void> {
   const utcOffsetMinutes = -new Date().getTimezoneOffset();
   try {
     const saved = await invoke<string | null>("export_task", { id, utcOffsetMinutes });
-    if (saved) status.textContent = saved;
+    if (saved) say(status, saved);
   } catch (err) {
-    status.textContent = String(err);
+    say(status, String(err));
   }
 }
 
@@ -1496,7 +1640,7 @@ async function continueTask(id: number, status: HTMLElement): Promise<void> {
   try {
     next = await invoke<Continued>("continue_task", { id });
   } catch (err) {
-    status.textContent = String(err);
+    say(status, String(err));
     return;
   }
   backTo(id, next);
@@ -1521,7 +1665,7 @@ async function followUp(id: number, status: HTMLElement): Promise<void> {
   try {
     next = await invoke<FollowingUp>("follow_up_task", { id });
   } catch (err) {
-    status.textContent = String(err);
+    say(status, String(err));
     return;
   }
   followingUp(id, next);
@@ -1563,6 +1707,7 @@ function foldConversation(previous: TaskCard | null, from?: Element): void {
   // A follow-up's "Following up" line goes with its conversation; the task keeps the link.
   for (const line of log.querySelectorAll("button.fold[data-follows]:not(.following)")) line.remove();
   if (previous) addFold(previous.id, `${previous.title} - in ${PAGE_NAMES[previous.page]}`);
+  markDays(log);
 }
 
 function addFold(id: number, text: string): HTMLButtonElement {

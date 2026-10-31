@@ -92,6 +92,15 @@ pub enum Entry {
     },
 }
 
+/// A step of a task's chat and when it happened, so the UI can show its time and day.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Step {
+    /// Milliseconds since the epoch.
+    pub at: u64,
+    #[serde(flatten)]
+    pub entry: Entry,
+}
+
 /// A task as the list shows it: casual words, never states or ids.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TaskCard {
@@ -115,7 +124,7 @@ pub struct TaskView {
     pub running: bool,
     /// Its confirmation card waits for the user; after a restart, ask again.
     pub waiting: bool,
-    pub chat: Vec<Entry>,
+    pub chat: Vec<Step>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -630,7 +639,14 @@ impl Tasks {
             }),
             running: task.running,
             waiting: task.waiting.is_some(),
-            chat: task.chat.iter().map(|(_, entry)| entry.clone()).collect(),
+            chat: task
+                .chat
+                .iter()
+                .map(|(at, entry)| Step {
+                    at: at.0,
+                    entry: entry.clone(),
+                })
+                .collect(),
         })
     }
 
@@ -1307,9 +1323,9 @@ mod tests {
         Arc::new(Mutex::new(SqliteMemory::open_in_memory().unwrap()))
     }
 
-    fn texts(chat: &[Entry]) -> Vec<String> {
+    fn texts(chat: &[Step]) -> Vec<String> {
         chat.iter()
-            .map(|e| match e {
+            .map(|step| match &step.entry {
                 Entry::User { text } => format!("user: {text}"),
                 Entry::Reply { text } => format!("reply: {text}"),
                 Entry::Tool { name, output, .. } => format!("{name}: {output}"),
@@ -1351,6 +1367,12 @@ mod tests {
         assert_eq!(
             texts(&current.chat),
             ["user: And 3+3?", "calculate: 6", "reply: 6"]
+        );
+        // Each step keeps when it happened, for the time and day the chat shows.
+        assert!(current.chat.iter().all(|step| step.at == at(21).0));
+        assert_eq!(
+            serde_json::to_value(&current.chat[0]).unwrap(),
+            serde_json::json!({"at": at(21).0, "type": "user", "text": "And 3+3?"})
         );
         assert_eq!(tasks.begin("And 4+4?", at(26)).0, child);
         tasks.end(child, Ok("8".to_string()), at(26));

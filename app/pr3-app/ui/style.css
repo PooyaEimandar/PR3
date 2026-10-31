@@ -75,6 +75,28 @@ h1 {
   white-space: normal;
 }
 
+/* When a message was said, small at its bottom right. */
+.msg > time.at {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* The day, above its first message: "Today", "24 October". */
+.day {
+  align-self: center;
+  padding: 3px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 12px;
+}
+
 /* A reply's Markdown (markdown.ts): compact, as a chat bubble is small. Code wraps
    rather than scrolling sideways. */
 .msg.assistant > :first-child {
@@ -179,6 +201,7 @@ h1 {
 
 /* Close to the screen's edges, with narrow buttons, so the text box gets the width. */
 #composer {
+  position: relative;
   display: flex;
   gap: 8px;
   padding: 10px 6px 14px;
@@ -187,6 +210,34 @@ h1 {
 
 #composer button[type="submit"] {
   padding: 10px 12px;
+}
+
+/* Go to the end: round, over the chat a little above Send. */
+#to-end {
+  position: absolute;
+  right: 6px;
+  bottom: calc(100% + 12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--panel);
+  color: var(--accent);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+#to-end[hidden] {
+  display: none;
+}
+
+#to-end svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
 }
 
 /* Four buttons share the row with the text box; on small phones they sit closer, so
@@ -732,7 +783,35 @@ button.task-card {
   font-size: 12px;
 }
 
+/* A task: Back, its title and More stay at the top while its chat scrolls under them, in
+   place of the PR3 header. */
+body:has(#tasks:not([hidden]) #task-detail:not([hidden])) > header {
+  display: none;
+}
+
 #task-detail {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+#task-detail .top {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* The title takes the room between Back and More, which keep their width. */
+#task-detail .top button {
+  flex: none;
+}
+
+#task-detail .body {
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -742,15 +821,73 @@ button.task-card {
   overflow-y: auto;
 }
 
-#task-detail .top {
+/* More's menu: under More, over the chat. */
+#task-detail .menu {
+  position: absolute;
+  top: calc(100% - 6px);
+  right: 16px;
+  z-index: 5;
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  min-width: 180px;
+  padding: 4px 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6);
 }
 
-/* A long title wraps beside Back; Back keeps its width. */
-#task-detail .top button {
-  flex: none;
+#task-detail .menu[hidden] {
+  display: none;
+}
+
+#task-detail .menu button {
+  padding: 11px 16px;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  font-weight: 400;
+  text-align: left;
+}
+
+#task-detail .menu button.danger {
+  color: var(--error);
+}
+
+/* Asked before a task is deleted: Cancel, and Delete in red. */
+#delete-dialog {
+  width: min(340px, calc(100vw - 32px));
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  color: var(--text);
+}
+
+#delete-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+#delete-dialog h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+#delete-dialog p {
+  margin: 0 0 18px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+#delete-dialog .choices {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+button.danger {
+  background: var(--error);
+  color: #2b0505;
 }
 
 /* A task's Back and Settings' Close: icons, drawn like the composer's icon buttons. */
@@ -772,10 +909,16 @@ button.task-card {
   fill: currentColor;
 }
 
+/* A long title ends in "..." on its one line. */
 #task-detail h2 {
+  flex: 1;
+  min-width: 0;
   margin: 0;
+  overflow: hidden;
   color: var(--accent);
   font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 #task-detail .meta {
@@ -784,16 +927,15 @@ button.task-card {
   font-size: 12px;
 }
 
+/* Under the chat, only once a choice has something to say. */
+#task-detail .note:empty {
+  display: none;
+}
+
 #task-detail .chat {
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-
-#task-detail .choices {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
 }
 
 /* A task set aside folds into one line at the top of the conversation; tapping it opens

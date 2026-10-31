@@ -60,6 +60,17 @@
       </div>
       <div id="task-detail" hidden></div>
     </section>
+    <!-- Asked before a task is deleted, which cannot be undone; Cancel has the focus. -->
+    <dialog id="delete-dialog" aria-labelledby="delete-title">
+      <form method="dialog">
+        <h2 id="delete-title">Delete task?</h2>
+        <p>This will permanently delete this task. This can't be undone.</p>
+        <div class="choices">
+          <button type="submit" value="cancel" class="secondary">Cancel</button>
+          <button type="submit" value="delete" class="danger">Delete</button>
+        </div>
+      </form>
+    </dialog>
     <main id="log" aria-live="polite"></main>
     <form id="composer" autocomplete="off">
       <button id="settings-button" type="button" class="icon" aria-label="Settings" title="Settings" aria-expanded="false">
@@ -73,6 +84,10 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11z"/></svg>
       </button>
       <button type="submit">Send</button>
+      <!-- Over the chat, above Send, while the chat is not at its end. -->
+      <button id="to-end" type="button" aria-label="Go to the end" title="Go to the end" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12l-1.41-1.41L13 16.17V4h-2v12.17l-5.58-5.59L4 12l8 8 8-8z"/></svg>
+      </button>
     </form>
   </body>
 </html>
