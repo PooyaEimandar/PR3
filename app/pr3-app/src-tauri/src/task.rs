@@ -728,6 +728,11 @@ impl Tasks {
         Ok(Continued { task, previous })
     }
 
+    /// The task the next message follows up, once the user has chosen one.
+    pub fn follows(&self) -> Option<SessionId> {
+        self.follows
+    }
+
     /// The next message opens a new task that follows up `id`.
     pub fn follow_up(&mut self, id: SessionId, now: Timestamp) -> Result<FollowingUp, String> {
         self.idle()?;
@@ -1205,15 +1210,30 @@ pub fn continue_task(id: u64, host: tauri::State<'_, Host>) -> Result<Continued,
     host.continue_task(SessionId(id))
 }
 
+/// The task it follows is summed up in the background while the user writes.
 #[tauri::command]
-pub fn follow_up_task(id: u64, host: tauri::State<'_, Host>) -> Result<FollowingUp, String> {
-    host.follow_up(SessionId(id))
+pub fn follow_up_task(
+    id: u64,
+    app: tauri::AppHandle,
+    host: tauri::State<'_, Host>,
+) -> Result<FollowingUp, String> {
+    let following = host.follow_up(SessionId(id))?;
+    crate::settle_later(app);
+    Ok(following)
 }
 
 /// Answers a message about the task list, or `None` for one the model should answer.
 #[tauri::command]
-pub fn task_words(text: String, host: tauri::State<'_, Host>) -> Result<Option<Answer>, String> {
-    host.task_words(&text)
+pub fn task_words(
+    text: String,
+    app: tauri::AppHandle,
+    host: tauri::State<'_, Host>,
+) -> Result<Option<Answer>, String> {
+    let answer = host.task_words(&text)?;
+    if matches!(answer, Some(Answer::FollowingUp(_))) {
+        crate::settle_later(app);
+    }
+    Ok(answer)
 }
 
 /// Exports a task as two files and hands them to the share sheet; on a computer, saves

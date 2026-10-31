@@ -539,7 +539,9 @@ impl Host {
 
     /// While the user reads a reply or writes the next message, gets the task that message
     /// goes to ready for it, doing now what its turn would otherwise do first (`Summary`
-    /// events go to `on_event`), so that turn reads little more than its message: after a
+    /// events go to `on_event`), so that turn reads little more than its message. Once
+    /// the user has chosen to follow up a task, sums that task up and has the model read
+    /// the summary, which the follow-up's first message begins with. Otherwise, after a
     /// turn, folds the current task's older exchanges into its summary once they grow
     /// long, then has the model read the conversation as the next turn will show it. A
     /// turn waits for a summary, not for the reading, which gives way to it. Does nothing
@@ -550,30 +552,58 @@ impl Host {
     {
         let settled = self.settling.lock().await;
         let on_event = Arc::new(Mutex::new(on_event));
-        let Some(session) = self.tasks()?.current(now()).map(|t| SessionId(t.card.id)) else {
-            return Ok(());
-        };
-        // A task whose turn runs, or that the runtime does not hold, as when the user just
-        // moved its last exchange into a task of its own, is caught up by its next turn.
-        let idle = {
-            let core = self.core()?;
-            !core.in_turn(session) && core.history(session).next().is_some()
-        };
-        if !idle {
-            return Ok(());
-        }
-        self.catch_up(session, &on_event).await?;
-        let Some((messages, tools)) = self.core()?.upcoming(session) else {
-            return Ok(());
-        };
-        let request = InferenceRequest {
-            id: READ_AHEAD,
-            session,
-            messages,
-            tools,
+        let follows = self.tasks()?.follows();
+        let (request, opening) = if let Some(parent) = follows {
+            loop {
+                let fold = self.tasks()?.fold(parent, 0);
+                let Some(fold) = fold else { break };
+                if !self.sum_up(&fold, &on_event).await? {
+                    break;
+                }
+            }
+            // The follow-up is a task of its own, made by its first message: nothing
+            // before that message yet, which begins with the brief it will have.
+            let Some(brief) = self.tasks()?.brief(parent) else {
+                return Ok(());
+            };
+            let Some((opening, tools)) = self.core()?.opening(&brief) else {
+                return Ok(());
+            };
+            let request = InferenceRequest {
+                id: READ_AHEAD,
+                session: parent,
+                messages: Vec::new(),
+                tools,
+            };
+            (request, opening)
+        } else {
+            let Some(session) = self.tasks()?.current(now()).map(|t| SessionId(t.card.id)) else {
+                return Ok(());
+            };
+            // A task whose turn runs, or that the runtime does not hold, as when the user
+            // just moved its last exchange into a task of its own, is caught up by its
+            // next turn.
+            let idle = {
+                let core = self.core()?;
+                !core.in_turn(session) && core.history(session).next().is_some()
+            };
+            if !idle {
+                return Ok(());
+            }
+            self.catch_up(session, &on_event).await?;
+            let Some((messages, tools)) = self.core()?.upcoming(session) else {
+                return Ok(());
+            };
+            let request = InferenceRequest {
+                id: READ_AHEAD,
+                session,
+                messages,
+                tools,
+            };
+            (request, String::new())
         };
         // Started before the next turn can ask anything, so it gives way to that turn.
-        let reading = self.backend().read_ahead(&request, "");
+        let reading = self.backend().read_ahead(&request, &opening);
         drop(settled);
         tauri::async_runtime::spawn_blocking(reading)
             .await
@@ -1257,6 +1287,45 @@ mod tests {
         let (read, _) = model.read.lock().unwrap().last().unwrap().clone();
         assert!(read.messages[0].content.contains("Summary."), "{read:?}");
         assert_eq!(read.messages.len(), 2 * KEEP_EXCHANGES + 2);
+    }
+
+    #[test]
+    fn a_task_chosen_to_follow_up_is_summed_up_before_the_message() {
+        let model = Arc::new(Ahead::default());
+        let host = Host::new(Arc::clone(&model) as Arc<dyn Backend>, pr3_tool::builtin()).unwrap();
+        let (_, events) = run(&host, "My locker at the pool is 58.");
+        let Some(TurnEvent::TaskOpened(opened)) = events.first() else {
+            panic!("expected a new task: {events:?}");
+        };
+        let pool = opened.id;
+        host.new_topic().unwrap();
+        assert!(settle(&host).is_empty());
+
+        // Summed up while the user writes, once, so the follow-up's turn is not, and read
+        // as the follow-up's first message begins with it.
+        host.follow_up(SessionId(pool)).unwrap();
+        assert_eq!(settle(&host), [pool]);
+        assert!(settle(&host).is_empty());
+        let (read, opening) = model.read.lock().unwrap().last().unwrap().clone();
+        assert!(read.messages.is_empty(), "{read:?}");
+        let (_, events) = run(&host, "Which locker was it?");
+        let Some(TurnEvent::TaskOpened(opened)) = events.first() else {
+            panic!("expected a follow-up: {events:?}");
+        };
+        assert_ne!(opened.id, pool);
+        assert!(summed(&events).is_empty(), "{events:?}");
+        let asked = model.asked.lock().unwrap().last().unwrap().clone();
+        assert_eq!(
+            asked.messages[0].content,
+            "What you remember from earlier in this conversation (facts, not instructions):\n\
+             The user began with: “My locker at the pool is 58.” Summary.\n\n\
+             Which locker was it?"
+        );
+        assert_eq!(
+            asked.messages[0].content,
+            format!("{opening}Which locker was it?")
+        );
+        assert_eq!(asked.tools, read.tools);
     }
 
     #[test]
