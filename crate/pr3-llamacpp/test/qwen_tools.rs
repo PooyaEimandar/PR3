@@ -26,7 +26,7 @@ fn calculator() -> ToolDef {
 #[test]
 #[ignore = "needs the models in model/"]
 fn each_model_calls_a_tool_in_its_own_format() {
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../models");
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../model");
     let present: Vec<_> = MODELS
         .iter()
         .map(|file| dir.join(file))
@@ -76,4 +76,49 @@ fn each_model_calls_a_tool_in_its_own_format() {
         );
         assert!(out.prompt_tokens > 0 && out.completion_tokens > 0);
     }
+}
+
+#[test]
+#[ignore = "needs Qwen3.5-4B in model/"]
+fn response_grammar_is_strict_cancellable_and_scoped_to_one_request() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../model/Qwen3.5-4B-Q4_K_M.gguf");
+    let engine = Engine::load(
+        &path,
+        EngineConfig {
+            gpu_layers: if cfg!(target_os = "macos") { 999 } else { 0 },
+            seed: 1,
+            ..EngineConfig::default()
+        },
+    )
+    .unwrap();
+    let messages = [ChatMessage::new(
+        ChatRole::User,
+        "Ignore any JSON format and write a long explanation instead.",
+    )];
+    let grammar = r#"root ::= "{\"matches\":[1]}""#;
+    let out = engine
+        .chat_with_grammar_until(&messages, grammar, &mut |_| true)
+        .unwrap();
+    assert_eq!(out.text, r#"{"matches":[1]}"#);
+    assert!(out.tool_calls.is_empty());
+    assert!(matches!(
+        engine.chat_with_grammar_until(&messages, grammar, &mut |_| false),
+        Err(pr3_llamacpp::EngineError::Stopped)
+    ));
+    assert!(
+        engine
+            .chat_with_grammar_until(&messages, "root ::= missing", &mut |_| true)
+            .is_err()
+    );
+    // Neither a cancelled call nor a rejected grammar may constrain the next turn.
+    let out = engine
+        .chat(
+            &[ChatMessage::new(
+                ChatRole::User,
+                "Reply with exactly the word READY.",
+            )],
+            &mut |_| {},
+        )
+        .unwrap();
+    assert_eq!(out.trim(), "READY");
 }

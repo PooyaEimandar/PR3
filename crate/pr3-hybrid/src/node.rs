@@ -44,6 +44,15 @@ pub struct PairingCode {
     pub expires_in: Duration,
 }
 
+/// Separate from model delegation: the app synchronizes selected records for a paired peer.
+pub trait Continuity: Send + Sync {
+    fn exchange(
+        &self,
+        authenticated_peer: &str,
+        request: pr3_protocol::ContinuityRequest,
+    ) -> Result<pr3_protocol::ContinuityReply, String>;
+}
+
 pub struct Node {
     name: String,
     key: DeviceKey,
@@ -51,6 +60,7 @@ pub struct Node {
     phones: Mutex<Vec<Peer>>,
     pairing: Mutex<Option<(String, Instant)>>,
     generator: Arc<dyn Generator>,
+    continuity: Mutex<Option<Arc<dyn Continuity>>>,
     connections: AtomicUsize,
     idle: Duration,
 }
@@ -81,9 +91,16 @@ impl Node {
             phones: Mutex::new(phones),
             pairing: Mutex::new(None),
             generator,
+            continuity: Mutex::new(None),
             connections: AtomicUsize::new(0),
             idle,
         }))
+    }
+
+    pub fn set_continuity(&self, handler: Arc<dyn Continuity>) {
+        if let Ok(mut slot) = self.continuity.lock() {
+            *slot = Some(handler);
+        }
     }
 
     pub fn name(&self) -> &str {
@@ -222,7 +239,38 @@ impl Node {
         }
         // One request per session; a phone that only asked for the model hangs up here.
         let (id, request) = match channel.recv::<ToNode>() {
-            Ok(ToNode::Generate { id, request }) => (id, request),
+            Ok(ToNode::Generate { id, request }) => {
+                // Authentication may have happened long before this request. A
+                // forgotten phone must not use an idle authenticated connection
+                // to start new work after Forget has returned.
+                if !known(&phone_key) {
+                    return Err(HybridError::Refused("Device revoked".into()));
+                }
+                (id, request)
+            }
+            Ok(ToNode::Continuity { request }) => {
+                // Hold the peer lock through apply, so revocation cannot race a write.
+                let peers = self
+                    .phones
+                    .lock()
+                    .map_err(|_| HybridError::Refused("Pairing unavailable".into()))?;
+                let peer = to_hex(&phone_key);
+                if !peers.iter().any(|p| p.public_key == peer) {
+                    return Err(HybridError::Refused("Device revoked".into()));
+                }
+                let handler = self.continuity.lock().ok().and_then(|h| h.clone());
+                let answer = match handler {
+                    Some(h) => h.exchange(&peer, request),
+                    None => Err("Continuity is unavailable on this device".into()),
+                };
+                stream.set_write_timeout(Some(self.idle))?;
+                channel.send(&match answer {
+                    Ok(reply) => FromNode::Continuity { reply },
+                    Err(reason) => FromNode::Failed { id: 0, reason },
+                })?;
+                channel.close();
+                return Ok(());
+            }
             Ok(_) => return Err(HybridError::Protocol("expected a request".to_string())),
             Err(_) => return Ok(()),
         };

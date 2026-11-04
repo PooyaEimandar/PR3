@@ -122,10 +122,15 @@ impl Fetcher {
 }
 
 impl Fetch for Fetcher {
-    fn fetch(&self, url: &str) -> Result<Fetched, String> {
+    fn check_enabled(&self) -> Result<(), String> {
         if !self.on.load(Ordering::Relaxed) {
             return Err(IS_OFF.to_string());
         }
+        Ok(())
+    }
+
+    fn fetch(&self, url: &str) -> Result<Fetched, String> {
+        self.check_enabled()?;
         let mut response = self
             .agent
             .get(url)
@@ -360,7 +365,9 @@ mod tests {
         let (web, fetcher) = open(Some(&dir), true);
         let fetcher = fetcher.unwrap();
         assert!(web.info().on);
+        assert!(fetcher.check_enabled().is_ok());
         web.set(false).unwrap();
+        assert_eq!(fetcher.check_enabled(), Err(IS_OFF.to_string()));
         assert_eq!(
             fetcher.fetch("https://example.com/"),
             Err(IS_OFF.to_string())
@@ -369,6 +376,8 @@ mod tests {
         assert!(!again.info().on, "off stays off on the next start");
         again.set(true).unwrap();
         assert!(open(Some(&dir), true).0.info().on);
+        web.set(true).unwrap();
+        assert!(fetcher.check_enabled().is_ok());
         let (disabled, none) = open(Some(&dir), false);
         assert!(none.is_none() && !disabled.info().available && !disabled.info().on);
         let _ = fs::remove_dir_all(&dir);

@@ -8,7 +8,10 @@ in those messages; declined and refused proposals are counted separately.
 """
 
 import json
+import os
 import subprocess
+import queue
+import threading
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -26,18 +29,30 @@ from .schema import reduce
 class Bridge:
     """One bridge process: the model loads once and serves every run."""
 
-    def __init__(self, binary: Path, model: Path):
+    def __init__(self, binary: Path, model: Path, seed: int = 42):
         self.process = subprocess.Popen(
             [str(binary), str(model)],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             text=True,
             bufsize=1,
+            env={**os.environ, "PR3_BENCH_SEED": str(seed)},
         )
-        ready = self.recv()
-        if ready.get("type") != "ready":
-            raise RuntimeError(f"bridge did not start: {ready}")
-        self.model = ready["model"]
+        self.messages: queue.Queue = queue.Queue()
+        def read_messages():
+            assert self.process.stdout is not None
+            for line in self.process.stdout:
+                self.messages.put(line)
+            self.messages.put(None)
+        threading.Thread(target=read_messages, daemon=True).start()
+        try:
+            ready = self.recv()
+            if ready.get("type") != "ready":
+                raise RuntimeError(f"bridge did not start: {ready}")
+            self.model = ready["model"]
+        except BaseException:
+            self.abort()
+            raise
 
     def send(self, message: dict) -> None:
         assert self.process.stdin is not None
@@ -45,8 +60,10 @@ class Bridge:
         self.process.stdin.flush()
 
     def recv(self) -> dict:
-        assert self.process.stdout is not None
-        line = self.process.stdout.readline()
+        try:
+            line = self.messages.get(timeout=1800)
+        except queue.Empty as error:
+            raise TimeoutError("bridge produced no protocol message for 30 minutes") from error
         if not line:
             raise RuntimeError("the bridge exited")
         return json.loads(line)
@@ -54,7 +71,16 @@ class Bridge:
     def close(self) -> None:
         if self.process.stdin:
             self.process.stdin.close()
-        self.process.wait(timeout=60)
+        try:
+            self.process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            self.process.kill()
+            self.process.wait()
+
+    def abort(self) -> None:
+        """A Python-side exception can leave the JSON protocol mid-call."""
+        self.process.kill()
+        self.process.wait()
 
 
 @dataclass
@@ -90,6 +116,7 @@ class BridgeAgent(BasePipelineElement):
     def prepare(self, user_task: BaseUserTask, injection_task: BaseInjectionTask | None) -> None:
         self.user_task = user_task
         self.injection_task = injection_task
+        self.last = Run()
 
     def attempted_attack(self, pre_env: Env) -> bool:
         """Whether the model made a call that does the attacker's bidding, whether or not
@@ -139,7 +166,7 @@ class BridgeAgent(BasePipelineElement):
                 "max_rounds": self.max_rounds,
             }
         )
-        run = Run()
+        run = self.last
         transcript: list[ChatMessage] = [
             {"role": "system", "content": [text_content_block_from_string(self.system)]},
             {"role": "user", "content": [text_content_block_from_string(query)]},

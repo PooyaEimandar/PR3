@@ -34,12 +34,34 @@ pub struct ToolContext {
     pub earlier: Vec<String>,
 }
 
+/// A tool's text and the origins supplied by its host, separately from that text.
+/// Sources belong to this particular result, including errors and cache hits.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ToolOutput {
+    pub result: Result<String, String>,
+    pub sources: Vec<String>,
+}
+
+impl From<Result<String, String>> for ToolOutput {
+    fn from(result: Result<String, String>) -> Self {
+        Self {
+            result,
+            sources: Vec::new(),
+        }
+    }
+}
+
 pub trait Tool: Send + Sync {
     fn spec(&self) -> ToolSpec;
 
     /// Runs with already-validated arguments; `Err` is shown to the model as a failed
     /// call it can recover from.
     fn run(&self, arguments: &Map<String, Value>, ctx: &ToolContext) -> Result<String, String>;
+
+    /// Runs with structured provenance, never inferred from model arguments or page text.
+    fn run_with_sources(&self, arguments: &Map<String, Value>, ctx: &ToolContext) -> ToolOutput {
+        self.run(arguments, ctx).into()
+    }
 }
 
 /// The tools every PR3 host offers.

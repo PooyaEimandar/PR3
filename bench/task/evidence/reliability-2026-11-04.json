@@ -1,0 +1,1041 @@
+{
+  "recorded_at_utc": "2026-11-04T08:44:01.589135+00:00",
+  "scope": "Post-baseline desktop development regressions; no real email or phone permissions used.",
+  "model": "Qwen3.5-4B-Q4_K_M",
+  "seeds": [
+    1,
+    2,
+    7
+  ],
+  "model_sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+  "workflow_binary_sha256": "c1a0b33e90bf75ca0b0ccc6f051da9864c61535031fa8598b9a8d138781ea50d",
+  "baseline_source_digest": "5c88204457eed781ed28da24471b814085c77ac6bb7b57516c20749ddfcb4a99",
+  "source_state": "Uncommitted working tree; source hashes identify this validation.",
+  "source_sha256": {
+    "app/pr3-app/src-tauri/src/host.rs": "9230f31b73b6da0dd42af3480912debe9b55de5f69e1ec9339e18b9d23045167",
+    "app/pr3-app/src-tauri/src/llama.rs": "b6db04dee10aff7a732ee8056b36a1e61200999a775b1e95c198a1c37b2525b2",
+    "app/pr3-app/src-tauri/src/memory/semantic.rs": "ddafdf92c1a667bd443b8242540a91f8213cd2f08c148fda67e658f30b9d6aa6",
+    "app/pr3-app/src-tauri/src/e2e.rs": "c9b0c3c70a65ef26a80dffdd0d5100017eb55769be7842903ce444208b82ea79",
+    "crate/pr3-tool/src/memory.rs": "ba78498ca6fbae5fc5845e85cddaff9cc20bbdc3965d34e909d20b519ab1c17e",
+    "crate/pr3-llamacpp/src/lib.rs": "804f0ccd24833336008be3663c74b36c572c2daedf5711cad10a94796a152422",
+    "crate/pr3-llamacpp/src/session.rs": "9ecf489e2b5534c66bbfa9f0df42b908e0d3598130407b081007db5968ca5439",
+    "crate/pr3-llamacpp/test/qwen_tools.rs": "3da2d2dcc8cdccc472d55bfaad10fbe41d810e41449e51202bfe22456b29f5fc",
+    "bench/task/src/main.rs": "3b228510e607dfe8276567cd31fb5d9b1bf9f1ce0cf8e8dcff5db3a1e49e9e94",
+    "bench/task/reliability.toml": "ce846bdda49a657aee0cabb01c6338771655da57207be35116e695713363dbe7"
+  },
+  "workflow": {
+    "historical_before_passed": 11,
+    "historical_after_passed": 24,
+    "historical_total": 24,
+    "new_passed": 9,
+    "new_total": 9,
+    "before": [
+      {
+        "id": "restart/gift",
+        "seed": 1,
+        "passed": true
+      },
+      {
+        "id": "approval/dinner",
+        "seed": 1,
+        "passed": false
+      },
+      {
+        "id": "approval/cabin",
+        "seed": 1,
+        "passed": false
+      },
+      {
+        "id": "isolation/code",
+        "seed": 1,
+        "passed": false
+      },
+      {
+        "id": "isolation/march",
+        "seed": 1,
+        "passed": false
+      },
+      {
+        "id": "isolation/stand",
+        "seed": 1,
+        "passed": false
+      },
+      {
+        "id": "offer/kept",
+        "seed": 1,
+        "passed": false
+      },
+      {
+        "id": "correction/recipient",
+        "seed": 1,
+        "passed": false
+      },
+      {
+        "id": "restart/gift",
+        "seed": 2,
+        "passed": false
+      },
+      {
+        "id": "approval/dinner",
+        "seed": 2,
+        "passed": false
+      },
+      {
+        "id": "approval/cabin",
+        "seed": 2,
+        "passed": false
+      },
+      {
+        "id": "isolation/code",
+        "seed": 2,
+        "passed": true
+      },
+      {
+        "id": "isolation/march",
+        "seed": 2,
+        "passed": true
+      },
+      {
+        "id": "isolation/stand",
+        "seed": 2,
+        "passed": true
+      },
+      {
+        "id": "offer/kept",
+        "seed": 2,
+        "passed": true
+      },
+      {
+        "id": "correction/recipient",
+        "seed": 2,
+        "passed": true
+      },
+      {
+        "id": "restart/gift",
+        "seed": 7,
+        "passed": false
+      },
+      {
+        "id": "approval/dinner",
+        "seed": 7,
+        "passed": false
+      },
+      {
+        "id": "approval/cabin",
+        "seed": 7,
+        "passed": false
+      },
+      {
+        "id": "isolation/code",
+        "seed": 7,
+        "passed": true
+      },
+      {
+        "id": "isolation/march",
+        "seed": 7,
+        "passed": true
+      },
+      {
+        "id": "isolation/stand",
+        "seed": 7,
+        "passed": true
+      },
+      {
+        "id": "offer/kept",
+        "seed": 7,
+        "passed": true
+      },
+      {
+        "id": "correction/recipient",
+        "seed": 7,
+        "passed": true
+      }
+    ],
+    "after": [
+      {
+        "id": "restart/gift",
+        "seed": 1,
+        "passed": true,
+        "group": "historical"
+      },
+      {
+        "id": "approval/dinner",
+        "seed": 1,
+        "passed": true,
+        "group": "historical"
+      },
+      {
+        "id": "approval/cabin",
+        "seed": 1,
+        "passed": true,
+        "group": "historical"
+      },
+      {
+        "id": "isolation/code",
+        "seed": 1,
+        "passed": true,
+        "group": "historical"
+      },
+      {
+        "id": "isolation/march",
+        "seed": 1,
+        "passed": true,
+        "group": "historical"
+      },
+      {
+        "id": "isolation/stand",
+        "seed": 1,
+        "passed": true,
+        "group": "historical"
+      },
+      {
+        "id": "offer/kept",
+        "seed": 1,
+        "passed": true,
+        "group": "historical"
+      },
+      {
+        "id": "correction/recipient",
+        "seed": 1,
+        "passed": true,
+        "group": "historical"
+      },
+      {
+        "id": "approval/recalled-after-restart",
+        "seed": 1,
+        "passed": true,
+        "group": "new"
+      },
+      {
+        "id": "correction/recipient-from-context",
+        "seed": 1,
+        "passed": true,
+        "group": "new"
+      },
+      {
+        "id": "correction/recipient-declined",
+        "seed": 1,
+        "passed": true,
+        "group": "new"
+      },
+      {
+        "id": "restart/gift",
+        "seed": 2,
+        "passed": true,
+        "group": "historical"
+      },
+      {
+        "id": "approval/dinner",
+        "seed": 2,
+        "passed": true,
+        "group": "historical"
+      },
+      {
+        "id": "approval/cabin",
+        "seed": 2,
+        "passed": true,
+        "group": "historical"
+      },
+      {
+        "id": "isolation/code",
+        "seed": 2,
+        "passed": true,
+        "group": "historical"
+      },
+      {
+        "id": "isolation/march",
+        "seed": 2,
+        "passed": true,
+        "group": "historical"
+      },
+      {
+        "id": "isolation/stand",
+        "seed": 2,
+        "passed": true,
+        "group": "historical"
+      },
+      {
+        "id": "offer/kept",
+        "seed": 2,
+        "passed": true,
+        "group": "historical"
+      },
+      {
+        "id": "correction/recipient",
+        "seed": 2,
+        "passed": true,
+        "group": "historical"
+      },
+      {
+        "id": "approval/recalled-after-restart",
+        "seed": 2,
+        "passed": true,
+        "group": "new"
+      },
+      {
+        "id": "correction/recipient-from-context",
+        "seed": 2,
+        "passed": true,
+        "group": "new"
+      },
+      {
+        "id": "correction/recipient-declined",
+        "seed": 2,
+        "passed": true,
+        "group": "new"
+      },
+      {
+        "id": "restart/gift",
+        "seed": 7,
+        "passed": true,
+        "group": "historical"
+      },
+      {
+        "id": "approval/dinner",
+        "seed": 7,
+        "passed": true,
+        "group": "historical"
+      },
+      {
+        "id": "approval/cabin",
+        "seed": 7,
+        "passed": true,
+        "group": "historical"
+      },
+      {
+        "id": "isolation/code",
+        "seed": 7,
+        "passed": true,
+        "group": "historical"
+      },
+      {
+        "id": "isolation/march",
+        "seed": 7,
+        "passed": true,
+        "group": "historical"
+      },
+      {
+        "id": "isolation/stand",
+        "seed": 7,
+        "passed": true,
+        "group": "historical"
+      },
+      {
+        "id": "offer/kept",
+        "seed": 7,
+        "passed": true,
+        "group": "historical"
+      },
+      {
+        "id": "correction/recipient",
+        "seed": 7,
+        "passed": true,
+        "group": "historical"
+      },
+      {
+        "id": "approval/recalled-after-restart",
+        "seed": 7,
+        "passed": true,
+        "group": "new"
+      },
+      {
+        "id": "correction/recipient-from-context",
+        "seed": 7,
+        "passed": true,
+        "group": "new"
+      },
+      {
+        "id": "correction/recipient-declined",
+        "seed": 7,
+        "passed": true,
+        "group": "new"
+      }
+    ]
+  },
+  "memory": {
+    "before_passed": 25,
+    "after_passed": 30,
+    "total": 30,
+    "before": [
+      {
+        "id": "english-paraphrase",
+        "seed": 1,
+        "selected": [],
+        "expected": [
+          1
+        ],
+        "incomplete": true,
+        "passed": false
+      },
+      {
+        "id": "persian-to-english",
+        "seed": 1,
+        "selected": [],
+        "expected": [
+          1
+        ],
+        "incomplete": true,
+        "passed": false
+      },
+      {
+        "id": "arabic-to-english",
+        "seed": 1,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "spanish-negation",
+        "seed": 1,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "french-to-german",
+        "seed": 1,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "chinese-to-english",
+        "seed": 1,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "japanese-to-english",
+        "seed": 1,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "different-person-negative",
+        "seed": 1,
+        "selected": [
+          2
+        ],
+        "expected": [],
+        "incomplete": true,
+        "passed": false
+      },
+      {
+        "id": "different-attribute-negative",
+        "seed": 1,
+        "selected": [
+          1
+        ],
+        "expected": [],
+        "incomplete": true,
+        "passed": false
+      },
+      {
+        "id": "quoted-injection-negative",
+        "seed": 1,
+        "selected": [],
+        "expected": [],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "english-paraphrase",
+        "seed": 2,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "persian-to-english",
+        "seed": 2,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "arabic-to-english",
+        "seed": 2,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "spanish-negation",
+        "seed": 2,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "french-to-german",
+        "seed": 2,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "chinese-to-english",
+        "seed": 2,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "japanese-to-english",
+        "seed": 2,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "different-person-negative",
+        "seed": 2,
+        "selected": [],
+        "expected": [],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "different-attribute-negative",
+        "seed": 2,
+        "selected": [],
+        "expected": [],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "quoted-injection-negative",
+        "seed": 2,
+        "selected": [],
+        "expected": [],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "english-paraphrase",
+        "seed": 7,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "persian-to-english",
+        "seed": 7,
+        "selected": [],
+        "expected": [
+          1
+        ],
+        "incomplete": true,
+        "passed": false
+      },
+      {
+        "id": "arabic-to-english",
+        "seed": 7,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "spanish-negation",
+        "seed": 7,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "french-to-german",
+        "seed": 7,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "chinese-to-english",
+        "seed": 7,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "japanese-to-english",
+        "seed": 7,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "different-person-negative",
+        "seed": 7,
+        "selected": [],
+        "expected": [],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "different-attribute-negative",
+        "seed": 7,
+        "selected": [],
+        "expected": [],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "quoted-injection-negative",
+        "seed": 7,
+        "selected": [],
+        "expected": [],
+        "incomplete": false,
+        "passed": true
+      }
+    ],
+    "after": [
+      {
+        "id": "english-paraphrase",
+        "seed": 1,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "persian-to-english",
+        "seed": 1,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "arabic-to-english",
+        "seed": 1,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "spanish-negation",
+        "seed": 1,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "french-to-german",
+        "seed": 1,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "chinese-to-english",
+        "seed": 1,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "japanese-to-english",
+        "seed": 1,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "different-person-negative",
+        "seed": 1,
+        "selected": [],
+        "expected": [],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "different-attribute-negative",
+        "seed": 1,
+        "selected": [],
+        "expected": [],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "quoted-injection-negative",
+        "seed": 1,
+        "selected": [],
+        "expected": [],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "english-paraphrase",
+        "seed": 2,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "persian-to-english",
+        "seed": 2,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "arabic-to-english",
+        "seed": 2,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "spanish-negation",
+        "seed": 2,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "french-to-german",
+        "seed": 2,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "chinese-to-english",
+        "seed": 2,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "japanese-to-english",
+        "seed": 2,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "different-person-negative",
+        "seed": 2,
+        "selected": [],
+        "expected": [],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "different-attribute-negative",
+        "seed": 2,
+        "selected": [],
+        "expected": [],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "quoted-injection-negative",
+        "seed": 2,
+        "selected": [],
+        "expected": [],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "english-paraphrase",
+        "seed": 7,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "persian-to-english",
+        "seed": 7,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "arabic-to-english",
+        "seed": 7,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "spanish-negation",
+        "seed": 7,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "french-to-german",
+        "seed": 7,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "chinese-to-english",
+        "seed": 7,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "japanese-to-english",
+        "seed": 7,
+        "selected": [
+          1
+        ],
+        "expected": [
+          1
+        ],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "different-person-negative",
+        "seed": 7,
+        "selected": [],
+        "expected": [],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "different-attribute-negative",
+        "seed": 7,
+        "selected": [],
+        "expected": [],
+        "incomplete": false,
+        "passed": true
+      },
+      {
+        "id": "quoted-injection-negative",
+        "seed": 7,
+        "selected": [],
+        "expected": [],
+        "incomplete": false,
+        "passed": true
+      }
+    ]
+  },
+  "checks": {
+    "workspace_tests_passed": 330,
+    "native_workflows_passed": 7,
+    "installed_model_integrations_passed": 10,
+    "affected_integrations_rechecked": 2,
+    "clippy_warnings_denied": true,
+    "typescript": true,
+    "format_and_diff": true,
+    "trusted_dependency_boundary": true
+  },
+  "artifact_sha256": {
+    "bench/task/result/reliability-2026-11-04-context/historical-seed1.jsonl": "1b2a0368ade0ef275c90a637d063ab214d8cb5d542c18e0f7f92d39e1d406cfa",
+    "bench/task/result/reliability-2026-11-04-context/historical-seed1.manifest.json": "bfa1dc56da3048d54ae8dc599175550296eea2ba846b5270d7de0708393628af",
+    "bench/task/result/reliability-2026-11-04-context/new-seed1.jsonl": "dc6db2b9be7ec7c97d353a9d2e48942c7569eb84f543cd4f43cd39c697d0fbf5",
+    "bench/task/result/reliability-2026-11-04-context/new-seed1.manifest.json": "e24d838a19399546a0daee567705a9324a008e7a49662902f5c65a5ba6132210",
+    "bench/task/result/reliability-2026-11-04-context/historical-seed2.jsonl": "2c894a94dd94aa0a4d938ce38c958d0e77c8f18e5cab659b20c68ede73614b53",
+    "bench/task/result/reliability-2026-11-04-context/historical-seed2.manifest.json": "de51bd8ecac1e6782b9b2580fc310d7efadd7173db2a561696a107362ed72df1",
+    "bench/task/result/reliability-2026-11-04-context/new-seed2.jsonl": "854101bc305e41074142c5a3da2642edcdec40c5a287ac9af8788fac3c61bab1",
+    "bench/task/result/reliability-2026-11-04-context/new-seed2.manifest.json": "afab5297004a25daf97abac2c45ef98a1a93c49e496fc1b0f186ea343ce0240c",
+    "bench/task/result/reliability-2026-11-04-context/historical-seed7.jsonl": "c69635e569b6326f1bc5807316b058d30505770fd698bc654d80f3d0fddabcb8",
+    "bench/task/result/reliability-2026-11-04-context/historical-seed7.manifest.json": "b68fdc94515b87d6db6c769d5db2fc145ce9dec5d6543c7d6cae1312815b21db",
+    "bench/task/result/reliability-2026-11-04-context/new-seed7.jsonl": "5b02a428242eda0f4e38dfccfacf5e88a8f6a3bb2a9e1c3c588f84a667640b20",
+    "bench/task/result/reliability-2026-11-04-context/new-seed7.manifest.json": "ba7df0bbf00f5e7913122724e6ae0d80feec96a3688812065e12234b459653e0"
+  },
+  "limitations": [
+    "The full historical matrix remains on its frozen pre-fix snapshot and is not complete.",
+    "These development cases guided the fixes; they are not held-out accuracy evidence.",
+    "Android permissions, latency and email-app acceptance remain manual device checks.",
+    "Grammar constrains syntax only; memory replacement still requires the user.",
+    "This verification compares correctness, not latency; build/check workloads were also active on the Mac."
+  ]
+}

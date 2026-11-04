@@ -33,9 +33,9 @@ keep_days = 30
 [web]
 enabled = true
 
-# Consequential actions (docs Sec. 4.6). The spike has one: sending email through a
-# sandbox connector that delivers to outbox.jsonl in the app's data folder, never to
-# the internet. Every email waits for the user's approval on a confirmation card.
+# Consequential actions. Email drafts open in the device's email app after approval;
+# the user reviews and presses Send there. Contacts come from opt-in address book
+# sync in Settings → Contacts, never from this file in the production app.
 [actions]
 # The kill switch: false refuses every consequential action.
 enabled = true
@@ -43,19 +43,10 @@ max_recipients = 3
 max_per_day = 20
 approval_seconds = 120
 
-# The sandbox address book: the only people PR3 can email. The model names them; the
-# addresses come only from here.
-[[actions.contacts]]
-name = "Alex Rivera"
-address = "alex@example.com"
-
-[[actions.contacts]]
-name = "Sam Chen"
-address = "sam@example.com"
-
 # The private hybrid (docs Sec. 6.3): a computer lends its model to the phones paired with
-# it; a paired phone uses it, and answers on its own when it cannot reach it. Only
-# generation crosses: memory, tools and approvals stay on the phone.
+# it; a paired phone uses it, and answers on its own when it cannot reach it. Pairing
+# also enables continuity for selected memories/tasks; unpairing disables it.
+# Tools, approvals and vault keys stay on their own device.
 [node]
 # On a computer: accept paired phones. Phones ignore this section.
 serve = true

@@ -118,9 +118,9 @@ Everything lives in [`config/pr3.toml`](../config/pr3.toml):
 | `[node]` | Whether a computer lends its model to paired phones, and where it listens ([Sec. 6.3](deployment.md#63-private-hybrid-mobile--desktop)) |
 | `[web]` | Whether PR3 offers to read web pages you link; on by default ([Reading web pages](#reading-web-pages)) |
 
-## Sending email (sandbox)
+## Preparing email
 
-PR3 can send email through a sandbox connector: messages land in `outbox.jsonl` in the app's data folder, never on the internet. Each one waits for your approval on a confirmation card and then for Face ID, Touch ID, a fingerprint or the passcode; the approval key lives in the Secure Enclave or the Android Keystore. On Android, set a screen lock first. Every step is recorded in a hash-chained `audit.jsonl` that is verified at each start.
+PR3 prepares drafts for your device's email app using opt-in device contacts. Each draft waits for your approval and then Face ID, Touch ID, a fingerprint or the passcode before handoff. The approval key lives in the Secure Enclave or Android Keystore; set a screen lock on Android first. Review and press Send in the email app. PR3 records the handoff in its verified hash-chained `audit.jsonl`, but cannot verify delivery. See [Device contacts and email](#device-contacts-and-email). Benchmark hosts still use the sandbox connector and `outbox.jsonl`, with no external delivery.
 
 ## Reading web pages
 
@@ -134,12 +134,37 @@ PR3 groups the conversation into tasks ([Sec. 4.8](architecture.md#48-tasks-and-
 - When a message within those 10 minutes seems to start something new - a question or a request of its own, none of whose words are in the task's title, first message or last exchange, and that does not point back ("send it to Alex instead") - PR3 answers it, then asks under the answer "Looks like a new task - start it on its own?". **Start new task** moves the message and its answer into a task of their own, and the conversation goes on there; **Keep here** leaves them in the task.
 - **Tasks**, beside Settings, opens three pages, **To Do**, **Doing** and **Done**: swipe between them or tap a name. To Do holds tasks waiting for your OK and ones that did not finish, Doing the task the conversation is on, and Done the rest. Tap a task to read its chat, which opens at its end; **Back**, the task's title and **More** (three dots) stay at the top while it scrolls. **Back** returns to the list, and **Tasks** to the conversation.
 - Each message shows its time at its bottom right, and a line above the first message of each day names it: "Today", "24 October", or "15 November 2024" in another year; so does the conversation.
-- **More** holds what to do with the task. **Continue** brings an unfinished task back into the conversation, and **Follow up** starts a new task linked to a finished one. **Delete** asks "Delete task?" first, and also erases what the runtime holds for that task. All three wait while PR3 is answering.
+- **More** holds what to do with the task. **Continue** brings an unfinished task back into the conversation, and **Follow up** starts a new task linked to a finished one. **Delete** asks "Delete task?" first, and also erases what the runtime holds for that task. **Finish task** moves it to Done as **Finished by you**, keeps its chat and clears any approval left by an earlier launch. Finishing does not execute pending work. These choices wait while PR3 is answering; answer any live approval first.
 - A follow-up starts from a summary of the task it follows, which the model writes as soon as you choose **Follow up** or say "carry on with" a finished task, if that task has none yet, and then reads, so that on a phone the follow-up's first answer starts within about a second. A long task is summed up too: once what the model would read again passes about 1,800 tokens, its older exchanges are folded into the summary right after PR3 answers, while you read the answer, and the last two stay as they were. On a phone with the 4B a summary takes about 15 seconds for a short task and a fold, or a long task's summary, a minute or more; a message sent before it is written waits for the rest. After every answer PR3 also reads the conversation ahead of your next message, so on that phone the next answer starts within about two seconds, unless the model looks something up first. Forgetting a memory in Settings erases every summary; each is written again from its task's chat when next needed.
 - When PR3 opens again, the conversation comes back if its 10 minutes have not run out, and a follow-up picks up where it left off. A confirmation card that was waiting is shown again, to approve afresh; if it ran out while PR3 was closed, nothing was sent and the task is on Done as expired. A turn cut off by closing is on To Do as not finished.
-- Say or type, as the whole message: "what is still open?" to list To Do; "carry on with the email to Alex" (or "back to", "resume", "pick up") to go back to that task, or to follow it up if it is finished; "what happened with the trip?" to see where it stands; "export the trip" to export it. PR3 matches the words against each task's title and first message, and offers a choice when several unfinished tasks match. Words that name no task go to the model as usual.
-- **Export**, in a task's **More**, saves its chat as Markdown and its record and hash-chained events as JSON: through the share sheet on iOS and Android, and a save dialog on a computer.
+- Say or type, as the whole message: "what is still open?" to list To Do and Doing; "carry on with the email to Alex" (or "back to", "resume", "pick up") to go back to that task, or to follow it up if it is finished; "what happened with the trip?" to see where it stands; "export the trip" to export it. PR3 matches the words against each task's title and first message, and offers a choice when several unfinished tasks match. Words that name no task go to the model as usual.
+- To finish from a message, say "finish this task", "finish task about the trip", or "mark the trip as done". "This task" means the task open in Tasks, or the current conversation. Several matches are offered for you to choose; an unknown name reports that no task matched. These commands never go to the model. An explicitly finished task stays finished after restart; **Follow up** opens a new linked task.
+- Replies and task histories show a **Recorded result** from actual tool outcomes, also kept in exports: memory saved, memory saved for review, or email draft opened (sandbox outbox in tests). A model reply alone is **Reply ready** in the task list, never proof of execution. Approval acknowledges the choice; the device check and execution still have to succeed.
+- For a turn that runs a memory write or email action, the runtime composes the final completion message from those results. It replaces model claims before the reply enters chat, core history, exports or speech. With write-capable tools, generated prose is held until the final answer is checked, so it cannot stream an unverified “sent” claim while approval is pending. Read-only configurations retain streaming. Common English action requests and unsupported completion phrases also get a no-action result when no operation was recorded; this fallback is bounded, not a general multilingual fact checker. Ordinary factual answers still come from the model.
+- **Stop** replaces Send during a turn and is also available in the running task's More menu. It requests cancellation, closes any pending approval, and waits for an in-flight operation to report its actual result. A model/backend that cannot cancel promptly, a web read or a device check may take time to return. Stop does not undo saved memory or an action that already executed.
+- Failed and stopped tasks show **Needs attention** in To Do even when they are the current conversation. **Retry last request** reruns that request in the same task with fresh validation and approval. It is unavailable after a successful or uncertain consequential effect; inspect the recorded result and continue with a new message instead. Finishing a task remains a separate choice.
+- A declined/failed operation, or a recognized action request with no recorded operation, also remains in **Needs attention**. A model reply does not move it to Done. **Finish task** is the user's way to close it when no further action is wanted.
+- Evaluation traces keep the model's bounded original generation separately from `runtime_content` when it is replaced. The trace's Respond step and final result reflect what the user actually received.
+- With task storage enabled, the host saves an execution checkpoint before the device check. If PR3 closes before the result is kept, the task returns as **Outcome unknown**, with no automatic approval or retry. Check the email app (sandbox outbox for test hosts) before continuing. Legacy interrupted turns are also excluded from one-click retry because they lack this checkpoint. Provider reconciliation and distributed recovery are still roadmap work.
+- **Export**, in a task's **More**, saves its chat as Markdown and its record and hash-chained events as JSON (`pr3.task/2`, including explicit finish and recorded results): through the share sheet on iOS and Android, and a save dialog on a computer.
 - A finished task is erased 30 days after it last changed; `keep_days` under `[tasks]` sets how long, and 0 keeps finished tasks only until the app closes. Unfinished ones stay until they finish.
+
+## Correcting memory
+
+- Say **Remember that the project meeting is at 15:00** (or **Update memory: …**). PR3 compares the new fact with existing notes and offers **Replace #…** or **Save separately**. Review changes nothing and survives restart in the task history. A local model compares the person and attribute/event across paraphrases, languages and negation; it suggests possible updates and never decides which fact is true or writes a replacement.
+- Explicit command forms cover English, Persian, Arabic, Spanish, French, German, Chinese (simplified/traditional) and Japanese. Examples: `به خاطر بسپار: من در دبی زندگی می‌کنم.`, `احفظ في الذاكرة: أسكن في دبي.`, `Recuerda que vivo en Dubái.`, `Mémorise: J’habite à Dubaï.`, `Merke dir: Ich wohne in Dubai.`, `记住：我住在迪拜。`, `覚えて：ドバイに住んでいます。`. The [command table](../app/pr3-app/src-tauri/src/memory/commands.rs) lists supported whole-message forms; questions, quotations and negations do not become direct commands. Status labels remain English. Other natural-language statements still go through the model's proposed-memory flow.
+- For an exact target, say **Correct memory #3: The project meeting is at 15:00.** or a localized form such as `تصحیح حافظه #۳: من در دبی زندگی می‌کنم.`. ASCII, Persian, Arabic-Indic and fullwidth digits are accepted in ids. Memory ids appear in Settings → Memory. The old fact stops being recalled; a stale, missing or expired id fails visibly. The complete new fact is preserved in its original language. Exact-id correction and **Save separately** do not need a model.
+- **Review & confirm** in Memory checks a model proposal locally before confirming it. A possible match returns **Replace #…** and **Keep both** without confirming anything. A failed or incomplete check requires an explicit choice, including **Confirm separately** when no candidate could be established. All unconfirmed proposals stay out of automatic factual notes, including proposals made in the current chat; `recall` can show proposals from the current task with their proposed status; proposals from other tasks are excluded from both search and fallback results until confirmed. The first resumed question receives at most three recent user-message excerpts from its own task (384 bytes each, marked if truncated). Recall uses the same bounded context and includes the current user statement, separately labelled as conversation context, not saved memory.
+- Semantic matching never uses a paired node or remote backend. It reads up to 1,000 recent live rows, compares at most 24 same-principal facts in at most four batches of eight, and bounds each JSON payload to 5,000 bytes. Expired/superseded memories are omitted, the model can return only ids actually supplied in that batch, and changed memory invalidates a slow comparison. A partial/invalid check is disclosed and does not silently save or confirm. If no local semantic backend is available, the existing wording check remains available and its limitation is reported. This is a bounded review mechanism, not a semantic index over the entire store.
+- Replacing retires the old fact and identical pending proposals and clears cached task summaries in the same database transaction; privacy, identity and retention remain attached to the corrected fact. Forgetting its newest version erases those earlier versions and proposal branches too. Stop cancels a chat comparison; its late result cannot save a fact. No model comparison grants approval for an action.
+
+The opt-in local-model regression uses the checked-in [synthetic corpus](../app/pr3-app/src-tauri/src/memory/semantic_cases.json):
+
+```sh
+cargo test -p pr3-app --lib --offline memory::semantic::tests::installed_model_matches_multilingual_correction_corpus -- --ignored --nocapture --test-threads=1
+```
+
+The test exercises the full review path at seeds 1, 2 and 7 and verifies that review does not change storage. On 4 November 2026, Qwen3.5-4B passed all 30 checks after adding constrained JSON output and stable ordering within batches; the pre-fix full-path check passed 25/30. The earlier 3 November direct-prompt seed-42 result (10/10) did not cover the production ordering or multiple seeds. The corpus includes English paraphrase, Persian, Arabic, Spanish negation, French/German, Chinese, Japanese, wrong-person/wrong-attribute negatives and an instruction inside a fact. It is development regression evidence, **not held-out accuracy or mobile latency evidence**. Larger stores, other models and broader language coverage still need evaluation. Grammar constrains syntax, not meaning; the host still validates ids, rejects partial output, and leaves replacement to the user.
 
 ## Voice notes
 
@@ -152,6 +177,26 @@ Hold the microphone button, between the message field and Send, speak and let go
 ## Memory
 
 Settings, **Memory**, shows what PR3 remembers. Memories the model proposed from your words wait under *To review*: confirm them, edit them (the corrected version replaces them) or forget them, which takes a second tap and also erases the words they came from. You can add memories yourself; those are confirmed from the start. Everything is in `memory.sqlite` in the app's data folder and never leaves the device.
+
+For an explicit capture, type or say "Remember that the project meeting is at 14:30.", "Remember: …", or "Save to memory: …" as the whole message. PR3 preserves your wording, checks for related memories as described above, and reports a confirmed save only after the write succeeds. Possible updates wait for your choice; without a local model, the disclosed wording check remains available. Empty notes and notes over 500 characters are refused. Ordinary requests and questions still go to the model.
+
+A repeatable daily workflow is: capture meeting details with **Remember that…**; correct them if needed; return with **resume meeting** after restarting; ask PR3 to email the details to a synced contact; review the confirmation and choose **Open email app**; review and send in that app; finish the task from **More**. PR3 records a successful draft handoff, never a provider-delivery claim. Sandbox delivery remains only in benchmark/test hosts.
+
+## Device contacts and email
+
+Settings → **Contacts** → **Sync address book contacts** requests device contact permission when enabled. Android uses the Contacts Provider's email rows and read-only `READ_CONTACTS`; macOS/iOS use Contacts.framework, with `NSContactsUsageDescription` and support for limited access. Only names and email addresses are imported. The list is held in memory, refreshed when the panel opens or an email is prepared, and rechecked after approval. Native contacts remain available offline. Only the `contacts-sync` preference is stored in PR3's data folder; no address-book database or remote sync is added.
+
+The red **Remove all contacts** button clears the imported list and disables sync. Turning the switch off does the same. Neither changes the OS permission setting or deletes the device's contacts. Already prepared drafts and prior chat/approval history remain. OS revocation, changed/removed recipients, provider errors and a late permission response after removal cannot authorize a stale recipient. Duplicate names or multiple email addresses get distinct `[email N]` references; the runtime asks for a choice instead of selecting the first address. Contacts without usable names/email addresses are omitted.
+
+After the confirmation card and device check, `mail:device` opens an encoded `mailto:` draft using Android `ACTION_SENDTO`, macOS `NSWorkspace`, or iOS `UIApplication`. The default mail app (or OS app chooser) owns the account, sending and any offline outbox. PR3's result is **draft opened; sending and delivery unverified**, and the task stays open until the user finishes it. A failed launch is an error; an uncertain launch is not automatically retried. PR3 does not need SMTP credentials or OAuth access to a mailbox. The production app ignores legacy `[actions.contacts]` entries, so upgrading cannot restore the sample contacts; the configuration field remains readable for older configurations.
+
+See the [Android test checklist](android-email-checklist.md) for device verification. Regression tests use synthetic contact sources and a recording launcher, never the developer's real address book or an external send. The installed-model workflow check captures, corrects, reopens the database and approves one exact draft at seeds 1, 2 and 7, checking both the current value and absence of the retired value:
+
+```bash
+cargo test -p pr3-app --lib contacts::tests::installed_model_captures_corrects_resumes_and_opens_the_approved_draft -- --ignored --nocapture --test-threads=1
+```
+
+Native API references: [Android contact access](https://developer.android.com/identity/providers/contacts-provider), [Android email intents](https://developer.android.com/guide/components/intents-common#Email), [Apple contact authorization](https://developer.apple.com/documentation/contacts/accessing-the-contact-store), [mailto encoding](https://www.rfc-editor.org/rfc/rfc6068).
 
 ## Pairing a phone with a computer
 
@@ -185,6 +230,39 @@ CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) builds and tests 
 
 ## Benchmarks
 
+### Automated native workflows
+
+From `app/pr3-app`, run `npm ci --ignore-scripts`, `npm run test:e2e:build`, then `npm run test:e2e`. The suite drives a native Tauri webview through WebDriver, using the production IPC handlers, Host, approval gate and SQLite. It exercises correction and process restart, exact draft approval, decline/failure, interrupted approval recovery, Stop/Retry, saving an action result after storage failure, memory deletion and contact removal. Actions use visible controls; read-only assertions also inspect runtime state. CI runs it on macOS and retains failure screenshots, DOM and app logs under `test-results/`.
+
+`pr3-e2e` is a distinct debug-only binary, requires the `e2e` feature and a marked temporary directory, and uses a separate application identity. Its model, contact source, software key and mail-app adapter are fixtures. It cannot be compiled with the feature in release mode. Normal builds exclude the WebDriver server. This catches native UI/runtime wiring regressions but does not measure model intelligence or device permissions. The [Android email](android-email-checklist.md) and [continuity](continuity-checklist.md) checks remain physical-device work. The driver follows [Tauri's native WebDriver support](https://v2.tauri.app/develop/tests/webdriver/).
+
+### Full reproducible rebaseline
+
+After installing the pinned AgentDojo environment below, from the repository root:
+
+```bash
+cargo build --release -p pr3-bench-task -p pr3-bench-agentdojo --locked
+bench/agentdojo/.venv/bin/python bench/rebaseline/run.py --out bench/rebaseline/result/2026-11-04
+```
+
+The selected security matrix is Qwen3.5 4B and Qwen3.8 27B, banking/workspace/slack/travel, PR3/plain/confirm-all, seeds 1/2/7: 18,828 runs. The workflow suite runs all 40 cases at those seeds on 2B, 4B and 27B, plus the 10-case multilingual memory-review development corpus on each model/seed. No real contacts, email or internet pages are used. The 27B comparison can take days on a development Mac.
+
+The runner copies the binaries, corpus and Python driver, archives the source (including uncommitted files), and records hashes, hardware, sampling budgets and dependencies in `manifest.json`. It runs one inference process at a time. `progress.json` and `report.md` update every 30 seconds; raw rows and per-job logs are retained. Repeating the same command resumes only missing cases, after checking the frozen inputs and runtime environment. A changed model, seed, binary or corpus requires a new output directory. Duplicate/foreign rows and malformed JSONL stop the run for inspection. Evaluation errors remain unscored, never counted as safe attacks. The process exits nonzero if jobs stop early or evaluation errors remain.
+
+To refresh a stopped run's report without inference, add `--report-only`. Stop the foreground runner with Ctrl-C; resume with the same command. Preserve the result directory and the installed model files. On macOS `caffeinate -i` can prefix the command to prevent idle sleep. Workflow timing reports whole turns and first visible response after model load; summary preparation/model loading are separate from turn latency. These are desktop measurements, not Android measurements. Existing cases and the new correction cases are development evidence, not a held-out accuracy study.
+
+Harness regressions: `python3 -m unittest discover -s bench/rebaseline -p 'test_*.py'`, `cargo test -p pr3-bench-task`, and the AgentDojo Python tests below. Historical single-seed tables in `benchmarks.md` stay labeled historical until the new matrix finishes.
+
+### Individual suites
+
+The focused post-baseline restart/recipient regressions live in `bench/task/reliability.toml`. They exercise recalled details after a restarted approval, a corrected recipient resolved from chat after restart, and declining a corrected draft. `card_contains` and `card_excludes` check the actual confirmation card before any effect, including declined drafts. Run each seed separately, using a fresh output path when the binary changes:
+
+```bash
+target/release/pr3-bench-task run --model model/Qwen3.5-4B-Q4_K_M.gguf --corpus bench/task/reliability.toml --seed 1 --out bench/task/result/reliability-seed1.jsonl
+```
+
+These results must not be appended to the frozen full rebaseline: that run preserves its original binaries, corpus and source snapshot for comparison.
+
 The AgentDojo harness in [`bench/agentdojo`](../bench/agentdojo) compares PR3 with a plain tool-calling loop on the same model. Results so far: [Sec. 8.6](benchmarks.md#86-results-so-far).
 
 ```bash
@@ -192,7 +270,7 @@ cd bench/agentdojo
 python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
 cargo build --release -p pr3-bench-agentdojo
 .venv/bin/python run.py --model ../../model/Qwen3.5-4B-Q4_K_M.gguf --suite banking --modes pr3 plain confirm_all
-.venv/bin/python run.py --summary result/banking-Qwen3.5-4B-Q4_K_M.jsonl
+.venv/bin/python run.py --summary result/banking-Qwen3.5-4B-Q4_K_M-seed42-v3.jsonl
 .venv/bin/python report.py                                   # every suite's tables, as in Sec. 8.6
 .venv/bin/python -m unittest discover test
 ```
@@ -230,3 +308,9 @@ script/                  model download, Android build, trusted-side check
 ```
 
 Crates the roadmap plans but the spike has not needed yet - `pr3-inference`, `pr3-ffi`, `pr3-client-c`, `pr3-node` - are described in [Sec. 4.2](architecture.md#42-rust-workspace-host-api-c-abi-and-protocol-client).
+
+### Phone/computer continuity
+
+See [continuity setup and acceptance](continuity-checklist.md). Pairing automatically enables continuity; Unpair/Forget disables it. There is no separate setting. Share individual confirmed memories or tasks; Move hands editing to the paired device. A fresh local approval is always needed for a consequential action. The phone syncs after pairing, then polls while PR3 is visible (15 seconds), also on foregrounding, with a manual **Sync now / retry** control. The desktop responds over the existing paired Noise connection. Unpair before recovering a retained replica as a separate local copy; pairing the same devices again resumes sync and propagates the old identity's tombstone.
+
+The one-peer protocol uses pages of at most 64 records / 512 KiB and rejects individual serialized records above 192 KiB. This first implementation has no background service, multi-peer merge, encrypted backup or replacement-key enrollment. A tombstone is permanent; recovery is for a retained live replica, not undoing deletion. Forgetting a fact does not delete a separately shared task's conversation containing those words; delete that task as well if desired.

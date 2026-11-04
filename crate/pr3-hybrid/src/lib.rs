@@ -29,7 +29,7 @@ use std::io;
 
 pub use client::{NodeClient, pair};
 pub use keys::{DeviceKey, Peer};
-pub use node::{Generator, Node, PairingCode};
+pub use node::{Continuity, Generator, Node, PairingCode};
 
 /// The port a node listens on unless configured otherwise.
 pub const DEFAULT_PORT: u16 = 7313;

@@ -1,0 +1,43 @@
+{
+  "date": "2026-11-03",
+  "scope": "development workflow check; not held-out or mobile evidence",
+  "platform": "Darwin arm64",
+  "model": "Qwen3.5-4B-Q4_K_M",
+  "test": "contacts::tests::installed_model_captures_corrects_resumes_and_opens_the_approved_draft",
+  "native_contacts": "synthetic fixture",
+  "device_vault": "software test vault",
+  "email_app": "recording fixture; no email sent",
+  "checks": [
+    "capture persisted",
+    "old memory superseded by correction",
+    "same task after database reopen",
+    "one handoff matches exact approved draft",
+    "current 15:00 time present",
+    "retired 14:00 time absent",
+    "task remains open",
+    "delivery unverified runtime result"
+  ],
+  "runs": [
+    {
+      "seed": 1,
+      "approved_drafts": 1,
+      "turn_ms": 5987,
+      "total_ms": 10714,
+      "sending_verified": false
+    },
+    {
+      "seed": 2,
+      "approved_drafts": 1,
+      "turn_ms": 6826,
+      "total_ms": 7812,
+      "sending_verified": false
+    },
+    {
+      "seed": 7,
+      "approved_drafts": 1,
+      "turn_ms": 6979,
+      "total_ms": 8342,
+      "sending_verified": false
+    }
+  ]
+}

@@ -11,13 +11,15 @@ use rusqlite::{OptionalExtension, Row, Transaction, params};
 use crate::{SqliteMemory, db_time, error, unsigned};
 
 /// Where a stored task stands.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum TaskState {
     /// A turn was running for it.
     Working,
     /// A confirmation card was waiting for the user's OK.
     Waiting(WaitingCall),
     Done,
+    /// The user explicitly closed the task; this does not attest to execution.
+    Finished,
     /// Its last turn did not finish, for this reason.
     Failed(String),
     /// Its confirmation card ran out before the user answered; nothing was done.
@@ -25,7 +27,7 @@ pub enum TaskState {
 }
 
 /// A consequential call waiting for the user's OK, as the runtime validated it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct WaitingCall {
     pub tool: String,
     pub arguments: String,
@@ -33,7 +35,7 @@ pub struct WaitingCall {
     pub until: Timestamp,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct TaskRecord {
     /// When it opened, in milliseconds; also its session in the runtime.
     pub id: u64,
@@ -45,7 +47,7 @@ pub struct TaskRecord {
 }
 
 /// One step of a task's chat, as the conversation showed it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Said {
     User(String),
     Reply(String),
@@ -62,10 +64,11 @@ pub enum Said {
 /// One event of a task's lifecycle, with the hash it chains from, so it can be checked
 /// on its own: `hash` is the SHA-256 of `previous`, the task, `at`, `event` and `parent`
 /// (see `task_events`).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct TaskEvent {
     pub at: Timestamp,
-    /// 'opened', 'working', 'waiting', 'done', 'failed', 'expired', 'deleted' or 'erased'.
+    /// 'opened', 'working', 'waiting', 'done', 'failed', 'expired', 'finished',
+    /// 'deleted' or 'erased'.
     pub event: String,
     /// For 'opened': the task it follows up.
     pub parent: Option<u64>,
@@ -76,14 +79,14 @@ pub struct TaskEvent {
 
 /// What the start of a task's chat came to, as the model summed it up: model output,
 /// kept as data. Forgetting any memory erases every summary.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Summary {
     pub text: String,
     /// How many steps of the chat, from the start, it covers.
     pub steps: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct StoredTask {
     pub record: TaskRecord,
     /// Oldest first.
@@ -95,6 +98,7 @@ impl SqliteMemory {
     /// Stores a task's record, adding it if it is new. A new task, and each change of
     /// state, is logged as an event.
     pub fn save_task(&mut self, task: &TaskRecord) -> Result<(), MemoryError> {
+        self.continuity_writable("task", db_id(task.id)?)?;
         let tx = self.conn.transaction().map_err(error)?;
         upsert(&tx, task)?;
         tx.commit().map_err(error)
@@ -109,6 +113,8 @@ impl SqliteMemory {
         steps: usize,
         to: &TaskRecord,
     ) -> Result<(), MemoryError> {
+        self.continuity_writable("task", db_id(from.id)?)?;
+        self.continuity_writable("task", db_id(to.id)?)?;
         let id = db_id(to.id)?;
         let tx = self.conn.transaction().map_err(error)?;
         if !upsert(&tx, to)? {
@@ -138,17 +144,18 @@ impl SqliteMemory {
     pub fn save_summary(&mut self, task: u64, summary: &Summary) -> Result<(), MemoryError> {
         let steps =
             i64::try_from(summary.steps).map_err(|_| MemoryError("too many steps".into()))?;
-        self.conn
-            .execute(
-                "UPDATE tasks SET summary = ?2, summarized = ?3 WHERE id = ?1",
-                params![db_id(task)?, summary.text, steps],
-            )
-            .map_err(error)?;
-        Ok(())
+        let tx = self.conn.transaction().map_err(error)?;
+        tx.execute(
+            "UPDATE tasks SET summary = ?2, summarized = ?3 WHERE id = ?1",
+            params![db_id(task)?, summary.text, steps],
+        )
+        .map_err(error)?;
+        tx.commit().map_err(error)
     }
 
     /// Adds a step to a task's chat.
     pub fn add_said(&mut self, task: u64, at: Timestamp, said: &Said) -> Result<(), MemoryError> {
+        self.continuity_writable("task", db_id(task)?)?;
         let (kind, text, tool, arguments, success) = match said {
             Said::User(text) => ("user", text, None, None, None),
             Said::Reply(text) => ("reply", text, None, None, None),
@@ -160,22 +167,22 @@ impl SqliteMemory {
             } => ("tool", output, Some(name), Some(arguments), Some(*success)),
             Said::Failed(reason) => ("failed", reason, None, None, None),
         };
-        self.conn
-            .execute(
-                "INSERT INTO messages(task_id, at, kind, text, tool, arguments, success)
+        let tx = self.conn.transaction().map_err(error)?;
+        tx.execute(
+            "INSERT INTO messages(task_id, at, kind, text, tool, arguments, success)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                params![
-                    db_id(task)?,
-                    db_time(at)?,
-                    kind,
-                    text,
-                    tool,
-                    arguments,
-                    success
-                ],
-            )
-            .map_err(error)?;
-        Ok(())
+            params![
+                db_id(task)?,
+                db_time(at)?,
+                kind,
+                text,
+                tool,
+                arguments,
+                success
+            ],
+        )
+        .map_err(error)?;
+        tx.commit().map_err(error)
     }
 
     /// Every stored task with its chat, oldest first.
@@ -245,7 +252,7 @@ impl SqliteMemory {
             let mut statement = tx
                 .prepare(
                     "SELECT id FROM tasks
-                     WHERE state IN ('done', 'expired') AND updated_at < ?1 ORDER BY id",
+                     WHERE state IN ('done', 'expired', 'finished') AND updated_at < ?1 ORDER BY id",
                 )
                 .map_err(error)?;
             statement
@@ -319,7 +326,12 @@ impl SqliteMemory {
 }
 
 /// Deletes a task; its chat goes with it (`ON DELETE CASCADE`).
-fn remove(tx: &Transaction<'_>, id: i64, at: i64, event: &str) -> Result<bool, MemoryError> {
+pub(crate) fn remove(
+    tx: &Transaction<'_>,
+    id: i64,
+    at: i64,
+    event: &str,
+) -> Result<bool, MemoryError> {
     let removed = tx
         .execute("DELETE FROM tasks WHERE id = ?1", params![id])
         .map_err(error)?
@@ -332,7 +344,7 @@ fn remove(tx: &Transaction<'_>, id: i64, at: i64, event: &str) -> Result<bool, M
 
 /// Stores a task's record and logs it as opened if it is new, or its new state if that
 /// changed; returns whether it is new.
-fn upsert(tx: &Transaction<'_>, task: &TaskRecord) -> Result<bool, MemoryError> {
+pub(crate) fn upsert(tx: &Transaction<'_>, task: &TaskRecord) -> Result<bool, MemoryError> {
     let id = db_id(task.id)?;
     let parent = task.parent.map(db_id).transpose()?;
     let updated_at = db_time(task.updated_at)?;
@@ -426,6 +438,7 @@ fn state_name(state: &TaskState) -> &'static str {
         TaskState::Working => "working",
         TaskState::Waiting(_) => "waiting",
         TaskState::Done => "done",
+        TaskState::Finished => "finished",
         TaskState::Failed(_) => "failed",
         TaskState::Expired => "expired",
     }
@@ -441,6 +454,7 @@ fn record(r: &Row<'_>) -> rusqlite::Result<TaskRecord> {
             until: Timestamp(r.get::<_, Option<i64>>(7)?.map_or(0, unsigned)),
         }),
         "done" => TaskState::Done,
+        "finished" => TaskState::Finished,
         "expired" => TaskState::Expired,
         _ => TaskState::Failed(r.get::<_, Option<String>>(4)?.unwrap_or_default()),
     };

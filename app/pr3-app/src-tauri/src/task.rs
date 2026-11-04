@@ -5,6 +5,9 @@
 //! database, each change is written through to it, so tasks, their chats and their
 //! events survive restarts; without it they last until the app closes.
 
+use std::cell::{Cell, RefCell};
+use std::collections::VecDeque;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use pr3_core::{Message, Role, SessionId, Timestamp, ToolCall};
@@ -18,6 +21,7 @@ use tauri::ipc::Channel;
 use crate::host::{Host, TurnEvent};
 
 pub mod export;
+mod result;
 mod word;
 
 pub use export::Export;
@@ -26,7 +30,24 @@ pub use export::Export;
 pub const FOLLOW_UP_MS: u64 = 10 * 60 * 1000;
 const DAY_MS: u64 = 24 * 60 * 60 * 1000;
 /// Why a task that was working when the app closed did not finish.
+const SAVE_STOPPED: &str =
+    "This turn stopped because saving failed. Review the recorded results before continuing.";
 const CLOSED: &str = "PR3 closed before it finished";
+pub(crate) const STOPPED: &str = "Stopped by you. Review the recorded results before retrying.";
+pub(crate) const UNKNOWN: &str = "Outcome unknown: the email action result was not recorded. Check your email app (or the sandbox outbox for a test run) before continuing.";
+
+// Earlier checkpoints used this wording. Preserve their no-retry boundary when an
+// upgraded app opens a task that might already have executed.
+pub(crate) fn unknown(reason: &str) -> bool {
+    let reason = reason
+        .strip_suffix(crate::actions::AUDIT_FAILED)
+        .unwrap_or(reason)
+        .trim_end();
+    reason == UNKNOWN
+        || reason == pr3_memory_sqlite::continuity::RECOVERY_UNKNOWN
+        || reason
+            == "Outcome unknown: PR3 closed before the action result was recorded. Check the sandbox outbox before continuing."
+}
 /// The outcome of a call whose confirmation card ran out while the app was closed.
 const NOT_ASKED_AGAIN: &str = "NOT SENT: the confirmation ran out while PR3 was closed.";
 /// Longest task title, in characters, cut from the message that opened it.
@@ -99,6 +120,9 @@ pub struct Step {
     pub at: u64,
     #[serde(flatten)]
     pub entry: Entry,
+    /// The runtime's result for this exchange, reconstructed from tool records.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<String>,
 }
 
 /// A task as the list shows it: casual words, never states or ids.
@@ -122,8 +146,14 @@ pub struct TaskView {
     pub parent: Option<Link>,
     /// A turn is running for it.
     pub running: bool,
+    pub owned: bool,
     /// Its confirmation card waits for the user; after a restart, ask again.
     pub waiting: bool,
+    pub finished: bool,
+    /// A failed request can be explicitly retried without replaying a known or
+    /// uncertain consequential effect.
+    pub retryable: bool,
+    pub save_error: Option<String>,
     pub chat: Vec<Step>,
 }
 
@@ -159,7 +189,7 @@ pub struct FollowingUp {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Answer {
-    /// What is still open: the To Do page, newest first.
+    /// What is still open: To Do and Doing, newest first.
     Open { cards: Vec<TaskCard> },
     /// The one unfinished task the words name is the conversation's again.
     Continued(Continued),
@@ -171,18 +201,24 @@ pub enum Answer {
     Status { card: TaskCard },
     /// The task the words name, for the UI to export.
     Export { card: TaskCard },
+    /// The user closed this task, without executing anything it was waiting on.
+    Finished { card: TaskCard },
+    /// A finish command named several tasks; the user must choose explicitly.
+    ChooseFinish { cards: Vec<TaskCard> },
 }
 
 /// At most this many tasks to choose between.
 const CHOICES: usize = 4;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Task {
     id: SessionId,
     title: String,
     parent: Option<SessionId>,
     updated_at: Timestamp,
     running: bool,
+    cancel: Arc<AtomicBool>,
+    save_failed: Cell<bool>,
     /// The consequential call a confirmation card waits on.
     waiting: Option<WaitingCall>,
     /// How its last turn ended.
@@ -227,7 +263,7 @@ impl Fold {
 
 /// A message that seemed to start something new in the task it went to, and how that
 /// task stood before it: what Start new task moves out, and what the task goes back to.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Anew {
     task: SessionId,
     /// Where the message is in the task's chat; it and everything after it move.
@@ -241,6 +277,7 @@ struct Anew {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Ending {
     Answered,
+    Finished,
     /// Why it did not finish.
     Failed(String),
     /// Its confirmation card ran out; nothing was done.
@@ -281,8 +318,17 @@ impl Tasks {
                 .map_err(|e| e.to_string())?;
             db.tasks().map_err(|e| e.to_string())?
         };
+        let watermark = store
+            .lock()
+            .map_err(|_| "Memory unavailable")?
+            .continuity_task_watermark()
+            .map_err(|e| e.to_string())?;
         let mut tasks = Self {
-            store: Store(Some(store)),
+            last_id: watermark,
+            store: Store {
+                db: Some(store),
+                ..Store::default()
+            },
             ..Self::default()
         };
         for StoredTask {
@@ -295,8 +341,20 @@ impl Tasks {
             let was_working = record.state == TaskState::Working;
             let (waiting, ending) = match record.state {
                 TaskState::Waiting(call) => (Some(call), Ending::Answered),
-                TaskState::Failed(reason) => (None, Ending::Failed(reason)),
+                TaskState::Failed(reason) => (
+                    None,
+                    Ending::Failed(
+                        if unknown(&reason)
+                            && reason != pr3_memory_sqlite::continuity::RECOVERY_UNKNOWN
+                        {
+                            UNKNOWN.into()
+                        } else {
+                            reason
+                        },
+                    ),
+                ),
                 TaskState::Expired => (None, Ending::Expired),
+                TaskState::Finished => (None, Ending::Finished),
                 TaskState::Done | TaskState::Working => (None, Ending::Answered),
             };
             let ran_out = waiting
@@ -311,6 +369,8 @@ impl Tasks {
                 parent: record.parent.map(SessionId),
                 updated_at: record.updated_at,
                 running: false,
+                cancel: Arc::new(AtomicBool::new(false)),
+                save_failed: Cell::new(false),
                 waiting,
                 ending,
                 chat: chat
@@ -321,8 +381,13 @@ impl Tasks {
                 unsummed: None,
             });
             // Each ends when it was last seen to.
+            if tasks.writable(id).is_err() {
+                continue;
+            }
             if was_working {
                 tasks.end(id, Err(CLOSED.to_string()), record.updated_at);
+            } else if tasks.get(id).is_some_and(|t| t.ending == Ending::Failed(UNKNOWN.to_string()) && !matches!(t.chat.last(), Some((_, Entry::Failed { reason })) if reason == UNKNOWN)) {
+                tasks.end(id, Err(UNKNOWN.to_string()), record.updated_at);
             } else if let Some(until) = ran_out {
                 tasks.expire(id, until);
             }
@@ -331,7 +396,11 @@ impl Tasks {
             .tasks
             .iter()
             .max_by_key(|t| (t.updated_at, t.id))
-            .filter(|t| t.waiting.is_some() || within(t, now))
+            .filter(|t| {
+                tasks.writable(t.id).is_ok()
+                    && t.ending != Ending::Finished
+                    && (t.waiting.is_some() || within(t, now))
+            })
             .map(|t| t.id);
         Ok(tasks)
     }
@@ -339,9 +408,9 @@ impl Tasks {
     /// Picks the task for `text`, sent at `now`, and starts its turn: the conversation's
     /// task while it is running or within the follow-up window, else a new one.
     pub fn begin(&mut self, text: &str, now: Timestamp) -> (SessionId, Option<Opened>) {
-        let continuing = self
-            .current
-            .filter(|&id| self.get(id).is_some_and(|t| t.running || within(t, now)));
+        let continuing = self.current.filter(|&id| {
+            self.writable(id).is_ok() && self.get(id).is_some_and(|t| t.running || within(t, now))
+        });
         let (id, opened) = match continuing {
             Some(id) => (id, None),
             None => {
@@ -355,6 +424,8 @@ impl Tasks {
                     parent: self.follows.take(),
                     updated_at: now,
                     running: false,
+                    cancel: Arc::new(AtomicBool::new(false)),
+                    save_failed: Cell::new(false),
                     waiting: None,
                     ending: Ending::Answered,
                     chat: Vec::new(),
@@ -379,6 +450,8 @@ impl Tasks {
             });
         if let Some(task) = self.get_mut(id) {
             task.running = true;
+            task.cancel = Arc::new(AtomicBool::new(false));
+            task.save_failed.set(false);
             // A call left waiting by an earlier launch gives way to the new message.
             task.waiting = None;
             task.updated_at = now;
@@ -439,6 +512,7 @@ impl Tasks {
     /// Starts asking again for the call `id` was waiting on when the app last closed;
     /// the task runs until [`Tasks::end`] or [`Tasks::expire`].
     pub fn resume_waiting(&mut self, id: SessionId) -> Result<WaitingCall, String> {
+        self.writable(id)?;
         self.idle()?;
         let task = self.get_mut(id).ok_or(GONE)?;
         let call = task
@@ -446,7 +520,72 @@ impl Tasks {
             .clone()
             .ok_or("This task is not waiting for your OK.")?;
         task.running = true;
+        task.cancel = Arc::new(AtomicBool::new(false));
+        task.save_failed.set(false);
         Ok(call)
+    }
+
+    pub(crate) fn cancellation(&self, id: SessionId) -> Option<Arc<AtomicBool>> {
+        self.get(id)
+            .filter(|t| t.running)
+            .map(|t| Arc::clone(&t.cancel))
+    }
+
+    /// Requests a stop; the running turn records its in-flight result before ending.
+    pub fn stop(&self, id: SessionId) -> Result<(), String> {
+        let cancel = self
+            .cancellation(id)
+            .ok_or("This task is no longer running.")?;
+        cancel.store(true, Ordering::Release);
+        Ok(())
+    }
+
+    /// Written before crossing the execution boundary. An interrupted action cannot
+    /// return as an approval card and be accidentally executed twice after restart.
+    pub(crate) fn executing(&mut self, id: SessionId, now: Timestamp) -> Result<(), String> {
+        let task = self.get(id).ok_or(GONE)?;
+        if !task.running || task.cancel.load(Ordering::Acquire) {
+            return Err(STOPPED.to_string());
+        }
+        self.store.finish(&TaskRecord {
+            state: TaskState::Failed(UNKNOWN.to_string()),
+            updated_at: now,
+            ..record(task)
+        })?;
+        if let Some(task) = self.get_mut(id) {
+            task.waiting = None;
+        }
+        Ok(())
+    }
+
+    /// Restarts the last request in this exact task, even outside its follow-up
+    /// window. A new approval is required for every proposed action.
+    pub fn retry(&mut self, id: SessionId, now: Timestamp) -> Result<(String, Opened), String> {
+        self.writable(id)?;
+        self.idle()?;
+        let task = self.get(id).ok_or(GONE)?;
+        let text = retry_text(task).ok_or(
+            "This request cannot be retried safely. Review its recorded results and continue with a new message."
+        )?.to_string();
+        let previous = self.set_aside(Some(id), now);
+        self.follows = None;
+        if let Some(task) = self.get_mut(id) {
+            task.running = true;
+            task.cancel = Arc::new(AtomicBool::new(false));
+            task.save_failed.set(false);
+            task.waiting = None;
+            task.updated_at = now;
+        }
+        self.save(id);
+        self.push(id, now, Entry::User { text: text.clone() });
+        if let Err(error) = self.persistence_result(id) {
+            if let Some(task) = self.get_mut(id) {
+                task.running = false;
+            }
+            self.save(id);
+            return Err(error);
+        }
+        Ok((text, Opened { id: id.0, previous }))
     }
 
     /// Ends a task's turn with its reply, or why it did not finish.
@@ -459,11 +598,19 @@ impl Tasks {
         task.updated_at = now;
         let entry = match outcome {
             Ok(text) => {
-                task.ending = Ending::Answered;
+                task.ending = if task.results().incomplete() {
+                    Ending::Failed(task.results().line())
+                } else {
+                    Ending::Answered
+                };
                 Entry::Reply { text }
             }
             Err(reason) => {
-                task.ending = Ending::Failed(reason.clone());
+                task.ending = Ending::Failed(if reason.starts_with("Task not saved:") {
+                    SAVE_STOPPED.into()
+                } else {
+                    reason.clone()
+                });
                 Entry::Failed { reason }
             }
         };
@@ -625,13 +772,13 @@ impl Tasks {
             text,
             steps: fold.steps,
         });
-        self.store.save_summary(fold.task, summary);
-        true
+        self.store.save_summary(fold.task, summary).is_ok()
     }
 
     /// Drops every summary, as the store did when a memory was forgotten; returns the
     /// tasks that had one.
     pub fn forget_summaries(&mut self) -> Vec<SessionId> {
+        self.store.forget_summaries();
         self.tasks
             .iter_mut()
             .filter_map(|task| task.summary.take().map(|_| task.id))
@@ -647,6 +794,7 @@ impl Tasks {
 
     pub fn view(&self, id: SessionId, now: Timestamp) -> Option<TaskView> {
         let task = self.get(id)?;
+        let mut results = result::Results::default();
         Some(TaskView {
             card: self.card_of(task, now),
             parent: task.parent.and_then(|p| self.get(p)).map(|p| Link {
@@ -654,16 +802,56 @@ impl Tasks {
                 title: p.title.clone(),
             }),
             running: task.running,
-            waiting: task.waiting.is_some(),
+            owned: self.writable(id).is_ok(),
+            waiting: task.waiting.is_some() && self.store.problem(id).is_none(),
+            finished: task.ending == Ending::Finished && self.store.problem(id).is_none(),
+            retryable: !task.running
+                && self.store.problem(id).is_none()
+                && retry_text(task).is_some(),
+            save_error: self.store.problem(id),
             chat: task
                 .chat
                 .iter()
-                .map(|(at, entry)| Step {
-                    at: at.0,
-                    entry: entry.clone(),
+                .map(|(at, entry)| {
+                    results.record(entry);
+                    Step {
+                        at: at.0,
+                        entry: entry.clone(),
+                        result: matches!(entry, Entry::Reply { .. } | Entry::Failed { .. })
+                            .then(|| results.line()),
+                    }
                 })
                 .collect(),
         })
+    }
+
+    pub fn result_line(&self, id: SessionId) -> Option<String> {
+        self.get(id).map(|task| match self.store.problem(id) {
+            Some(problem) => format!("{} · {problem}", task.results().line()),
+            None => task.results().line(),
+        })
+    }
+
+    pub(crate) fn persistence_result(&self, id: SessionId) -> Result<(), String> {
+        if let Some(problem) = self.store.problem(id) {
+            return Err(problem);
+        }
+        if self
+            .get(id)
+            .is_some_and(|t| t.running && t.save_failed.get())
+        {
+            return Err(SAVE_STOPPED.into());
+        }
+        Ok(())
+    }
+
+    pub fn retry_saving(&self) -> Result<(), String> {
+        self.idle()
+    }
+
+    pub fn completion(&self, id: SessionId, asked: &str, generated: &str) -> Option<String> {
+        self.get(id)
+            .and_then(|task| task.results().completion(asked, generated))
     }
 
     /// The conversation's task, while it runs, waits for the user or is within the
@@ -690,10 +878,11 @@ impl Tasks {
         self.idle()?;
         let anew = self
             .anew
-            .take()
+            .as_ref()
+            .cloned()
             .filter(|anew| self.current == Some(anew.task))
             .ok_or("There is nothing new to move now.")?;
-        let from = self.get_mut(anew.task).ok_or(GONE)?;
+        let mut from = self.get(anew.task).cloned().ok_or(GONE)?;
         if from.chat.len() <= anew.from {
             return Err("There is nothing new to move now.".to_string());
         }
@@ -720,15 +909,19 @@ impl Tasks {
             parent: None,
             updated_at,
             running: false,
+            cancel: Arc::new(AtomicBool::new(false)),
+            save_failed: Cell::new(false),
             waiting: None,
             ending,
             chat,
             summary: None,
             unsummed: None,
         };
-        if let Some(from) = self.get(anew.task) {
-            self.store.split(from, &task);
+        self.store.split(&from, &task)?;
+        if let Some(previous) = self.get_mut(anew.task) {
+            *previous = from;
         }
+        self.anew = None;
         self.tasks.push(task);
         self.current = Some(id);
         let previous = self.card(anew.task, now);
@@ -744,6 +937,7 @@ impl Tasks {
 
     /// Makes an unfinished task the conversation's task again.
     pub fn continue_task(&mut self, id: SessionId, now: Timestamp) -> Result<Continued, String> {
+        self.writable(id)?;
         self.idle()?;
         let task = self.view(id, now).ok_or(GONE)?;
         if task.card.page == Page::Done {
@@ -756,6 +950,7 @@ impl Tasks {
             task.updated_at = now;
         }
         self.save(id);
+        self.persistence_result(id)?;
         let task = self.view(id, now).ok_or(GONE)?;
         Ok(Continued { task, previous })
     }
@@ -767,6 +962,7 @@ impl Tasks {
 
     /// The next message opens a new task that follows up `id`.
     pub fn follow_up(&mut self, id: SessionId, now: Timestamp) -> Result<FollowingUp, String> {
+        self.writable(id)?;
         self.idle()?;
         let previous = self.set_aside(None, now);
         let parent = self.card(id, now).ok_or(GONE)?;
@@ -774,17 +970,80 @@ impl Tasks {
         Ok(FollowingUp { parent, previous })
     }
 
+    /// Explicitly closes a task. Persist first: a failed write must not report success
+    /// or leave a waiting approval resurrected on the next launch.
+    pub fn finish(&mut self, id: SessionId, now: Timestamp) -> Result<TaskCard, String> {
+        self.writable(id)?;
+        self.idle()?;
+        let task = self.get(id).ok_or(GONE)?;
+        if task.ending != Ending::Finished {
+            let record = TaskRecord {
+                state: TaskState::Finished,
+                updated_at: now,
+                ..record(task)
+            };
+            self.store.finish(&record)?;
+            if let Some(task) = self.get_mut(id) {
+                task.waiting = None;
+                task.ending = Ending::Finished;
+                task.updated_at = now;
+            }
+        }
+        if self.current == Some(id) {
+            self.current = None;
+        }
+        if self.follows == Some(id) {
+            self.follows = None;
+        }
+        if self.anew.as_ref().is_some_and(|anew| anew.task == id) {
+            self.anew = None;
+        }
+        self.card(id, now).ok_or_else(|| GONE.to_string())
+    }
+
     /// Answers a whole message about the task list - "what is still open?", "carry on
     /// with the email to Alex", "what happened with the dentist?" - or returns `None`
     /// when it is not one, or names no kept task, and goes to the model as usual.
     pub fn answer(&mut self, text: &str, now: Timestamp) -> Result<Option<Answer>, String> {
+        self.answer_in(text, None, now)
+    }
+
+    /// `context` is the task open on screen, if one is open in the task browser.
+    pub fn answer_in(
+        &mut self,
+        text: &str,
+        context: Option<SessionId>,
+        now: Timestamp,
+    ) -> Result<Option<Answer>, String> {
         let Some(words) = word::parse(text) else {
             return Ok(None);
         };
         match words {
+            word::Words::Finish(name) => {
+                self.idle()?;
+                let cards = match name {
+                    None => {
+                        let id = context
+                            .or(self.current)
+                            .ok_or("Open a task first, or name the task to finish.")?;
+                        vec![self.card(id, now).ok_or(GONE)?]
+                    }
+                    Some(name) => self.named(&name, now),
+                };
+                match cards.as_slice() {
+                    [] => Err(
+                        "No kept task matches that name. Open the task and choose Finish task."
+                            .to_string(),
+                    ),
+                    [card] => Ok(Some(Answer::Finished {
+                        card: self.finish(SessionId(card.id), now)?,
+                    })),
+                    _ => Ok(Some(Answer::ChooseFinish { cards })),
+                }
+            }
             word::Words::StillOpen => {
                 let cards = self.cards(now);
-                let cards = cards.into_iter().filter(|c| c.page == Page::Todo);
+                let cards = cards.into_iter().filter(|c| c.page != Page::Done);
                 Ok(Some(Answer::Open {
                     cards: cards.collect(),
                 }))
@@ -894,11 +1153,38 @@ impl Tasks {
 
     /// Refuses to switch tasks while PR3 is answering: the conversation on screen, and
     /// any confirmation card in it, belong to the running task.
-    fn idle(&self) -> Result<(), String> {
+    fn writable(&self, id: SessionId) -> Result<(), String> {
+        if let Some(store) = &self.store.db {
+            store
+                .lock()
+                .map_err(|_| "Memory unavailable")?
+                .continuity_writable("task", id.0 as i64)
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn reload(
+        &mut self,
+        store: Arc<Mutex<SqliteMemory>>,
+        now: Timestamp,
+    ) -> Result<Vec<SessionId>, String> {
+        self.idle()?;
+        let ids = self.tasks.iter().map(|t| t.id).collect();
+        let current = self.current;
+        let last = self.last_id;
+        let mut next = Self::load(store, u64::MAX, now)?;
+        next.last_id = next.last_id.max(last);
+        next.current = current.filter(|id| next.get(*id).is_some() && next.writable(*id).is_ok());
+        *self = next;
+        Ok(ids)
+    }
+
+    pub(crate) fn idle(&self) -> Result<(), String> {
         if self.tasks.iter().any(|t| t.running) {
             return Err("PR3 is still answering; try again when it is done.".to_string());
         }
-        Ok(())
+        self.store.flush()
     }
 
     /// Makes `next` the conversation's task, returning the one it replaces, if any.
@@ -914,25 +1200,26 @@ impl Tasks {
 
     fn card_of(&self, task: &Task, now: Timestamp) -> TaskCard {
         let current = self.current == Some(task.id) && (task.running || within(task, now));
-        let (page, line) = if task.waiting.is_some() {
+        let (page, line) = if let Some(problem) = self.store.problem(task.id) {
+            (Page::Todo, format!("Needs attention: {problem}"))
+        } else if task.waiting.is_some() {
             (Page::Todo, "Waiting for your OK".to_string())
         } else if task.running {
             (Page::Doing, "Working on it…".to_string())
+        } else if let Ending::Failed(reason) = &task.ending {
+            (Page::Todo, format!("Needs attention: {}", one_line(reason)))
+        } else if task.ending != Ending::Finished && task.results().needs_review() {
+            (Page::Todo, task.results().review_reason().to_string())
         } else if current {
             (Page::Doing, "In the conversation now".to_string())
         } else {
             match &task.ending {
                 Ending::Failed(reason) => {
-                    (Page::Todo, format!("Didn't finish: {}", one_line(reason)))
+                    (Page::Todo, format!("Needs attention: {}", one_line(reason)))
                 }
                 Ending::Expired => (Page::Done, "Expired: nothing was sent".to_string()),
-                Ending::Answered => {
-                    let reply = task.chat.iter().rev().find_map(|(_, e)| match e {
-                        Entry::Reply { text } if !text.trim().is_empty() => Some(one_line(text)),
-                        _ => None,
-                    });
-                    (Page::Done, reply.unwrap_or_else(|| "Done".to_string()))
-                }
+                Ending::Finished => (Page::Done, "Finished by you".to_string()),
+                Ending::Answered => (Page::Done, task.results().card_line()),
             }
         };
         TaskCard {
@@ -955,20 +1242,33 @@ impl Tasks {
     /// Adds a step to a task's chat.
     fn push(&mut self, id: SessionId, at: Timestamp, entry: Entry) {
         if let Some(task) = self.tasks.iter_mut().find(|t| t.id == id) {
-            self.store.add(id, at, &entry);
+            if self.store.add(id, at, &entry).is_err() {
+                task.cancel.store(true, Ordering::Release);
+                task.save_failed.set(true);
+            }
             task.chat.push((at, entry));
         }
     }
 
     /// Writes a task's record through to the store.
     fn save(&self, id: SessionId) {
-        if let Some(task) = self.get(id) {
-            self.store.save(task);
+        if let Some(task) = self.get(id)
+            && self.store.save(task).is_err()
+        {
+            task.cancel.store(true, Ordering::Release);
+            task.save_failed.set(true);
         }
     }
 }
 
 impl Task {
+    fn results(&self) -> result::Results {
+        let mut result = result::Results::default();
+        for (_, entry) in &self.chat {
+            result.record(entry);
+        }
+        result
+    }
     /// Whether `text`, sent in this task, seems to start something new
     /// ([`word::starts_anew`]); never before the task has an answer to go on from.
     fn starts_anew(&self, text: &str) -> bool {
@@ -993,50 +1293,157 @@ impl Task {
 
 const GONE: &str = "This task is no longer kept.";
 
-/// Where tasks are kept across launches, if anywhere. A failed write is logged and the
-/// conversation goes on: the task is still on screen, only not kept.
+fn retry_text(task: &Task) -> Option<&str> {
+    let Ending::Failed(reason) = &task.ending else {
+        return None;
+    };
+    // Older interrupted turns have no execution checkpoint. Treat them
+    // conservatively; a missing result is not evidence that nothing happened.
+    if unknown(reason) || reason == CLOSED {
+        return None;
+    }
+    for (_, entry) in task.chat.iter().rev() {
+        match entry {
+            Entry::Tool { output, .. } if unknown(output) => return None,
+            Entry::Tool {
+                name,
+                success: true,
+                ..
+            } if name == "send_email" => return None,
+            Entry::User { text } => return Some(text),
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Ordered writes that have not reached SQLite. Never replay an effect to retry
+/// persistence: retain only its record, and remove each write after it commits.
 #[derive(Default)]
-struct Store(Option<Arc<Mutex<SqliteMemory>>>);
-
+struct Store {
+    db: Option<Arc<Mutex<SqliteMemory>>>,
+    pending: RefCell<PendingWrites>,
+}
+#[derive(Default)]
+struct PendingWrites {
+    writes: VecDeque<TaskWrite>,
+    error: Option<String>,
+}
+enum TaskWrite {
+    Save(TaskRecord),
+    Add(SessionId, Timestamp, Said),
+    Summary(SessionId, Summary),
+}
+impl TaskWrite {
+    fn id(&self) -> SessionId {
+        match self {
+            Self::Save(record) => SessionId(record.id),
+            Self::Add(id, ..) | Self::Summary(id, ..) => *id,
+        }
+    }
+    fn apply(&self, db: &mut SqliteMemory) -> Result<(), pr3_memory::MemoryError> {
+        match self {
+            Self::Save(record) => db.save_task(record),
+            Self::Add(id, at, said) => db.add_said(id.0, *at, said),
+            Self::Summary(id, summary) => db.save_summary(id.0, summary),
+        }
+    }
+}
 impl Store {
-    fn save(&self, task: &Task) {
-        let record = record(task);
-        self.write(task.id, |db| db.save_task(&record));
+    fn problem(&self, id: SessionId) -> Option<String> {
+        let pending = self.pending.borrow();
+        pending.writes.iter().any(|w| w.id() == id).then(|| {
+            format!(
+                "Task not saved: {}. Keep PR3 open and retry saving before closing.",
+                pending.error.as_deref().unwrap_or("storage unavailable")
+            )
+        })
     }
-
-    fn save_summary(&self, id: SessionId, summary: &Summary) {
-        self.write(id, |db| db.save_summary(id.0, summary));
-    }
-
-    /// Moves the end of `from`'s chat to `to`, a new task with that chat, as one change.
-    fn split(&self, from: &Task, to: &Task) {
-        let moved = to.chat.len();
-        let (from, to) = (record(from), record(to));
-        self.write(SessionId(to.id), |db| db.split_task(&from, moved, &to));
-    }
-
-    fn add(&self, id: SessionId, at: Timestamp, entry: &Entry) {
-        let said = Said::from(entry.clone());
-        self.write(id, |db| db.add_said(id.0, at, &said));
-    }
-
-    /// Deleting must reach the store: the user asked for the words to be gone.
-    fn delete(&self, id: SessionId, now: Timestamp) -> Result<(), String> {
-        let Some(store) = &self.0 else {
+    fn flush(&self) -> Result<(), String> {
+        let Some(store) = &self.db else {
             return Ok(());
         };
-        let mut db = store
+        let mut pending = self.pending.borrow_mut();
+        if pending.writes.is_empty() {
+            return Ok(());
+        }
+        let result = (|| {
+            let mut db = store
+                .lock()
+                .map_err(|_| "the memory database is unavailable".to_string())?;
+            while let Some(write) = pending.writes.front() {
+                write.apply(&mut db).map_err(|e| e.to_string())?;
+                pending.writes.pop_front();
+            }
+            Ok(())
+        })();
+        pending.error = result.as_ref().err().cloned();
+        result.map_err(|e| {
+            format!("Task not saved: {e}. Keep PR3 open and retry saving before closing.")
+        })
+    }
+    fn write(&self, write: TaskWrite) -> Result<(), String> {
+        if self.db.is_none() {
+            return Ok(());
+        }
+        self.pending.borrow_mut().writes.push_back(write);
+        self.flush()
+    }
+    fn finish(&self, record: &TaskRecord) -> Result<(), String> {
+        self.flush()?;
+        let Some(store) = &self.db else {
+            return Ok(());
+        };
+        store
             .lock()
-            .map_err(|_| "the memory database is unavailable")?;
-        db.delete_task(id.0, now)
+            .map_err(|_| "the memory database is unavailable")?
+            .save_task(record)
+            .map_err(|e| e.to_string())
+    }
+    fn save(&self, task: &Task) -> Result<(), String> {
+        self.write(TaskWrite::Save(record(task)))
+    }
+    fn save_summary(&self, id: SessionId, summary: &Summary) -> Result<(), String> {
+        self.write(TaskWrite::Summary(id, summary.clone()))
+    }
+    fn forget_summaries(&self) {
+        let mut pending = self.pending.borrow_mut();
+        pending
+            .writes
+            .retain(|w| !matches!(w, TaskWrite::Summary(..)));
+        if pending.writes.is_empty() {
+            pending.error = None;
+        }
+    }
+    /// Split must commit before the in-memory chat is rearranged.
+    fn split(&self, from: &Task, to: &Task) -> Result<(), String> {
+        self.flush()?;
+        let Some(store) = &self.db else {
+            return Ok(());
+        };
+        store
+            .lock()
+            .map_err(|_| "the memory database is unavailable")?
+            .split_task(&record(from), to.chat.len(), &record(to))
+            .map_err(|e| e.to_string())
+    }
+    fn add(&self, id: SessionId, at: Timestamp, entry: &Entry) -> Result<(), String> {
+        self.write(TaskWrite::Add(id, at, Said::from(entry.clone())))
+    }
+    fn delete(&self, id: SessionId, now: Timestamp) -> Result<(), String> {
+        self.flush()?;
+        let Some(store) = &self.db else {
+            return Ok(());
+        };
+        store
+            .lock()
+            .map_err(|_| "the memory database is unavailable")?
+            .delete_task(id.0, now)
             .map(|_| ())
             .map_err(|e| e.to_string())
     }
-
-    /// The task's events, and whether the whole chain still checks; neither without the
-    /// memory database.
     fn events(&self, id: SessionId) -> Result<(Vec<TaskEvent>, Option<bool>), String> {
-        let Some(store) = &self.0 else {
+        let Some(store) = &self.db else {
             return Ok((Vec::new(), None));
         };
         let db = store
@@ -1045,23 +1452,6 @@ impl Store {
         let events = db.task_events(id.0).map_err(|e| e.to_string())?;
         let intact = db.task_events_intact().map_err(|e| e.to_string())?;
         Ok((events, Some(intact)))
-    }
-
-    fn write(
-        &self,
-        id: SessionId,
-        write: impl FnOnce(&mut SqliteMemory) -> Result<(), pr3_memory::MemoryError>,
-    ) {
-        let Some(store) = &self.0 else {
-            return;
-        };
-        let written = match store.lock() {
-            Ok(mut db) => write(&mut db).map_err(|e| e.0),
-            Err(_) => Err("the memory database is unavailable".to_string()),
-        };
-        if let Err(e) = written {
-            eprintln!("PR3: task {} is not kept: {e}", id.0);
-        }
     }
 }
 
@@ -1123,6 +1513,7 @@ fn state(task: &Task) -> TaskState {
         (Some(call), _, _) => TaskState::Waiting(call.clone()),
         (None, true, _) => TaskState::Working,
         (None, false, Ending::Answered) => TaskState::Done,
+        (None, false, Ending::Finished) => TaskState::Finished,
         (None, false, Ending::Failed(reason)) => TaskState::Failed(reason.clone()),
         (None, false, Ending::Expired) => TaskState::Expired,
     }
@@ -1242,6 +1633,40 @@ pub fn continue_task(id: u64, host: tauri::State<'_, Host>) -> Result<Continued,
     host.continue_task(SessionId(id))
 }
 
+#[tauri::command]
+pub fn finish_task(id: u64, host: tauri::State<'_, Host>) -> Result<TaskCard, String> {
+    host.finish_task(SessionId(id))
+}
+
+#[tauri::command]
+pub fn stop_task(id: u64, host: tauri::State<'_, Host>) -> Result<(), String> {
+    host.stop_task(SessionId(id))
+}
+
+/// Retries storage only; never re-runs the model or an email action.
+#[tauri::command]
+pub fn retry_task_save(host: tauri::State<'_, Host>) -> Result<(), String> {
+    host.retry_task_save()
+}
+
+#[tauri::command]
+pub async fn retry_task(
+    id: u64,
+    utc_offset_minutes: i32,
+    on_event: Channel<TurnEvent>,
+    app: tauri::AppHandle,
+    host: tauri::State<'_, Host>,
+) -> Result<Vec<pr3_core::Action>, String> {
+    let result = host
+        .retry(SessionId(id), utc_offset_minutes, move |event| {
+            let _ = on_event.send(event);
+        })
+        .await
+        .map_err(|e| e.to_string());
+    crate::settle_later(app);
+    result
+}
+
 /// The task it follows is summed up in the background while the user writes.
 #[tauri::command]
 pub fn follow_up_task(
@@ -1258,10 +1683,11 @@ pub fn follow_up_task(
 #[tauri::command]
 pub fn task_words(
     text: String,
+    context: Option<u64>,
     app: tauri::AppHandle,
     host: tauri::State<'_, Host>,
 ) -> Result<Option<Answer>, String> {
-    let answer = host.task_words(&text)?;
+    let answer = host.task_words_in(&text, context.map(SessionId))?;
     if matches!(answer, Some(Answer::FollowingUp(_))) {
         crate::settle_later(app);
     }
@@ -1350,6 +1776,252 @@ mod tests {
             .collect()
     }
 
+    fn disk_store(
+        name: &str,
+    ) -> (
+        std::path::PathBuf,
+        Arc<Mutex<SqliteMemory>>,
+        rusqlite::Connection,
+    ) {
+        let dir = std::env::temp_dir().join(format!("pr3-task-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("memory.sqlite");
+        let db = Arc::new(Mutex::new(SqliteMemory::open(&path).unwrap()));
+        let injector = rusqlite::Connection::open(&path).unwrap();
+        (dir, db, injector)
+    }
+
+    #[test]
+    fn failed_task_and_chat_writes_are_visible_and_recover_once_without_replaying() {
+        for table in ["tasks", "messages"] {
+            let (dir, store, injector) = disk_store(table);
+            let mut tasks = Tasks::load(store.clone(), 30, at(0)).unwrap();
+            injector.execute_batch(&format!("CREATE TRIGGER fail_write BEFORE INSERT ON {table} BEGIN SELECT RAISE(FAIL, 'storage full'); END;")).unwrap();
+            let (id, _) = say(&mut tasks, "Keep this request", at(0), "Reply to keep");
+            let view = tasks.view(id, at(1)).unwrap();
+            assert_eq!(view.chat.len(), 2);
+            assert_eq!(view.card.page, Page::Todo);
+            assert!(
+                view.card
+                    .line
+                    .starts_with("Needs attention: Task not saved")
+            );
+            assert!(view.save_error.unwrap().contains("storage full"));
+            assert!(!view.finished && !view.retryable);
+            assert!(tasks.retry_saving().is_err());
+            assert!(
+                tasks.reload(store.clone(), at(1)).is_err(),
+                "sync must not discard unsaved chat"
+            );
+            assert_eq!(tasks.view(id, at(1)).unwrap().chat.len(), 2);
+            injector.execute_batch("DROP TRIGGER fail_write;").unwrap();
+            tasks.retry_saving().unwrap();
+            tasks.retry_saving().unwrap();
+            assert!(tasks.view(id, at(1)).unwrap().save_error.is_none());
+            drop(tasks);
+            let reopened = Tasks::load(store.clone(), 30, at(2)).unwrap();
+            assert_eq!(
+                texts(&reopened.view(id, at(2)).unwrap().chat),
+                ["user: Keep this request", "reply: Reply to keep"]
+            );
+            assert!(store.lock().unwrap().task_events_intact().unwrap());
+            drop(reopened);
+            drop(store);
+            drop(injector);
+            std::fs::remove_dir_all(dir).unwrap();
+        }
+    }
+
+    #[test]
+    fn failed_result_write_keeps_unknown_checkpoint_until_all_records_are_saved() {
+        let (dir, store, injector) = disk_store("result-write");
+        let mut tasks = Tasks::load(store.clone(), 30, at(0)).unwrap();
+        let (id, _) = tasks.begin("Email Alex", at(0));
+        tasks.waiting(id, &email(), at(10), at(1));
+        tasks.executing(id, at(2)).unwrap();
+        injector.execute_batch("CREATE TRIGGER fail_result BEFORE INSERT ON messages WHEN new.kind='tool' BEGIN SELECT RAISE(FAIL, 'storage full'); END;").unwrap();
+        let output = "Email to Alex added to the sandbox outbox after approval. Nothing was sent externally.";
+        tasks.record(
+            id,
+            &TurnEvent::Tool {
+                name: "send_email".into(),
+                arguments: "{}".into(),
+                success: true,
+                output: output.into(),
+            },
+            at(3),
+        );
+        tasks.end(id, Ok(output.into()), at(3));
+        assert_eq!(
+            store.lock().unwrap().tasks().unwrap()[0].record.state,
+            TaskState::Failed(UNKNOWN.into())
+        );
+        assert!(tasks.view(id, at(4)).unwrap().save_error.is_some());
+        assert!(!tasks.view(id, at(4)).unwrap().retryable);
+        assert!(tasks.finish(id, at(4)).is_err());
+        injector.execute_batch("DROP TRIGGER fail_result;").unwrap();
+        tasks.retry_saving().unwrap();
+        drop(tasks);
+        let mut reopened = Tasks::load(store.clone(), 30, at(5)).unwrap();
+        let view = reopened.view(id, at(5)).unwrap();
+        assert_eq!(view.chat.len(), 3);
+        assert!(view.save_error.is_none());
+        assert!(!view.retryable);
+        assert!(reopened.retry(id, at(6)).is_err());
+        assert!(
+            reopened
+                .result_line(id)
+                .unwrap()
+                .contains("added to sandbox outbox")
+        );
+        drop(reopened);
+        drop(store);
+        drop(injector);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn host_reports_storage_failure_before_running_a_memory_action() {
+        use pr3_memory::MemoryStore;
+        let (dir, store, injector) = disk_store("host-save");
+        let host = crate::compose_host(
+            Arc::new(crate::host::MockBackend::default()),
+            Some(store.clone()),
+            None,
+            30,
+            None,
+        )
+        .unwrap();
+        injector.execute_batch("CREATE TRIGGER fail_write BEFORE INSERT ON messages BEGIN SELECT RAISE(FAIL, 'storage full'); END;").unwrap();
+        let result = tauri::async_runtime::block_on(host.send(
+            "Remember that I live in Rome".into(),
+            0,
+            |_| {},
+        ));
+        assert!(result.unwrap_err().to_string().contains("not saved"));
+        assert!(
+            store
+                .lock()
+                .unwrap()
+                .recent(10, crate::host::now())
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            host.task_cards().unwrap()[0]
+                .line
+                .contains("Needs attention")
+        );
+        assert!(host.retry_task_save().is_err());
+        injector.execute_batch("DROP TRIGGER fail_write;").unwrap();
+        host.retry_task_save().unwrap();
+        assert!(
+            store
+                .lock()
+                .unwrap()
+                .recent(10, crate::host::now())
+                .unwrap()
+                .is_empty(),
+            "saving must not rerun the request"
+        );
+        drop(host);
+        drop(store);
+        drop(injector);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn failed_summary_and_split_writes_do_not_claim_success_or_lose_chat() {
+        let (dir, store, injector) = disk_store("summary-split");
+        let mut tasks = Tasks::load(store.clone(), 30, at(0)).unwrap();
+        let (id, _) = say(
+            &mut tasks,
+            "Email Sam that lunch is on Thursday",
+            at(0),
+            "Draft ready",
+        );
+        let fold = tasks.fold(id, 0).unwrap();
+        injector.execute_batch("CREATE TRIGGER fail_summary AFTER UPDATE OF summary ON tasks BEGIN SELECT RAISE(FAIL, 'storage full'); END;").unwrap();
+        assert!(!tasks.summed_up(&fold, "Lunch Thursday"));
+        assert!(tasks.view(id, at(1)).unwrap().save_error.is_some());
+        assert!(store.lock().unwrap().tasks().unwrap()[0].summary.is_none());
+        // Forgetting memory must also remove any summary still waiting to be saved.
+        tasks.forget_summaries();
+        injector
+            .execute_batch("DROP TRIGGER fail_summary;")
+            .unwrap();
+        tasks.retry_saving().unwrap();
+        assert!(store.lock().unwrap().tasks().unwrap()[0].summary.is_none());
+        say(
+            &mut tasks,
+            "How do I keep basil fresh?",
+            at(1),
+            "In a glass of water.",
+        );
+        assert!(tasks.seems_new(id));
+        let before = tasks.view(id, at(2)).unwrap();
+        injector.execute_batch("CREATE TRIGGER fail_split BEFORE INSERT ON tasks BEGIN SELECT RAISE(FAIL, 'storage full'); END;").unwrap();
+        assert!(tasks.start_new_task(at(2)).is_err());
+        assert_eq!(tasks.view(id, at(2)).unwrap(), before);
+        assert_eq!(tasks.cards(at(2)).len(), 1);
+        injector.execute_batch("DROP TRIGGER fail_split;").unwrap();
+        tasks.start_new_task(at(2)).unwrap();
+        assert_eq!(tasks.cards(at(2)).len(), 2);
+        assert_eq!(
+            store
+                .lock()
+                .unwrap()
+                .tasks()
+                .unwrap()
+                .iter()
+                .map(|t| t.chat.len())
+                .sum::<usize>(),
+            4
+        );
+        drop(tasks);
+        drop(store);
+        drop(injector);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn an_error_after_inserting_a_message_rolls_back_before_retrying() {
+        let (dir, store, injector) = disk_store("rollback-message");
+        let mut tasks = Tasks::load(store.clone(), 30, at(0)).unwrap();
+        let (id, _) = tasks.begin("Keep this", at(0));
+        injector.execute_batch("CREATE TRIGGER fail_reply AFTER INSERT ON messages WHEN new.kind='reply' BEGIN SELECT RAISE(FAIL, 'storage full'); END;").unwrap();
+        tasks.end(id, Ok("Once only".into()), at(1));
+        assert_eq!(store.lock().unwrap().tasks().unwrap()[0].chat.len(), 1);
+        injector.execute_batch("DROP TRIGGER fail_reply;").unwrap();
+        tasks.retry_saving().unwrap();
+        tasks.retry_saving().unwrap();
+        assert_eq!(store.lock().unwrap().tasks().unwrap()[0].chat.len(), 2);
+        drop(tasks);
+        drop(store);
+        drop(injector);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn task_load_failure_never_falls_back_to_unpersisted_work() {
+        let (dir, store, injector) = disk_store("load-failure");
+        injector.execute_batch("DROP TABLE messages;").unwrap();
+        assert!(
+            crate::compose_host(
+                Arc::new(crate::host::MockBackend::default()),
+                Some(store.clone()),
+                None,
+                30,
+                None
+            )
+            .is_err()
+        );
+        drop(store);
+        drop(injector);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
     #[test]
     fn tasks_and_their_chats_survive_a_restart() {
         let store = store();
@@ -1413,7 +2085,7 @@ mod tests {
         let tasks = Tasks::load(store, 30, at(30)).unwrap();
         assert_eq!(
             page(&tasks, id, at(30)),
-            (Page::Todo, format!("Didn't finish: {CLOSED}"))
+            (Page::Todo, format!("Needs attention: {CLOSED}"))
         );
         assert_eq!(
             texts(&tasks.view(id, at(30)).unwrap().chat),
@@ -1650,7 +2322,7 @@ mod tests {
         assert_ne!(next, first);
         let previous = opened.unwrap().previous.unwrap();
         assert_eq!((previous.id, previous.page), (first.0, Page::Done));
-        assert_eq!(previous.line, "It is 2:00.");
+        assert_eq!(previous.line, "Reply ready");
         assert_eq!(tasks.view(first, at(21)).unwrap().chat.len(), 4);
     }
 
@@ -1689,7 +2361,7 @@ mod tests {
             (previous.id, previous.page, previous.updated_at),
             (lunch.0, Page::Done, at(1).0)
         );
-        assert_eq!(previous.line, "Sent to Alex.");
+        assert_eq!(previous.line, "Reply ready");
         let lunch_chat = [
             format!("user: {lunch_said}"),
             "reply: Sent to Sam.".to_string(),
@@ -1743,6 +2415,82 @@ mod tests {
     }
 
     #[test]
+    fn recovery_keeps_failed_tasks_visible_and_retries_the_exact_request() {
+        let store = store();
+        let mut tasks = Tasks::load(store.clone(), 30, at(0)).unwrap();
+        let (id, _) = tasks.begin("Email Alex about lunch", at(0));
+        let first_cancel = tasks.cancellation(id).unwrap();
+        tasks.stop(id).unwrap();
+        assert!(first_cancel.load(Ordering::Acquire));
+        assert!(
+            tasks.retry(id, at(0)).is_err(),
+            "stop waits for the running result"
+        );
+        tasks.end(id, Err(STOPPED.to_string()), at(1));
+        assert!(tasks.stop(id).is_err());
+        drop(tasks);
+        let mut tasks = Tasks::load(store, 30, at(2)).unwrap();
+        let view = tasks.view(id, at(2)).unwrap();
+        assert_eq!(view.card.page, Page::Todo);
+        assert!(view.card.line.starts_with("Needs attention:"));
+        assert!(view.retryable);
+        let (other, _) = say(&mut tasks, "Another task", at(20), "ok");
+        let (text, opened) = tasks.retry(id, at(60)).unwrap();
+        assert_eq!(text, "Email Alex about lunch");
+        assert_eq!(opened.id, id.0);
+        assert_eq!(opened.previous.unwrap().id, other.0);
+        assert!(!tasks.cancellation(id).unwrap().load(Ordering::Acquire));
+        assert!(
+            first_cancel.load(Ordering::Acquire),
+            "cancellation belongs to one attempt"
+        );
+        assert!(!tasks.view(id, at(60)).unwrap().retryable);
+        tasks.record(
+            id,
+            &TurnEvent::Tool {
+                name: "send_email".into(),
+                arguments: "{}".into(),
+                success: true,
+                output: "queued".into(),
+            },
+            at(60),
+        );
+        tasks.end(id, Err(STOPPED.to_string()), at(60));
+        assert!(!tasks.view(id, at(60)).unwrap().retryable);
+        assert!(
+            tasks.retry(id, at(61)).is_err(),
+            "do not duplicate a successful action"
+        );
+    }
+
+    #[test]
+    fn execution_checkpoint_survives_restart_without_repeating_approval() {
+        let store = store();
+        let mut tasks = Tasks::load(store.clone(), 30, at(0)).unwrap();
+        let (id, _) = tasks.begin("Email Alex", at(0));
+        tasks.waiting(id, &email(), at(10), at(0));
+        assert!(tasks.executing(id, Timestamp(u64::MAX)).is_err());
+        assert!(
+            tasks.view(id, at(0)).unwrap().waiting,
+            "failed persistence does not cross the boundary"
+        );
+        tasks.executing(id, at(1)).unwrap();
+        drop(tasks); // Simulate closing at any point before the actual result is kept.
+        let mut tasks = Tasks::load(store, 30, at(2)).unwrap();
+        let view = tasks.view(id, at(2)).unwrap();
+        assert!(!view.running && !view.waiting && !view.retryable);
+        assert!(view.card.line.contains("Outcome unknown"));
+        assert!(tasks.resume_waiting(id).is_err());
+        assert!(tasks.retry(id, at(2)).is_err());
+        let result = view.chat.last().unwrap().result.as_ref().unwrap();
+        assert!(result.contains("outcome unknown"));
+        assert!(!result.contains("No email sent"));
+        // Explicitly finishing is still possible and preserves the uncertainty in chat.
+        tasks.finish(id, at(3)).unwrap();
+        assert_eq!(tasks.view(id, at(3)).unwrap().chat, view.chat);
+    }
+
+    #[test]
     fn pages_follow_what_each_task_waits_on() {
         let mut tasks = Tasks::default();
         let (id, _) = tasks.begin("Email Alex the summary", at(0));
@@ -1758,13 +2506,13 @@ mod tests {
         );
         tasks.record(id, &declined(), at(1));
         tasks.end(id, Err("the model was stopped".to_string()), at(1));
-        // Still the conversation's task, then set aside unfinished.
-        assert_eq!(page(&tasks, id, at(1)).0, Page::Doing);
+        // Failure stays visible even while this is the conversation's current task.
+        assert_eq!(page(&tasks, id, at(1)).0, Page::Todo);
         assert_eq!(
             page(&tasks, id, at(12)),
             (
                 Page::Todo,
-                "Didn't finish: the model was stopped".to_string()
+                "Needs attention: the model was stopped".to_string()
             )
         );
     }
@@ -1777,7 +2525,7 @@ mod tests {
         let (done, _) = say(&mut tasks, "What is 2+2?", at(20), "4");
 
         let continued = tasks.continue_task(unfinished, at(21)).unwrap();
-        assert_eq!(continued.task.card.page, Page::Doing);
+        assert_eq!(continued.task.card.page, Page::Todo);
         assert_eq!(continued.previous.map(|p| p.id), Some(done.0));
         let (same, opened) = tasks.begin("Lisbon, in May", at(22));
         assert_eq!((same, opened), (unfinished, None));
@@ -1802,13 +2550,13 @@ mod tests {
         tasks.end(trip, Err("no model".to_string()), at(20));
         let (sum, _) = say(&mut tasks, "What is 2+2?", at(40), "4");
 
-        // What is still open: the To Do page, newest first.
+        // What is still open: To Do and the current conversation, newest first.
         let Some(Answer::Open { cards }) = tasks.answer("What's still open?", at(41)).unwrap()
         else {
             panic!("not the open tasks");
         };
         let ids: Vec<u64> = cards.iter().map(|c| c.id).collect();
-        assert_eq!(ids, [trip.0, alex.0]);
+        assert_eq!(ids, [sum.0, trip.0, alex.0]);
 
         // One unfinished match: the conversation goes back to it.
         let Some(Answer::Continued(continued)) = tasks
@@ -1905,5 +2653,131 @@ mod tests {
         let title = tasks.view(a, at(0)).unwrap().card.title;
         assert_eq!(title, "Find the receipt for the new laptop I bought la…");
         assert_eq!(title.chars().count(), TITLE_CHARS);
+    }
+
+    #[test]
+    fn finishing_a_failed_task_survives_restart_and_never_continues_implicitly() {
+        let store = store();
+        let mut tasks = Tasks::load(store.clone(), 30, at(0)).unwrap();
+        let (id, _) = tasks.begin("Plan the weekend", at(0));
+        tasks.end(id, Err("model unavailable".into()), at(0));
+        let chat = texts(&tasks.view(id, at(1)).unwrap().chat);
+        let Some(Answer::Finished { card }) = tasks.answer("finish this task", at(1)).unwrap()
+        else {
+            panic!("expected explicit finish");
+        };
+        assert_eq!(
+            (card.page, card.line.as_str()),
+            (Page::Done, "Finished by you")
+        );
+        assert!(tasks.current(at(1)).is_none());
+        // Repeated taps do not change the finish time or append another event.
+        assert_eq!(tasks.finish(id, at(2)).unwrap(), card);
+        drop(tasks);
+        let mut tasks = Tasks::load(store.clone(), 30, at(2)).unwrap();
+        assert!(tasks.current(at(2)).is_none());
+        assert_eq!(texts(&tasks.view(id, at(2)).unwrap().chat), chat);
+        assert!(tasks.continue_task(id, at(2)).is_err());
+        assert_eq!(tasks.follow_up(id, at(2)).unwrap().parent.id, id.0);
+        let (next, _) = tasks.begin("Change the plan", at(2));
+        assert_ne!(next, id);
+        assert_eq!(tasks.view(next, at(2)).unwrap().parent.unwrap().id, id.0);
+        let db = store.lock().unwrap();
+        assert!(db.task_events_intact().unwrap());
+        assert_eq!(
+            db.task_events(id.0)
+                .unwrap()
+                .iter()
+                .filter(|e| e.event == "finished")
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn finishing_a_restored_approval_cannot_execute_or_resurrect_it() {
+        let store = store();
+        let mut tasks = Tasks::load(store.clone(), 30, at(0)).unwrap();
+        let (id, _) = tasks.begin("Email Alex", at(0));
+        tasks.waiting(id, &email(), at(10), at(0));
+        assert!(
+            tasks.finish(id, at(1)).is_err(),
+            "live turns must be answered first"
+        );
+        drop(tasks);
+        let mut tasks = Tasks::load(store.clone(), 30, at(1)).unwrap();
+        assert!(tasks.view(id, at(1)).unwrap().waiting);
+        // A storage failure leaves the in-memory task and its pending call untouched.
+        assert!(tasks.finish(id, Timestamp(u64::MAX)).is_err());
+        assert!(tasks.view(id, at(1)).unwrap().waiting);
+        tasks.finish(id, at(1)).unwrap();
+        drop(tasks);
+        let mut tasks = Tasks::load(store.clone(), 30, at(2)).unwrap();
+        let task = tasks.view(id, at(2)).unwrap();
+        assert!(task.finished);
+        assert!(!task.waiting);
+        assert!(tasks.resume_waiting(id).is_err());
+        assert!(
+            !task
+                .chat
+                .iter()
+                .any(|s| matches!(s.entry, Entry::Tool { success: true, .. }))
+        );
+        assert_eq!(
+            store.lock().unwrap().tasks().unwrap()[0].record.state,
+            TaskState::Finished
+        );
+    }
+
+    #[test]
+    fn finish_words_require_an_unambiguous_target_and_respect_the_open_task() {
+        let mut tasks = Tasks::default();
+        assert!(tasks.answer("finish this task", at(0)).is_err());
+        let (one, _) = say(&mut tasks, "Email Alex about lunch", at(0), "Draft ready");
+        tasks.new_topic(at(1)).unwrap();
+        let (two, _) = say(&mut tasks, "Email Alex about dinner", at(1), "Draft ready");
+        let Some(Answer::ChooseFinish { cards }) =
+            tasks.answer("mark email Alex as done", at(2)).unwrap()
+        else {
+            panic!("must choose, not silently finish the newest match");
+        };
+        assert_eq!(cards.len(), 2);
+        assert!(!tasks.view(one, at(2)).unwrap().finished);
+        assert!(!tasks.view(two, at(2)).unwrap().finished);
+        assert!(tasks.answer("finish task nonexistent", at(2)).is_err());
+        let Some(Answer::Finished { card }) = tasks
+            .answer_in("finish this task", Some(one), at(2))
+            .unwrap()
+        else {
+            panic!("expected finish of the task on screen");
+        };
+        assert_eq!(card.id, one.0);
+        assert_eq!(tasks.current(at(2)).unwrap().card.id, two.0);
+        let Some(Answer::Open { cards }) = tasks.answer("what is still open?", at(2)).unwrap()
+        else {
+            panic!("expected open tasks");
+        };
+        assert_eq!(cards.iter().map(|c| c.id).collect::<Vec<_>>(), [two.0]);
+    }
+
+    #[test]
+    fn task_results_survive_restart_and_do_not_copy_generated_claims() {
+        let store = store();
+        let mut tasks = Tasks::load(store.clone(), 30, at(0)).unwrap();
+        let (id, _) = tasks.begin("Email Alex", at(0));
+        tasks.record(id, &declined(), at(0));
+        tasks.end(id, Ok("Sent, saved and completed!".into()), at(0));
+        tasks.new_topic(at(1)).unwrap();
+        let view = tasks.view(id, at(1)).unwrap();
+        assert!(view.card.line.contains("No email sent"));
+        assert_eq!(view.card.page, Page::Todo);
+        assert!(!view.card.line.contains("Sent, saved"));
+        assert_eq!(
+            view.chat.last().unwrap().result.as_deref(),
+            Some("No new memory saved · No email sent · 1 email action not completed")
+        );
+        drop(tasks);
+        let tasks = Tasks::load(store, 30, at(20)).unwrap();
+        assert_eq!(tasks.view(id, at(20)).unwrap().chat, view.chat);
     }
 }

@@ -35,7 +35,10 @@ pub(crate) struct Request {
 
 pub(crate) enum Job {
     /// Answer, streaming the visible text.
-    Answer(Sender<Event>),
+    Answer {
+        events: Sender<Event>,
+        grammar: Option<String>,
+    },
     /// Only read the conversation, as the prompt of the next answer, whose question
     /// begins with `opening`, will show it.
     ReadAhead {
@@ -89,10 +92,11 @@ pub(crate) fn run(
             job,
         } = request;
         match job {
-            Job::Answer(events) => {
+            Job::Answer { events, grammar } => {
                 // A caller that stopped listening ends its answer early.
                 let mut on_text = |text: &str| events.send(Event::Text(text.to_string())).is_ok();
-                let result = session.answer(&messages, &tools, &mut on_text, stop);
+                let result =
+                    session.answer(&messages, &tools, grammar.as_deref(), &mut on_text, stop);
                 if matches!(result, Err(EngineError::Decode(_) | EngineError::Stopped)) {
                     // The context may be part-way through a batch; start clean next time.
                     session.reset();
@@ -325,6 +329,7 @@ impl<'m> Session<'m> {
         &mut self,
         messages: &[ChatMessage],
         tools: &[ToolDef],
+        grammar: Option<&str>,
         on_text: &mut dyn FnMut(&str) -> bool,
         stop: &AtomicBool,
     ) -> Result<ChatOutput, EngineError> {
@@ -347,7 +352,16 @@ impl<'m> Session<'m> {
         )?;
         let prompt = prompt.tokens;
 
-        let mut sampler = LlamaSampler::chain_simple([
+        let mut samplers = Vec::new();
+        if let Some(grammar) = grammar {
+            // Constrain logits BEFORE top-k/top-p can discard all valid tokens.
+            // A bad grammar fails closed; never fall back to unconstrained output.
+            samplers.push(
+                LlamaSampler::grammar(model, grammar, "root")
+                    .map_err(|e| EngineError::Decode(format!("invalid response grammar: {e}")))?,
+            );
+        }
+        samplers.extend([
             // Over the answer so far, as vLLM applies Qwen's recommended penalty.
             LlamaSampler::penalties(model.n_vocab(), 64, 1.0, 0.0, self.config.presence_penalty),
             LlamaSampler::top_k(self.config.top_k),
@@ -355,6 +369,7 @@ impl<'m> Session<'m> {
             LlamaSampler::temp(self.config.temperature),
             LlamaSampler::dist(self.config.seed),
         ]);
+        let mut sampler = LlamaSampler::chain_simple(samplers);
 
         // Model bytes → UTF-8 → hide a leading <think> block → pull out <tool_call>s.
         let mut utf8 = Utf8Stream::default();

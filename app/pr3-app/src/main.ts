@@ -15,6 +15,7 @@ const log = find("#log", HTMLElement);
 const form = find("#composer", HTMLFormElement);
 const input = find("#text", HTMLInputElement);
 const button = find("button[type=submit]", HTMLButtonElement, form);
+const stopButton = find("#stop-task", HTMLButtonElement, form);
 
 // A consequential action waiting for the user, built by the trusted side from the
 // validated intent (pr3-core's ApprovalRequest).
@@ -30,6 +31,7 @@ interface ApprovalRequest {
 
 // What streams in while a turn runs (the host's TurnEvent).
 type TurnEvent =
+  | { type: "result"; text: string }
   | { type: "token"; text: string }
   | { type: "tool"; name: string; arguments: string; success: boolean; output: string }
   // `sources`: the sites whose pages the model has read and still sees, if any.
@@ -61,14 +63,18 @@ type Entry = (
   | { type: "reply"; text: string }
   | { type: "tool"; name: string; arguments: string; success: boolean; output: string }
   | { type: "failed"; reason: string }
-) & { at: number };
+) & { at: number; result?: string };
 
 // A task opened from the list (task.rs's TaskView).
 interface TaskView extends TaskCard {
+  owned: boolean;
   parent: { id: number; title: string } | null;
   running: boolean;
   /** Its confirmation card waits for the user; after a restart, ask again. */
   waiting: boolean;
+  finished: boolean;
+  retryable: boolean;
+  save_error: string | null;
   chat: Entry[];
 }
 
@@ -97,7 +103,9 @@ type Answer =
   | ({ type: "following_up" } & FollowingUp)
   | { type: "choose"; cards: TaskCard[] }
   | { type: "status"; card: TaskCard }
-  | { type: "export"; card: TaskCard };
+  | { type: "export"; card: TaskCard }
+  | { type: "finished"; card: TaskCard }
+  | { type: "choose_finish"; cards: TaskCard[] };
 
 // What a finished turn asks of the host (pr3-core's Action); the UI shows the reply or
 // the failure, and the host has handled the rest.
@@ -247,7 +255,55 @@ const toolLines = new ResizeObserver((lines) => {
   }
 });
 
-function toolNode(t: { name: string; arguments: string; output: string; success: boolean }): HTMLElement {
+const memoryChoices = new Set<HTMLButtonElement>();
+function toolNode(t: { name: string; arguments: string; output: string; success: boolean }, taskId: number | null = currentTask): HTMLElement {
+  if (t.name === "send_email") {
+    const card = el("div", undefined, "msg email-result");
+    const opened = t.success && t.output.startsWith("Email draft opened in your email app");
+    card.append(el("h3", opened ? "Draft opened" : t.success ? "Email result" : "Email needs your attention"),
+      el("p", t.output));
+    return card;
+  }
+  if (t.name === "review_memory" && t.success) {
+    try {
+      const review: { fact: string; candidates: { id: number; text: string }[]; notice?: string } = JSON.parse(t.arguments);
+      if (typeof review.fact !== "string" || !Array.isArray(review.candidates)) throw new Error("Invalid review");
+      const card = el("div", undefined, "msg memory-review");
+      card.dir = "auto";
+      card.append(el("h3", "Update an existing memory?"), el("p", `New fact: ${review.fact}`));
+      if (typeof review.notice === "string") card.append(el("p", review.notice, "meta"));
+      const choice = (label: string, command: string) => {
+        const b = makeButton(label, async () => {
+          if (answering) return;
+          try {
+            if (taskId !== null) {
+              const task = await invoke<TaskView>("open_task", { id: taskId });
+              if (answering) return;
+              if (task.finished || task.page === "done") {
+                const next = await invoke<FollowingUp>("follow_up_task", { id: taskId });
+                followingUp(taskId, next);
+              } else {
+                const next = await invoke<Continued>("continue_task", { id: taskId });
+                backTo(taskId, next);
+              }
+            }
+            await send(command);
+          } catch (err) { card.append(el("p", String(err), "error-text")); }
+        }, "secondary small");
+        b.disabled = answering;
+        memoryChoices.add(b);
+        return b;
+      };
+      for (const old of review.candidates) {
+        if (!Number.isSafeInteger(old.id) || old.id <= 0 || typeof old.text !== "string") continue;
+        const row = el("div", undefined, "memory-candidate");
+        row.append(el("p", `#${old.id}: ${old.text}`), choice(`Replace #${old.id}`, `Correct memory #${old.id}: ${review.fact}`));
+        card.append(row);
+      }
+      card.append(choice("Save separately", `Save separate memory: ${review.fact}`));
+      return card;
+    } catch { /* Older/malformed records stay readable as plain tool text. */ }
+  }
   const line = el("div", toolText(t), `msg tool folded${t.success ? "" : " failed"}`);
   const toggle = () => {
     if (!line.classList.contains("long")) return;
@@ -269,14 +325,17 @@ function toolNode(t: { name: string; arguments: string; output: string; success:
 // sent — never from the model's reply. Nothing is sent unless the user taps Send. When
 // the model has read web pages, the card names their sites: a page may have asked for
 // this.
+const pendingApprovals = new Set<(text: string) => void>();
 function showApproval(request: ApprovalRequest, before: Node, sources: string[] = []): void {
   const { mail } = request;
   const card = document.createElement("div");
   card.className = "msg approval";
 
   const title = document.createElement("h2");
-  title.textContent =
-    mail.to.length > 1 ? `Send this email to ${mail.to.length} people?` : "Send this email?";
+  title.textContent = request.provider === "mail:sandbox"
+    ? "Add this email to the sandbox outbox?"
+    : request.provider === "mail:device" ? "Open this draft in your email app?"
+    : mail.to.length > 1 ? `Send this email to ${mail.to.length} people?` : "Send this email?";
 
   const fields = document.createElement("dl");
   const field = (label: string, value: string) => {
@@ -295,7 +354,7 @@ function showApproval(request: ApprovalRequest, before: Node, sources: string[] 
 
   const meta = document.createElement("p");
   meta.className = "meta";
-  const where = request.provider === "mail:sandbox" ? "sandbox outbox" : request.provider;
+  const where = request.provider === "mail:sandbox" ? "sandbox outbox" : request.provider === "mail:device" ? "Your email app" : request.provider;
 
   const choices = document.createElement("div");
   choices.className = "choices";
@@ -305,20 +364,24 @@ function showApproval(request: ApprovalRequest, before: Node, sources: string[] 
   decline.textContent = "Decline";
   const approve = document.createElement("button");
   approve.type = "button";
-  approve.textContent = "Send";
+  approve.textContent = request.provider === "mail:device" ? "Open email app" : "Approve";
   choices.append(decline, approve);
 
   let timer: number | undefined;
-  const finish = (text: string) => {
+  const finish = (text: string, keepPending = false) => {
+    if (!keepPending) pendingApprovals.delete(finish);
     clearInterval(timer);
     choices.remove();
     meta.textContent = text;
     card.classList.add("answered");
   };
+  pendingApprovals.add(finish);
   const answer = (yes: boolean) => {
     decline.disabled = approve.disabled = true;
     invoke("answer_approval", { request: request.request, approve: yes })
-      .then(() => finish(yes ? "Approved" : "Declined: nothing was sent"))
+      .then(() => finish(yes
+        ? answering ? "Approval received. Waiting for the device check and action result." : "Approval received. Review the recorded result below."
+        : "Declined: nothing was sent", yes && answering))
       .catch((err) => finish(String(err)));
   };
   approve.addEventListener("click", () => answer(true));
@@ -333,29 +396,70 @@ function showApproval(request: ApprovalRequest, before: Node, sources: string[] 
     const clock = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
     meta.textContent = `${where} · ${request.risk} risk · expires in ${clock}`;
   };
-  tick();
-  timer = setInterval(tick, 1000);
-
   card.append(title);
+  if (request.provider === "mail:sandbox") card.append(el("p", "This saves a local test email. Nothing is sent externally.", "meta"));
+  if (request.provider === "mail:device") card.append(el("p", "Review the draft and press Send in your email app. PR3 cannot verify sending or delivery. You can prepare it offline; delivery needs an internet connection.", "meta"));
   if (sources.length) {
     const from = sources.join(", ");
     card.append(el("p", `This conversation includes text from ${from}. Check that this is what you asked for.`, "sources"));
   }
   card.append(fields, body, meta, choices);
   log.insertBefore(card, before);
+  tick();
+  if (choices.isConnected) timer = setInterval(tick, 1000);
 }
 
 let answering = false;
 
 function setBusy(busy: boolean): void {
   answering = busy;
+  for (const b of memoryChoices) {
+    if (!b.isConnected) memoryChoices.delete(b);
+    else b.disabled = busy;
+  }
   button.disabled = busy;
+  button.hidden = busy;
+  stopButton.hidden = !busy;
+  stopButton.disabled = false;
+  stopButton.textContent = "Stop";
+  if (!busy) {
+    for (const close of pendingApprovals) close("Request closed. Review the recorded result below.");
+  }
   talk.disabled = busy;
   languageSelect.disabled = busy || voice !== null;
   input.placeholder = busy ? "PR3 is answering…" : "Message PR3";
 }
 
-async function send(text: string): Promise<void> {
+async function stopTask(id: number): Promise<void> {
+  stopButton.disabled = true;
+  stopButton.textContent = "Stopping…";
+  const status = show("assistant", "Requesting stop…");
+  try {
+    await invoke("stop_task", { id });
+    say(status, answering
+      ? "Stop requested. Waiting for any in-flight operation to report its result."
+      : "Stop request processed. Review the recorded result.");
+  } catch (err) {
+    stopButton.disabled = false;
+    stopButton.textContent = "Stop";
+    say(status, String(err));
+  }
+}
+stopButton.addEventListener("click", () => { if (currentTask !== null) stopTask(currentTask); });
+
+async function retryTask(id: number, status: HTMLElement): Promise<void> {
+  if (answering) return;
+  try {
+    const task = await invoke<TaskView>("open_task", { id });
+    if (answering) return;
+    if (!task.retryable) throw new Error("Review the recorded results and continue with a new message.");
+    const last = [...task.chat].reverse().find((entry) => entry.type === "user");
+    if (last?.type === "user") await send(last.text, id);
+  } catch (err) { say(status, String(err)); }
+}
+
+async function send(text: string, retryId?: number): Promise<void> {
+  if (answering) return;
   // An offer to start a new task is for the message before this one.
   for (const offer of log.querySelectorAll(".msg.offer")) offer.remove();
   // "New topic", "new task" or "new job", typed or said, sets the conversation's task
@@ -364,7 +468,8 @@ async function send(text: string): Promise<void> {
     startNewTopic();
     return;
   }
-  if (await answerTaskWords(text)) return;
+  if (retryId === undefined && await answerTaskWords(text)) return;
+  if (answering) return;
   // The answer shows in the conversation, so a message sent from Tasks goes back to it.
   if (!tasksSection.hidden) showTasks(false);
   toEnd();
@@ -374,23 +479,42 @@ async function send(text: string): Promise<void> {
   // Whether to offer a new task, and whether the answer is in to put the offer under.
   let offer = false;
   let answered = false;
+  let resultText: string | undefined;
+  let resultShown = false;
+  let replyToSpeak: string | undefined;
+  let failed = false;
+  const showResult = () => {
+    // IPC events may arrive after the command's promise resolves.
+    if (!answered || !resultText || resultShown) return;
+    resultShown = true;
+    if (bubble.isConnected) bubble.append(resultNode(resultText));
+    else if (failed) addToLog(resultNode(resultText));
+    if (replyToSpeak) speak(`${replyToSpeak}\nRecorded result: ${resultText}.`);
+    follow();
+  };
 
   const onEvent = new Channel<TurnEvent>();
   onEvent.onmessage = (event) => {
-    if (event.type === "task_opened") {
+    if (event.type === "result") {
+      resultText = event.text;
+      showResult();
+    } else if (event.type === "task_opened") {
       currentTask = event.id;
       foldConversation(event.previous, said);
       // A "Following up" line stays above the follow-up, as the way back to its parent.
       log.querySelector("button.fold.following")?.classList.remove("following");
-    } else if (event.type === "token") {
+    } else if (event.type === "token" && !answered) {
       streamed += event.text;
       bubble.replaceChildren(markdown(streamed));
     } else if (event.type === "tool") {
       // Show what PR3 ran on the user's behalf, above the answer it leads to.
-      log.insertBefore(toolNode(event), bubble);
-      streamed = "";
-      bubble.textContent = "";
-    } else if (event.type === "approval") {
+      if (bubble.isConnected) log.insertBefore(toolNode(event), bubble);
+      else addToLog(toolNode(event));
+      if (!answered) {
+        streamed = "";
+        bubble.textContent = "";
+      }
+    } else if (event.type === "approval" && !answered) {
       showApproval(event.request, bubble, event.sources);
     } else if (event.type === "new_task") {
       if (answered) offerNewTask(said);
@@ -402,7 +526,9 @@ async function send(text: string): Promise<void> {
   setBusy(true);
   try {
     const utcOffsetMinutes = -new Date().getTimezoneOffset();
-    const actions = await invoke<Action[]>("send_message", { text, utcOffsetMinutes, onEvent });
+    const actions = retryId === undefined
+      ? await invoke<Action[]>("send_message", { text, utcOffsetMinutes, onEvent })
+      : await invoke<Action[]>("retry_task", { id: retryId, utcOffsetMinutes, onEvent });
     bubble.classList.remove("pending");
     for (const action of actions) {
       // The final reply is canonical; it replaces whatever was streamed.
@@ -410,22 +536,25 @@ async function send(text: string): Promise<void> {
         bubble.replaceChildren(markdown(action.content));
         timed(bubble);
         follow();
-        speak(plain(action.content));
+        replyToSpeak = plain(action.content);
       } else if (action.type === "failed") {
+        failed = true;
         bubble.remove();
         show("error", action.reason);
       }
     }
   } catch (err) {
+    failed = true;
     bubble.remove();
     show("error", String(err));
   } finally {
     setBusy(false);
     answered = true;
+    showResult();
     if (offer) offerNewTask(said);
     // The turn may have proposed a memory.
     if (showing("memory")) renderMemory();
-    if (!tasksSection.hidden && !taskList.hidden) renderTasks();
+    refreshTaskAfterTurn();
   }
 }
 
@@ -462,7 +591,8 @@ function offerNewTask(said: Element): void {
 async function answerTaskWords(text: string): Promise<boolean> {
   let answer: Answer | null;
   try {
-    answer = await invoke<Answer | null>("task_words", { text });
+    const context = !tasksSection.hidden && !taskDetail.hidden ? Number(taskDetail.dataset.task) : null;
+    answer = await invoke<Answer | null>("task_words", { text, context });
   } catch (err) {
     show("user", text);
     show("error", String(err));
@@ -473,6 +603,21 @@ async function answerTaskWords(text: string): Promise<boolean> {
   const said = timed(el("div", text, "msg user"));
   const titles = (cards: TaskCard[]) => cards.map((c) => c.title).join("; ");
   switch (answer.type) {
+    case "finished": {
+      finishedTask(answer.card);
+      const line = `Finished “${answer.card.title}”. Closing the task did not send anything.`;
+      addToLog(said);
+      addToLog(taskAnswer(line, [answer.card], openTasks));
+      speak(line);
+      break;
+    }
+    case "choose_finish": {
+      addToLog(said);
+      const reply = taskAnswer("Which task should be finished?", answer.cards, (id) => finishTask(id, reply));
+      addToLog(reply);
+      speak(`Which task should be finished: ${titles(answer.cards)}?`);
+      break;
+    }
     case "open": {
       const n = answer.cards.length;
       const line = n ? `${n === 1 ? "One task is" : `${n} tasks are`} still open:` : "Nothing is still open.";
@@ -540,10 +685,27 @@ function speak(text: string): void {
 // side takes it as a new request, and the task ends with what came of it.
 async function askAgain(id: number): Promise<void> {
   const bubble = show("assistant pending", "");
+  let resultText: string | undefined;
+  let answerShown = false;
+  let resultShown = false;
+  const showResult = () => {
+    if (answerShown && resultText && !resultShown) {
+      if (bubble.isConnected) bubble.append(resultNode(resultText));
+      else addToLog(resultNode(resultText));
+      resultShown = true;
+    }
+  };
   const onEvent = new Channel<TurnEvent>();
   onEvent.onmessage = (event) => {
-    if (event.type === "approval") showApproval(event.request, bubble, event.sources);
-    else if (event.type === "tool") log.insertBefore(toolNode(event), bubble);
+    if (event.type === "approval" && !answerShown) showApproval(event.request, bubble, event.sources);
+    else if (event.type === "tool") {
+      if (bubble.isConnected) log.insertBefore(toolNode(event), bubble);
+      else addToLog(toolNode(event));
+    }
+    else if (event.type === "result") {
+      resultText = event.text;
+      showResult();
+    }
     follow();
   };
   setBusy(true);
@@ -551,6 +713,8 @@ async function askAgain(id: number): Promise<void> {
     const reply = await invoke<string>("ask_again", { id, onEvent });
     bubble.classList.remove("pending");
     bubble.textContent = reply;
+    answerShown = true;
+    showResult();
     timed(bubble);
     speak(reply);
   } catch (err) {
@@ -558,7 +722,9 @@ async function askAgain(id: number): Promise<void> {
     show("error", String(err));
   } finally {
     setBusy(false);
-    if (!tasksSection.hidden && !taskList.hidden) renderTasks();
+    answerShown = true;
+    showResult();
+    refreshTaskAfterTurn();
   }
 }
 
@@ -855,6 +1021,8 @@ talk.addEventListener("click", () => {
   else startVoiceNote(false);
 });
 document.addEventListener("keydown", (event) => {
+  // Let the open confirmation handle Escape without closing the settings beneath it.
+  if (event.key === "Escape" && document.querySelector("dialog[open]")) return;
   if (event.key === "Escape" && voice) cancelVoiceNote();
   else if (event.key === "Escape" && closeMenu) closeMenu();
   else if (event.key === "Escape" && !settings.hidden) showSettings(false);
@@ -918,6 +1086,42 @@ function makeButton(text: string, onClick: () => void, className = ""): HTMLButt
   return b;
 }
 
+const removeItemDialog = find("#remove-item-dialog", HTMLDialogElement);
+removeItemDialog.addEventListener("click", ({ target }) => {
+  if (target === removeItemDialog) removeItemDialog.close();
+});
+
+async function confirmItemRemoval(title: string, description: string, action: string): Promise<boolean> {
+  if (removeItemDialog.open) return false;
+  find("#remove-item-title", HTMLElement).textContent = title;
+  find("#remove-item-description", HTMLElement).textContent = description;
+  find("#remove-item-action", HTMLButtonElement).textContent = action;
+  removeItemDialog.returnValue = "";
+  removeItemDialog.showModal();
+  await new Promise((closed) => removeItemDialog.addEventListener("close", closed, { once: true }));
+  return removeItemDialog.returnValue === "remove";
+}
+
+const forgetDeviceDialog = find("#forget-device-dialog", HTMLDialogElement);
+forgetDeviceDialog.addEventListener("click", ({ target }) => {
+  if (target === forgetDeviceDialog) forgetDeviceDialog.close();
+});
+
+async function forgetDevice(peer: Peer, command: "forget_phone" | "unpair"): Promise<void> {
+  if (forgetDeviceDialog.open) return;
+  find("#forget-device-description", HTMLElement).textContent = `This will unpair ${peer.name} and stop syncing with it. You can pair it again later.`;
+  forgetDeviceDialog.returnValue = "";
+  forgetDeviceDialog.showModal();
+  await new Promise((closed) => forgetDeviceDialog.addEventListener("close", closed, { once: true }));
+  if (forgetDeviceDialog.returnValue !== "forget") return;
+  try {
+    await invoke(command, command === "forget_phone" ? { id: peer.id } : {});
+  } catch (err) {
+    show("error", String(err));
+  }
+  await renderDevices();
+}
+
 async function renderDevices(): Promise<void> {
   clearInterval(pairingTimer);
   panel.replaceChildren();
@@ -961,20 +1165,15 @@ async function renderDevices(): Promise<void> {
       const row = el("div", undefined, "row");
       row.append(
         el("span", `${phone.name} · ${new Date(phone.paired_at).toLocaleString()}`),
-        makeButton("Forget", async () => {
-          await invoke("forget_phone", { id: phone.id }).catch((e) => show("error", String(e)));
-          renderDevices();
-        }, "secondary small"),
+        makeButton("Forget", () => { void forgetDevice(phone, "forget_phone"); }, "secondary small"),
       );
       panel.append(row);
     }
   } else if (info.role === "phone" && info.node) {
+    const node = info.node;
     panel.append(el("h2", `Paired with ${info.node.name}`));
     panel.append(el("p", `${info.node.address} · this phone answers on its own when it cannot reach it`, "meta"));
-    panel.append(makeButton("Unpair", async () => {
-      await invoke("unpair").catch((e) => show("error", String(e)));
-      renderDevices();
-    }, "secondary small"));
+    panel.append(makeButton("Unpair", () => { void forgetDevice(node, "unpair"); }, "secondary small"));
   } else if (info.role === "phone") {
     panel.append(el("h2", "Pair with your computer"));
     panel.append(el("p", "On the computer, open Settings, then Devices, and tap Pair a phone. Then enter its address and code here.", "meta"));
@@ -999,6 +1198,7 @@ async function renderDevices(): Promise<void> {
         const node = await invoke<Peer>("pair_with_node", { address: address.value.trim(), code: code.value });
         status.textContent = `Paired with ${node.name}.`;
         renderDevices();
+        void syncContinuity();
       } catch (err) {
         status.textContent = String(err);
         submit.disabled = false;
@@ -1008,7 +1208,88 @@ async function renderDevices(): Promise<void> {
   } else {
     panel.append(el("p", "Pairing is off on this computer ([node] in pr3.toml).", "meta"));
   }
+  await continuitySettings(info);
 }
+
+interface ContinuityInfo {
+  enabled: boolean;
+  peer: string | null;
+  last_sync: number | null;
+  pending: number;
+  generation: number;
+  problem: string | null;
+  items: {kind: string; id: number; owned: boolean; deleted: boolean; problem?: string | null}[];
+}
+let continuity: ContinuityInfo | null = null;
+let syncRunning = false;
+async function refreshContinuity(): Promise<void> {
+  continuity = await invoke<ContinuityInfo>("continuity_info").catch(() => null);
+}
+async function continuitySettings(info: DevicesInfo): Promise<void> {
+  await refreshContinuity();
+  if (!continuity) return;
+  const section = el("section", undefined, "continuity-settings");
+  for (const item of continuity.items) {
+    if (item.problem) section.append(el("p", `${item.kind === "task" ? "Task" : "Memory"} #${item.id}: ${item.problem}`, "error-text"));
+  }
+  if (continuity.problem || continuity.last_sync || continuity.pending) {
+    const status = continuity.problem ? `Needs attention: ${continuity.problem}` : continuity.last_sync ? `Last exchange: ${new Date(continuity.last_sync).toLocaleString()}` : "No sync completed yet.";
+    section.append(el("p", `${status}${continuity.pending ? ` · ${continuity.pending} changes awaiting acknowledgement` : ""}`, "meta"));
+  }
+  if (continuity.enabled && info.role === "phone") section.append(makeButton("Sync now / retry", async () => { await syncContinuity(true); await renderDevices(); }, "secondary small"));
+  if (section.childElementCount) panel.append(section);
+}
+async function syncContinuity(manual = false): Promise<void> {
+  if (syncRunning || answering || document.hidden) return;
+  await refreshContinuity();
+  if (!continuity?.enabled) return;
+  const devices = await invoke<DevicesInfo>("devices_info").catch(() => null);
+  if (devices?.role !== "phone") return;
+  syncRunning = true;
+  try { continuity = await invoke<ContinuityInfo>("sync_continuity"); }
+  catch (err) { if (manual) show("error", String(err)); }
+  finally { syncRunning = false; }
+}
+function continuityChoices(kind: "memory" | "task", id: number, after: () => void): HTMLButtonElement[] {
+  if (!continuity) return [];
+  const item = continuity.items.find(i => i.kind === kind && i.id === id && !i.deleted);
+  const owned = item?.owned !== false;
+  const perform = async (command: string, args: Record<string, unknown>) => {
+    try { await invoke(command, args); await refreshContinuity(); after(); void syncContinuity(); }
+    catch (err) { show("error", String(err)); }
+  };
+  if (continuity.enabled && owned) return [
+    ...(!item ? [makeButton("Share with paired device", () => {
+      void perform("share_item", { kind, id, moveOwnership: false });
+    }, "secondary small")] : []),
+    makeButton("Move to paired device", () => {
+      void perform("share_item", { kind, id, moveOwnership: true });
+    }, "secondary small"),
+  ];
+  if (!continuity.enabled && !owned) {
+    const recover = makeButton("Recover a separate copy", () => {
+      if (recover.dataset.sure) void perform("recover_item", { kind, id });
+      else { recover.dataset.sure = "yes"; recover.textContent = "Recover copy and retire shared item?"; }
+    }, "secondary small");
+    return [recover];
+  }
+  return [];
+}
+setInterval(() => { void syncContinuity(); }, 15000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) void syncContinuity(); });
+window.__TAURI__.event.listen("continuity-changed", async () => {
+  const previous = continuity?.generation;
+  await refreshContinuity();
+  if (answering) return;
+  if (currentTask !== null) {
+    const item = continuity?.items.find(i => i.kind === "task" && i.id === currentTask);
+    if (item && (!item.owned || item.deleted)) { currentTask = null; foldConversation(null); }
+  }
+  if (previous === continuity?.generation) return;
+  if (!tasksSection.hidden) refreshTaskAfterTurn();
+  // Refresh only visible panels, preserving an in-progress memory edit.
+  if (!memoryPanel.hidden && !memoryPanel.contains(document.activeElement)) void renderMemory();
+});
 
 // Memory: what PR3 remembers about the user. The model can only propose memories;
 // confirming, correcting, adding and forgetting happen here, by the user. Everything
@@ -1029,13 +1310,24 @@ interface Memory {
   source: string | null;
   /** It replaces an earlier version the user corrected. */
   corrects: boolean;
+  conflicts: { id: number; text: string }[];
+  review_note?: string;
+  needs_review?: boolean;
 }
 
-type MemoryCommand = "add_memory" | "confirm_memory" | "correct_memory" | "forget_memory";
+interface MemoryConfirmation {
+  id: number;
+  confirmed: boolean;
+  conflicts: { id: number; text: string }[];
+  notice: string | null;
+}
+
+type MemoryCommand = "add_memory" | "confirm_memory" | "keep_memory_separately" | "correct_memory" | "forget_memory";
 
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
 
-async function renderMemory(problem?: string): Promise<void> {
+async function renderMemory(problem?: string, review?: MemoryConfirmation): Promise<void> {
+  await refreshContinuity();
   let memories: Memory[];
   try {
     memories = await invoke<Memory[]>("list_memories");
@@ -1045,9 +1337,18 @@ async function renderMemory(problem?: string): Promise<void> {
   }
   memoryPanel.replaceChildren(
     el("h2", "What PR3 remembers"),
-    el("p", "PR3 suggests memories from what you say; none is trusted until you confirm it. They stay on this device.", "meta"),
+    el("p", "PR3 suggests memories from what you say; none is trusted until you confirm it. They stay local unless you explicitly share them.", "meta"),
   );
   if (problem) memoryPanel.append(el("p", problem, "error-text"));
+  if (review?.confirmed && review.notice) memoryPanel.append(el("p", review.notice, "meta"));
+  if (review && !review.confirmed) {
+    const target = memories.find(m => m.id === review.id);
+    if (target) {
+      target.conflicts = review.conflicts;
+      target.needs_review = true;
+      if (review.notice) target.review_note = review.notice;
+    }
+  }
 
   const form = el("form");
   const input = el("input");
@@ -1084,9 +1385,21 @@ function memoryItem(m: Memory): HTMLDivElement {
 
   const choices = el("div", undefined, "choices");
   if (m.status === "proposed") {
-    choices.append(makeButton("Confirm", () => act("confirm_memory", { id: m.id }), "small"));
+    if (m.review_note) item.append(el("p", m.review_note, "meta"));
+    if (m.conflicts.length > 0 || m.needs_review) {
+      item.append(el("p", "This may update an existing memory. Choose what to keep:", "meta"));
+      for (const old of m.conflicts) {
+        item.append(el("p", `#${old.id}: ${old.text}`, "meta"));
+        choices.append(makeButton(`Replace #${old.id}`, () => act("correct_memory", { id: old.id, text: m.text }), "small"));
+      }
+      choices.append(makeButton(m.conflicts.length > 0 ? "Keep both" : "Confirm separately", () => act("keep_memory_separately", { id: m.id }), "secondary small"));
+    }
+    choices.append(makeButton("Review & confirm", () => act("confirm_memory", { id: m.id }), "small"));
   }
-  choices.append(
+  const shared = continuity?.items.find(i => i.kind === "memory" && i.id === m.id && !i.deleted);
+  if (shared?.owned === true) item.append(el("p", "Selected for sync. Editing is on this device.", "meta"));
+  if (shared?.owned === false) item.append(el("p", "Editing belongs to your paired device.", "meta"));
+  if (shared?.owned !== false) choices.append(
     makeButton("Edit", () => {
       const field = el("input");
       field.value = m.text;
@@ -1100,28 +1413,35 @@ function memoryItem(m: Memory): HTMLDivElement {
       field.focus();
     }, "secondary small"),
   );
-  // Forgetting cannot be undone, so it takes a second tap.
-  const forget = makeButton("Forget", () => {
-    if (forget.dataset.sure) act("forget_memory", { id: m.id });
-    else {
-      forget.dataset.sure = "yes";
-      forget.textContent = "Forget for good?";
-    }
+  const forget = makeButton("Forget", async () => {
+    const description = `This will permanently forget memory #${m.id}: “${clip(m.text, 160)}”. This can't be undone.`
+      + (shared ? " This deletion will also sync to your paired device." : "");
+    if (await confirmItemRemoval("Forget memory?", description, "Forget")) await act("forget_memory", { id: m.id });
   }, "secondary small");
   choices.append(forget);
+  if (m.status === "confirmed") choices.append(...continuityChoices("memory", m.id, () => { void renderMemory(); }));
 
-  item.append(el("p", m.text), el("p", origin + about, "meta"), choices);
+  item.prepend(el("p", `#${m.id}: ${m.text}`), el("p", origin + about, "meta"));
+  item.append(choices);
   return item;
 }
 
 async function act(command: MemoryCommand, args: Record<string, unknown>): Promise<void> {
   let problem: string | undefined;
+  let review: MemoryConfirmation | undefined;
+  const buttons = Array.from(memoryPanel.querySelectorAll("button"));
+  for (const b of buttons) b.disabled = true;
+  if (command === "confirm_memory") memoryPanel.append(el("p", "Checking related memories…", "meta"));
   try {
-    await invoke(command, args);
+    if (command === "confirm_memory") {
+      review = await invoke<MemoryConfirmation>(command, args);
+    } else {
+      await invoke(command, args);
+    }
   } catch (err) {
     problem = String(err);
   }
-  renderMemory(problem);
+  await renderMemory(problem, review);
 }
 
 // Models: which of the pinned models are on this device, and which one answers. They
@@ -1259,14 +1579,11 @@ function modelItem(m: ModelView, forced: boolean): HTMLDivElement {
     choices.append(makeButton("Use", act("use_model"), "small"));
   }
   if (!m.downloading && (m.downloaded || m.partial > 0)) {
-    // Deleting cannot be undone, so it takes a second tap.
     const label = m.downloaded ? "Delete" : "Discard";
-    const remove = makeButton(label, () => {
-      if (remove.dataset.sure) act("delete_model")();
-      else {
-        remove.dataset.sure = "yes";
-        remove.textContent = `${label} ${amount(m.downloaded ? m.size : m.partial)}?`;
-      }
+    const remove = makeButton(label, async () => {
+      const title = m.downloaded ? "Delete model?" : "Discard download?";
+      const description = `This will ${label.toLowerCase()} the ${m.downloaded ? "downloaded copy" : "unfinished download"} of ${m.file} (${amount(m.downloaded ? m.size : m.partial)}). You can download it again later.`;
+      if (await confirmItemRemoval(title, description, label)) act("delete_model")();
     }, "secondary small");
     choices.append(remove);
   }
@@ -1330,12 +1647,67 @@ async function renderWeb(problem?: string): Promise<void> {
   );
 }
 
-// Settings: models, voice, memory, pairing and the web, one tab at a time, opened from
+const emailPane = find("#email", HTMLElement);
+const removeContactsDialog = find("#remove-contacts-dialog", HTMLDialogElement);
+removeContactsDialog.addEventListener("click", ({ target }) => {
+  if (target === removeContactsDialog) removeContactsDialog.close();
+});
+interface ContactsInfo {
+  on: boolean;
+  permission: "not_determined" | "granted" | "limited" | "denied" | "restricted" | "unavailable";
+  count: number;
+  problem: string | null;
+}
+let contactsBusy = false;
+
+async function renderEmail(problem?: string, supplied?: ContactsInfo): Promise<void> {
+  let info: ContactsInfo;
+  try { info = supplied ?? await invoke<ContactsInfo>("contacts_info"); }
+  catch (err) { emailPane.replaceChildren(el("h2", "Contacts"), el("p", String(err), "error-text")); return; }
+  emailPane.replaceChildren(el("h2", "Contacts"));
+  const toggle = el("label", undefined, "toggle contacts-toggle");
+  const box = el("input");
+  box.type = "checkbox";
+  box.checked = info.on;
+  box.disabled = contactsBusy || info.permission === "unavailable";
+  box.setAttribute("role", "switch");
+  toggle.append(el("span", "Sync address book contacts"), box);
+  const status = el("p", undefined, "meta");
+  status.setAttribute("role", "status");
+  status.hidden = true;
+  const perform = async (command: string, args?: Record<string, unknown>) => {
+    if (contactsBusy) return;
+    contactsBusy = true;
+    emailPane.querySelectorAll<HTMLButtonElement | HTMLInputElement>("button, input").forEach((c) => { c.disabled = true; });
+    status.hidden = false;
+    status.textContent = command === "set_contact_sync" && args?.on ? "Waiting for contact access and syncing…" : "Removing contacts from PR3…";
+    try { const next = await invoke<ContactsInfo>(command, args); contactsBusy = false; await renderEmail(undefined, next); }
+    catch (err) { contactsBusy = false; await renderEmail(String(err)); }
+  };
+  box.addEventListener("change", () => { void perform("set_contact_sync", { on: box.checked }); });
+  const remove = makeButton("Remove all contacts", async () => {
+    if (contactsBusy || removeContactsDialog.open) return;
+    removeContactsDialog.returnValue = "";
+    removeContactsDialog.showModal();
+    await new Promise((closed) => removeContactsDialog.addEventListener("close", closed, { once: true }));
+    if (removeContactsDialog.returnValue === "remove") await perform("remove_all_contacts");
+  });
+  remove.className = "secondary danger";
+  remove.disabled = contactsBusy || (!info.on && info.count === 0 && !info.problem);
+  remove.title = "Clear contacts from PR3 and turn sync off. Your device contacts stay unchanged.";
+  emailPane.append(toggle, remove, status);
+  if (info.permission === "denied" || info.permission === "restricted") emailPane.append(el("p", "Contact access is blocked. Allow Contacts for PR3 in your device’s Settings, then enable sync here.", "error-text"));
+  if (info.permission === "unavailable") emailPane.append(el("p", "Device contact sync is available on Android, iOS and macOS.", "meta"));
+  if (problem || info.problem) emailPane.append(el("p", problem ?? info.problem ?? "", "error-text"));
+  if (info.on && info.count === 0 && !info.problem) emailPane.append(el("p", "No email contacts found. Add an email address in your device’s Contacts app.", "meta"));
+}
+
+// Settings: models, voice, memory, pairing, email and the web, opened from
 // the button beside the composer.
 const settings = find("#settings", HTMLElement);
 const settingsButton = find("#settings-button", HTMLButtonElement);
 const tabs = [...settings.querySelectorAll<HTMLButtonElement>("[role=tab]")];
-const TABS = ["models", "voice", "memory", "devices", "web"] as const;
+const TABS = ["models", "voice", "memory", "devices", "email", "web"] as const;
 type Tab = (typeof TABS)[number];
 const isTab = (name: string | null | undefined): name is Tab => TABS.some((t) => t === name);
 const panes: Record<Tab, HTMLElement> = {
@@ -1344,6 +1716,7 @@ const panes: Record<Tab, HTMLElement> = {
   memory: memoryPanel,
   devices: panel,
   web: webPane,
+  email: emailPane,
 };
 let tab: Tab = ((): Tab => {
   const last = recall("pr3.settingsTab");
@@ -1364,7 +1737,12 @@ function openTab(name: Tab): void {
   else if (name === "memory") renderMemory();
   else if (name === "devices") renderDevices();
   else if (name === "web") renderWeb();
+  else if (name === "email") renderEmail();
 }
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && showing("email") && !contactsBusy) void renderEmail();
+});
 
 // Settings slides in from the left over the whole screen and back out when closed.
 function showSettings(open: boolean): void {
@@ -1519,20 +1897,30 @@ function taskCard(card: TaskCard): HTMLButtonElement {
   return b;
 }
 
-function entryNode(entry: Entry): HTMLElement {
+function entryNode(entry: Entry, taskId: number | null = currentTask): HTMLElement {
   switch (entry.type) {
     case "user":
       return timed(el("div", entry.text, "msg user"), entry.at);
     case "reply": {
       const reply = el("div", undefined, "msg assistant");
       reply.append(markdown(entry.text));
+      if (entry.result) reply.append(resultNode(entry.result));
       return timed(reply, entry.at);
     }
     case "tool":
-      return toolNode(entry);
-    case "failed":
-      return timed(el("div", entry.reason, "msg error"), entry.at);
+      return toolNode(entry, taskId);
+    case "failed": {
+      const failed = timed(el("div", entry.reason, "msg error"), entry.at);
+      if (entry.result) failed.append(resultNode(entry.result));
+      return failed;
+    }
   }
+}
+
+function resultNode(text: string): HTMLElement {
+  const result = el("p", `Recorded result: ${text}`, "runtime-result");
+  result.setAttribute("aria-label", "Recorded result");
+  return result;
 }
 
 // Opens Tasks at one task, as a folded line does.
@@ -1550,8 +1938,10 @@ async function openTask(id: number): Promise<void> {
     showList();
     return;
   }
+  await refreshContinuity();
   taskList.hidden = true;
   taskDetail.hidden = false;
+  taskDetail.dataset.task = String(id);
   // What to do with the task is in More, at the top with Back and the title, so a long
   // chat need not be scrolled to its end first; the chat opens at its end anyway. What
   // came of a choice shows under the chat.
@@ -1563,23 +1953,40 @@ async function openTask(id: number): Promise<void> {
   const choices: HTMLButtonElement[] = [];
   // The conversation on screen is this task's, approval cards and all, and the next
   // message goes on with it.
-  if (task.id === currentTask && (task.running || task.page === "doing")) {
+  if (!task.owned) {
+    status.textContent = "This task is owned by your paired device. Move it back from there to continue here.";
+  } else if (task.id === currentTask && (task.running || task.page === "doing")) {
     choices.push(makeButton("Back to the conversation", () => showTasks(false)));
   } else if (task.page === "done") {
     choices.push(waitForAnswer(makeButton("Follow up", () => followUp(task.id, status))));
   } else {
     choices.push(waitForAnswer(makeButton("Continue", () => continueTask(task.id, status))));
   }
+  if (task.owned && !task.finished) choices.push(waitForAnswer(makeButton("Finish task", () => finishTask(task.id, status))));
+  if (task.running) choices.push(makeButton("Stop", () => stopTask(task.id)));
+  if (task.owned && task.retryable) choices.push(waitForAnswer(makeButton("Retry last request", () => retryTask(task.id, status))));
+  if (!task.running) choices.push(...continuityChoices("task", id, () => { void openTask(id); }));
   choices.push(makeButton("Export", () => exportTask(task.id, status)));
   choices.push(waitForAnswer(makeButton("Delete", () => deleteTask(task.id, status), "danger")));
   const top = el("div", undefined, "top");
   top.append(iconButton("Back", BACK_ARROW, showList), el("h2", task.title), ...moreMenu(choices));
 
   const body = el("div", undefined, "body");
+  body.append(el("p", task.line, "meta task-state"));
+  if (task.save_error) {
+    body.append(el("p", task.save_error, "error-text"));
+    body.append(waitForAnswer(makeButton("Retry saving", async () => {
+      try { await invoke("retry_task_save"); await openTask(task.id); }
+      catch (err) { status.textContent = String(err); }
+    }, "secondary")));
+  }
+  if (task.owned && task.retryable) {
+    body.append(waitForAnswer(makeButton("Retry last request", () => retryTask(task.id, status), "secondary")));
+  }
   const parent = task.parent;
   if (parent) body.append(makeButton(`Follows up: ${parent.title}`, () => openTask(parent.id), "secondary small"));
   const chat = el("div", undefined, "chat");
-  chat.append(...task.chat.map(entryNode));
+  chat.append(...task.chat.map(entry => entryNode(entry, task.id)));
   markDays(chat);
   body.append(chat, status);
   taskDetail.replaceChildren(top, body);
@@ -1598,6 +2005,12 @@ async function openTask(id: number): Promise<void> {
   settle.observe(body);
   body.scrollTop = body.scrollHeight;
   markEnd();
+}
+
+function refreshTaskAfterTurn(): void {
+  if (tasksSection.hidden) return;
+  if (!taskList.hidden) renderTasks();
+  else if (taskDetail.dataset.task) openTask(Number(taskDetail.dataset.task));
 }
 
 // What came of a choice in a task's More - where its export went, or why a choice
@@ -1652,6 +2065,34 @@ document.addEventListener(
   },
   true,
 );
+
+// Finishing preserves the chat and records the user's closure, without executing work.
+async function finishTask(id: number, status: HTMLElement): Promise<void> {
+  try {
+    const card = await invoke<TaskCard>("finish_task", { id });
+    finishedTask(card);
+    if (!tasksSection.hidden && !taskDetail.hidden && taskDetail.dataset.task === String(id)) {
+      await openTask(id);
+    } else {
+      const line = `Finished “${card.title}”. Closing the task did not send anything.`;
+      if (status.isConnected) say(status, line);
+      else addToLog(taskAnswer(line, [card], openTasks));
+    }
+  } catch (err) {
+    say(status, String(err));
+  }
+}
+
+function finishedTask(card: TaskCard): void {
+  if (currentTask === card.id) {
+    currentTask = null;
+    foldConversation(card);
+  }
+  const fold = log.querySelector<HTMLElement>(`button.fold[data-task="${card.id}"]`);
+  if (fold) fold.textContent = `${card.title} - in Done`;
+  page = "done";
+  renderTasks();
+}
 
 // Deleting cannot be undone, so the user is asked first.
 async function deleteTask(id: number, status: HTMLElement): Promise<void> {

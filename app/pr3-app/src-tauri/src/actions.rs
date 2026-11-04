@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 use std::fs::{self, OpenOptions};
 use std::io::{self, BufRead as _, BufReader, Write as _};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
 use std::time::Duration;
 
@@ -23,15 +24,33 @@ use pr3_vault::{Vault, VaultError};
 /// one agent until pairing (spike step 6) brings device identities.
 const ACTOR: &str = "agent:pr3";
 const PRINCIPAL: &str = "user:local";
+pub(crate) const AUDIT_FAILED: &str =
+    "The action audit could not be saved. Further actions are disabled until PR3 restarts.";
+
+struct AuditedGate {
+    gate: Gate,
+    /// Never retry a potentially partial append. Retain the entries for diagnosis
+    /// and latch the failure until the log is verified again on restart.
+    pending: Vec<Entry>,
+    failure: Option<String>,
+}
 
 pub struct Actions {
-    gate: Mutex<Gate>,
+    gate: Mutex<AuditedGate>,
     vault: Box<dyn Vault>,
     outbox: SandboxOutbox,
     directory: Directory,
+    device: Option<DeviceMail>,
     audit: PathBuf,
     /// Requests the confirmation card is showing, with where the user's answer goes.
     answers: Mutex<BTreeMap<String, mpsc::Sender<bool>>>,
+}
+
+type OpenDraft = dyn Fn(&pr3_core::trusted::Mail) -> Result<(), String> + Send + Sync;
+
+struct DeviceMail {
+    book: Arc<crate::contacts::Book>,
+    open: Box<OpenDraft>,
 }
 
 impl Actions {
@@ -44,18 +63,48 @@ impl Actions {
         directory: Directory,
         vault: Box<dyn Vault>,
     ) -> Result<Self, String> {
+        Self::open(dir, limits, directory, vault, None)
+    }
+
+    pub fn with_device(
+        dir: &Path,
+        limits: Limits,
+        vault: Box<dyn Vault>,
+        book: Arc<crate::contacts::Book>,
+        open: Box<OpenDraft>,
+    ) -> Result<Self, String> {
+        Self::open(
+            dir,
+            limits,
+            Directory::default(),
+            vault,
+            Some(DeviceMail { book, open }),
+        )
+    }
+
+    fn open(
+        dir: &Path,
+        limits: Limits,
+        directory: Directory,
+        vault: Box<dyn Vault>,
+        device: Option<DeviceMail>,
+    ) -> Result<Self, String> {
         let audit = dir.join("audit.jsonl");
         let log = read_log(&audit).map_err(|e| format!("{}: {e}", audit.display()))?;
         let approver = ApprovalKey::from_sec1(&vault.public_key())
             .ok_or("the vault's key is not a P-256 key")?;
-        let mut gate =
-            Gate::new(limits, approver, mail::PROVIDER, &log, now()).map_err(|broken| {
-                format!(
-                    "{} does not verify at entry {}; actions are off until it is checked",
-                    audit.display(),
-                    broken.at_index
-                )
-            })?;
+        let provider = if device.is_some() {
+            crate::device_mail::PROVIDER
+        } else {
+            mail::PROVIDER
+        };
+        let mut gate = Gate::new(limits, approver, provider, &log, now()).map_err(|broken| {
+            format!(
+                "{} does not verify at entry {}; actions are off until it is checked",
+                audit.display(),
+                broken.at_index
+            )
+        })?;
         let closed = gate.take_log();
         append_log(&audit, &closed).map_err(|e| format!("{}: {e}", audit.display()))?;
         eprintln!(
@@ -66,10 +115,15 @@ impl Actions {
             vault.label()
         );
         Ok(Self {
-            gate: Mutex::new(gate),
+            gate: Mutex::new(AuditedGate {
+                gate,
+                pending: Vec::new(),
+                failure: None,
+            }),
             vault,
             outbox: SandboxOutbox::new(dir.join("outbox.jsonl")),
             directory,
+            device,
             audit,
             answers: Mutex::new(BTreeMap::new()),
         })
@@ -77,7 +131,11 @@ impl Actions {
 
     /// The consequential tools the model is offered.
     pub fn tools(&self) -> Vec<ToolSpec> {
-        vec![mail::send_email_spec(&self.directory.contacts)]
+        let mut spec = mail::send_email_spec(&self.directory.contacts);
+        if self.device.is_some() {
+            spec.description = "Prepare an email draft for the device's email app. Name a contact from the user's request; PR3 resolves their email address from the permission-enabled device address book. Never invent an address. PR3 shows the exact recipients and text for approval before opening the email app, where the user reviews and presses Send. Opening a draft is NOT sending, delivery or confirmation that a message is queued. If contacts are missing or ambiguous, ask the user to enable contact sync in Settings → Contacts or choose the exact contact name.".into();
+        }
+        vec![spec]
     }
 
     /// Takes a call the core proposed through the trusted path; returns what the core
@@ -88,6 +146,22 @@ impl Actions {
         call: &ToolCall,
         ask: impl FnOnce(&ApprovalRequest),
     ) -> (bool, String) {
+        self.run_controlled(call, ask, Arc::new(AtomicBool::new(false)), || Ok(()))
+            .await
+    }
+
+    /// Cancellation never detaches execution. The caller receives the actual result
+    /// if the effect has already started. `prepare` persists a recovery checkpoint.
+    pub async fn run_controlled(
+        self: Arc<Self>,
+        call: &ToolCall,
+        ask: impl FnOnce(&ApprovalRequest),
+        cancel: Arc<AtomicBool>,
+        prepare: impl FnOnce() -> Result<(), String> + Send + 'static,
+    ) -> (bool, String) {
+        if cancel.load(Ordering::Acquire) {
+            return (false, "NOT SENT: stopped by you.".to_string());
+        }
         let operation = match call.name.as_str() {
             mail::SEND_EMAIL => MAIL_SEND,
             other => return (false, format!("'{other}' is not a known action")),
@@ -106,12 +180,25 @@ impl Actions {
                 arguments: call.arguments.clone(),
             },
         };
-        let submitted = self.with_gate(|gate| gate.submit(&envelope, &self.directory, now()));
+        let directory = if let Some(device) = &self.device {
+            let book = device.book.clone();
+            match tauri::async_runtime::spawn_blocking(move || book.directory()).await {
+                Ok(Ok(directory)) => directory,
+                Ok(Err(error)) => return (false, format!("NOT SENT: {error}")),
+                Err(_) => return (false, "NOT SENT: contacts are unavailable.".into()),
+            }
+        } else {
+            self.directory.clone()
+        };
+        if cancel.load(Ordering::Acquire) {
+            return (false, "NOT SENT: stopped by you.".into());
+        }
+        let submitted = self.with_gate(|gate| gate.submit(&envelope, &directory, now()));
         let request = match submitted {
-            Some(Submitted::NeedsApproval(request)) => request,
-            Some(Submitted::Refused(why)) => return (false, format!("not sent: {why}")),
-            Some(Submitted::Denied(why)) => return (false, format!("not allowed: {why}")),
-            None => return (false, "the trusted side is unavailable".to_string()),
+            Ok(Submitted::NeedsApproval(request)) => request,
+            Ok(Submitted::Refused(why)) => return (false, format!("not sent: {why}")),
+            Ok(Submitted::Denied(why)) => return (false, format!("not allowed: {why}")),
+            Err(error) => return (false, format!("NOT SENT: {error}")),
         };
 
         let (sender, answer) = mpsc::channel();
@@ -119,11 +206,24 @@ impl Actions {
             answers.insert(request.request.clone(), sender);
         }
         ask(&request);
-        let wait = Duration::from_millis(request.expires_at.0.saturating_sub(now().0));
-        let approved = tauri::async_runtime::spawn_blocking(move || answer.recv_timeout(wait).ok())
-            .await
-            .ok()
-            .flatten();
+        let until = request.expires_at;
+        let stopped = Arc::clone(&cancel);
+        let approved = tauri::async_runtime::spawn_blocking(move || {
+            loop {
+                if stopped.load(Ordering::Acquire) || now() >= until {
+                    return None;
+                }
+                let wait = Duration::from_millis(until.0.saturating_sub(now().0).min(50));
+                match answer.recv_timeout(wait) {
+                    Ok(approve) => return Some(approve),
+                    Err(mpsc::RecvTimeoutError::Timeout) => {}
+                    Err(mpsc::RecvTimeoutError::Disconnected) => return None,
+                }
+            }
+        })
+        .await
+        .ok()
+        .flatten();
         if let Ok(mut answers) = self.answers.lock() {
             answers.remove(&request.request);
         }
@@ -132,6 +232,10 @@ impl Actions {
         // recipient's answer and report the email as sent.
         let id = &request.request;
         let recipients = names(&request.mail.to);
+        if cancel.load(Ordering::Acquire) {
+            let _ = self.with_gate(|gate| gate.decline(id, "the user stopped the task", now()));
+            return (false, "NOT SENT: stopped by you.".to_string());
+        }
         match approved {
             Some(true) => {
                 // The vault blocks on the system's prompt, so it runs off the async
@@ -139,12 +243,14 @@ impl Actions {
                 let reason = prompt_reason(&request);
                 let this = Arc::clone(&self);
                 let request = id.clone();
-                tauri::async_runtime::spawn_blocking(move || this.execute(&request, &reason))
-                    .await
-                    .unwrap_or_else(|_| (false, "NOT SENT: the approval failed".to_string()))
+                tauri::async_runtime::spawn_blocking(move || {
+                    this.execute(&request, &reason, &cancel, prepare)
+                })
+                .await
+                .unwrap_or_else(|_| (false, crate::task::UNKNOWN.to_string()))
             }
             Some(false) => {
-                self.with_gate(|gate| gate.decline(id, "the user declined", now()));
+                let _ = self.with_gate(|gate| gate.decline(id, "the user declined", now()));
                 let said = format!(
                     "NOT SENT. The person you are talking to tapped Decline on the \
                      confirmation screen, so no email went to {recipients}."
@@ -152,7 +258,8 @@ impl Actions {
                 (false, said)
             }
             None => {
-                self.with_gate(|gate| gate.decline(id, "no answer before it expired", now()));
+                let _ =
+                    self.with_gate(|gate| gate.decline(id, "no answer before it expired", now()));
                 let said = format!(
                     "NOT SENT. The person you are talking to did not approve it in time, so \
                      no email went to {recipients}."
@@ -177,9 +284,27 @@ impl Actions {
 
     /// Approved on the card: receipt → the system's prompt and the vault's signature →
     /// capability → one delivery → audit.
-    fn execute(&self, request: &str, reason: &str) -> (bool, String) {
-        let Some(receipt) = self.with_gate(|gate| gate.approve(request, now())) else {
-            return (false, "the trusted side is unavailable".to_string());
+    fn execute(
+        &self,
+        request: &str,
+        reason: &str,
+        cancel: &AtomicBool,
+        prepare: impl FnOnce() -> Result<(), String>,
+    ) -> (bool, String) {
+        if cancel.load(Ordering::Acquire) {
+            let _ =
+                self.with_gate(|gate| gate.decline(request, "the user stopped the task", now()));
+            return (false, "NOT SENT: stopped by you.".to_string());
+        }
+        if let Err(error) = prepare() {
+            let _ = self.with_gate(|gate| {
+                gate.decline(request, "could not record execution checkpoint", now())
+            });
+            return (false, format!("NOT SENT: {error}"));
+        }
+        let receipt = match self.with_gate(|gate| gate.approve(request, now())) {
+            Ok(receipt) => receipt,
+            Err(error) => return (false, format!("NOT SENT: {error}")),
         };
         let receipt = match receipt {
             Ok(receipt) => receipt,
@@ -190,7 +315,8 @@ impl Actions {
         let signed = match self.vault.sign(receipt, reason) {
             Ok(signed) => signed,
             Err(VaultError::Cancelled) => {
-                self.with_gate(|gate| gate.decline(request, "the user cancelled the check", now()));
+                let _ = self
+                    .with_gate(|gate| gate.decline(request, "the user cancelled the check", now()));
                 return (
                     false,
                     "NOT SENT. The person you are talking to cancelled the Face ID, \
@@ -199,54 +325,98 @@ impl Actions {
                 );
             }
             Err(e) => {
-                self.with_gate(|gate| gate.decline(request, &e.to_string(), now()));
+                let _ = self.with_gate(|gate| gate.decline(request, &e.to_string(), now()));
                 return (false, format!("NOT SENT: {e}"));
             }
         };
+        // Stop during the OS prompt must not become an execution after it closes.
+        if cancel.load(Ordering::Acquire) {
+            let _ =
+                self.with_gate(|gate| gate.decline(request, "the user stopped the task", now()));
+            return (false, "NOT SENT: stopped by you.".to_string());
+        }
         let issued = self.with_gate(|gate| {
             let capability = gate.issue(&signed, now())?;
             let intent = gate.redeem(&capability, now())?;
             Ok::<_, pr3_core::trusted::GateError>((capability, intent))
         });
         let (capability, Intent::SendMail(mail)) = match issued {
-            Some(Ok(issued)) => issued,
-            Some(Err(e)) => return (false, format!("not sent: {e}")),
-            None => return (false, "the trusted side is unavailable".to_string()),
+            Ok(Ok(issued)) => issued,
+            Ok(Err(e)) => return (false, format!("not sent: {e}")),
+            Err(error) => return (false, format!("NOT SENT: {error}")),
         };
-        let delivered = self.outbox.deliver(&capability, &mail, now());
+        let delivered = if let Some(device) = &self.device {
+            device.book.with_recipients(&mail.to, || {
+                if cancel.load(Ordering::Acquire) {
+                    return Err("stopped by you".into());
+                }
+                (device.open)(&mail)
+                    .map(|()| "draft opened in device email app; delivery unverified".into())
+            })
+        } else {
+            self.outbox.deliver(&capability, &mail, now())
+        };
         let reported = delivered.as_deref().map_err(String::as_str);
-        self.with_gate(|gate| gate.executed(request, reported, now()));
+        let audit = self.with_gate(|gate| gate.executed(request, reported, now()));
         let recipients = names(&mail.to);
-        match delivered {
+        let (success, mut output) = match delivered {
+            Ok(_) if self.device.is_some() => (
+                true,
+                format!(
+                    "{} for {recipients}. Review it and press Send there. Sending and delivery are not verified by PR3; an internet connection is needed to deliver it.",
+                    crate::device_mail::OPENED
+                ),
+            ),
             Ok(_) => (
                 true,
                 format!(
-                    "SENT to {recipients}: the person you are talking to approved it on the \
-                     confirmation screen (sandbox outbox)."
+                    "Email to {recipients} added to the sandbox outbox after approval. \
+                     Nothing was sent externally."
                 ),
             ),
+            Err(e) if e == crate::task::UNKNOWN => (false, e),
             Err(e) => (false, format!("NOT SENT: {e}")),
+        };
+        // The effect has already happened: preserve the real result, and never
+        // turn an audit failure into a claim that it is safe to send again.
+        if audit.is_err() {
+            output.push_str(&format!(" {AUDIT_FAILED}"));
         }
+        (success, output)
     }
 
     /// Runs `f` on the gate and appends the audit entries it produced, still holding
-    /// the lock so entries reach the file in order. `None` if the lock is poisoned.
-    fn with_gate<T>(&self, f: impl FnOnce(&mut Gate) -> T) -> Option<T> {
-        let mut gate = self.gate.lock().ok()?;
-        let result = f(&mut gate);
-        // A failed write leaves a gap that fails verification at the next start, which
-        // turns actions off: losing audit entries is never silent.
-        if let Err(e) = append_log(&self.audit, &gate.take_log()) {
-            eprintln!("PR3: could not write {}: {e}", self.audit.display());
+    /// the lock so entries reach the file in order. No result authorizes execution
+    /// unless its audit entries have reached durable storage.
+    fn with_gate<T>(&self, f: impl FnOnce(&mut Gate) -> T) -> Result<T, String> {
+        let mut state = self
+            .gate
+            .lock()
+            .map_err(|_| "the trusted side is unavailable")?;
+        if let Some(error) = &state.failure {
+            return Err(error.clone());
         }
-        Some(result)
+        let result = f(&mut state.gate);
+        state.pending = state.gate.take_log();
+        if let Err(e) = append_log(&self.audit, &state.pending) {
+            eprintln!("PR3: could not write {}: {e}", self.audit.display());
+            state.failure = Some(AUDIT_FAILED.into());
+            return Err(AUDIT_FAILED.into());
+        }
+        state.pending.clear();
+        Ok(result)
     }
 }
 
 /// What the system's prompt says is being approved: shown by the OS, outside the
 /// webview, from the validated intent. Apple prints it after "PR3 is trying to".
 fn prompt_reason(request: &ApprovalRequest) -> String {
-    reason_for(&request.mail.to, &request.mail.subject)
+    let reason = reason_for(&request.mail.to, &request.mail.subject);
+    if request.provider == crate::device_mail::PROVIDER {
+        reason.replacen("send an email to ", "open an email draft to ", 1)
+    } else {
+        reason
+    }
 }
 
 /// The recipients come first, from the address book, so a long subject the model wrote
@@ -371,6 +541,73 @@ mod tests {
     }
 
     #[test]
+    fn cancellation_during_device_check_and_failed_checkpoints_never_deliver() {
+        struct StopOnSign {
+            vault: SoftwareVault,
+            cancel: Arc<AtomicBool>,
+        }
+        impl Vault for StopOnSign {
+            fn public_key(&self) -> Vec<u8> {
+                self.vault.public_key()
+            }
+            fn label(&self) -> &'static str {
+                "test vault"
+            }
+            fn sign(
+                &self,
+                receipt: pr3_core::trusted::Receipt,
+                reason: &str,
+            ) -> Result<pr3_core::trusted::SignedReceipt, VaultError> {
+                self.cancel.store(true, Ordering::Release);
+                self.vault.sign(receipt, reason)
+            }
+        }
+        for fail_checkpoint in [false, true] {
+            let dir = temp(if fail_checkpoint {
+                "checkpoint-failed"
+            } else {
+                "stop-during-sign"
+            });
+            let cancel = Arc::new(AtomicBool::new(false));
+            let actions = Arc::new(
+                Actions::with_vault(
+                    &dir,
+                    Limits::default(),
+                    directory(),
+                    Box::new(StopOnSign {
+                        vault: SoftwareVault::generate().unwrap(),
+                        cancel: cancel.clone(),
+                    }),
+                )
+                .unwrap(),
+            );
+            let (success, result) = tauri::async_runtime::block_on(actions.clone().run_controlled(
+                &call(TO_ALEX),
+                |request| actions.answer(&request.request, true).unwrap(),
+                cancel.clone(),
+                move || {
+                    if fail_checkpoint {
+                        Err("storage unavailable".into())
+                    } else {
+                        Ok(())
+                    }
+                },
+            ));
+            assert!(!success);
+            assert!(result.starts_with("NOT SENT:"));
+            assert!(!dir.join("outbox.jsonl").exists());
+            assert_eq!(
+                cancel.load(Ordering::Acquire),
+                !fail_checkpoint,
+                "checkpoint failure must precede the vault"
+            );
+            assert!(actions.answers.lock().unwrap().is_empty());
+            assert_eq!(verify(&read_log(&dir.join("audit.jsonl")).unwrap()), Ok(()));
+            fs::remove_dir_all(dir).unwrap();
+        }
+    }
+
+    #[test]
     fn a_request_left_open_by_closing_is_logged_as_expired() {
         let dir = temp("left-open");
         let first = actions(&dir, Limits::default());
@@ -386,7 +623,7 @@ mod tests {
         };
         // The card is showing when the app closes.
         let submitted = first.with_gate(|gate| gate.submit(&envelope, &first.directory, now()));
-        let Some(Submitted::NeedsApproval(request)) = submitted else {
+        let Ok(Submitted::NeedsApproval(request)) = submitted else {
             panic!("expected a confirmation card");
         };
         drop(first);
@@ -403,6 +640,162 @@ mod tests {
         // Closed once: opening again adds nothing.
         let _third = actions(&dir, Limits::default());
         assert_eq!(read_log(&dir.join("audit.jsonl")).unwrap().len(), log.len());
+    }
+
+    fn break_audit(path: &Path) {
+        if path.is_file() {
+            fs::rename(path, path.with_extension("saved")).unwrap();
+        }
+        fs::create_dir(path).unwrap();
+    }
+
+    #[test]
+    fn audit_failures_before_execution_block_delivery_and_latch_actions_off() {
+        for before_card in [true, false] {
+            let dir = temp(if before_card {
+                "audit-submit"
+            } else {
+                "audit-approve"
+            });
+            let actions = actions(&dir, Limits::default());
+            let audit = dir.join("audit.jsonl");
+            if before_card {
+                break_audit(&audit);
+            }
+            let (ok, output) =
+                tauri::async_runtime::block_on(actions.clone().run(&call(TO_ALEX), |request| {
+                    assert!(!before_card, "no card before its audit is committed");
+                    break_audit(&audit);
+                    actions.answer(&request.request, true).unwrap();
+                }));
+            assert!(!ok);
+            assert!(output.contains(AUDIT_FAILED));
+            assert!(!dir.join("outbox.jsonl").exists());
+            assert!(!actions.gate.lock().unwrap().pending.is_empty());
+            // A repair must not retry an append that could have partially committed.
+            fs::remove_dir(&audit).unwrap();
+            if audit.with_extension("saved").is_file() {
+                fs::rename(audit.with_extension("saved"), &audit).unwrap();
+            }
+            assert!(!run(&actions, TO_ALEX, Some(true)).0);
+            assert!(!dir.join("outbox.jsonl").exists());
+            fs::remove_dir_all(dir).unwrap();
+        }
+    }
+
+    #[test]
+    fn audit_failure_after_signing_still_prevents_execution() {
+        struct BreakOnSign {
+            vault: SoftwareVault,
+            audit: PathBuf,
+        }
+        impl Vault for BreakOnSign {
+            fn public_key(&self) -> Vec<u8> {
+                self.vault.public_key()
+            }
+            fn label(&self) -> &'static str {
+                "test vault"
+            }
+            fn sign(
+                &self,
+                receipt: pr3_core::trusted::Receipt,
+                reason: &str,
+            ) -> Result<pr3_core::trusted::SignedReceipt, VaultError> {
+                let signed = self.vault.sign(receipt, reason)?;
+                break_audit(&self.audit);
+                Ok(signed)
+            }
+        }
+        let dir = temp("audit-capability");
+        let actions = Arc::new(
+            Actions::with_vault(
+                &dir,
+                Limits::default(),
+                directory(),
+                Box::new(BreakOnSign {
+                    vault: SoftwareVault::generate().unwrap(),
+                    audit: dir.join("audit.jsonl"),
+                }),
+            )
+            .unwrap(),
+        );
+        let (ok, output) = run(&actions, TO_ALEX, Some(true));
+        assert!(!ok && output.contains(AUDIT_FAILED));
+        assert!(!dir.join("outbox.jsonl").exists());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn audit_failure_after_opening_a_draft_preserves_the_real_result_without_retry() {
+        for unknown in [false, true] {
+            struct Contacts;
+            impl crate::contacts::Source for Contacts {
+                fn read(&self, _: bool) -> Result<crate::contacts::Snapshot, String> {
+                    Ok(serde_json::from_value(
+                        serde_json::json!({"permission":"granted", "contacts": [
+                            {"name":"Alex Rivera", "address":"alex@example.com"}
+                        ]}),
+                    )
+                    .unwrap())
+                }
+            }
+            let dir = temp(if unknown {
+                "audit-after-uncertain-handoff"
+            } else {
+                "audit-after-handoff"
+            });
+            fs::write(dir.join("contacts-sync"), b"enabled\n").unwrap();
+            let book = Arc::new(crate::contacts::Book::open(&dir, Box::new(Contacts)));
+            let opened = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let calls = opened.clone();
+            let audit = dir.join("audit.jsonl");
+            let actions = Arc::new(
+                Actions::with_device(
+                    &dir,
+                    Limits::default(),
+                    Box::new(SoftwareVault::generate().unwrap()),
+                    book,
+                    Box::new(move |_| {
+                        calls.fetch_add(1, Ordering::SeqCst);
+                        break_audit(&audit);
+                        if unknown {
+                            Err(crate::task::UNKNOWN.into())
+                        } else {
+                            Ok(())
+                        }
+                    }),
+                )
+                .unwrap(),
+            );
+            let (ok, output) = run(&actions, TO_ALEX, Some(true));
+            assert_eq!(ok, !unknown, "{output}");
+            if unknown {
+                assert!(crate::task::unknown(&output));
+            } else {
+                assert!(output.starts_with(crate::device_mail::OPENED));
+            }
+            assert!(output.contains(AUDIT_FAILED));
+            let mut tasks = crate::task::Tasks::default();
+            let (id, _) = tasks.begin("Email Alex", now());
+            tasks.record(
+                id,
+                &crate::host::TurnEvent::Tool {
+                    name: "send_email".into(),
+                    arguments: TO_ALEX.into(),
+                    success: ok,
+                    output: output.clone(),
+                },
+                now(),
+            );
+            tasks.end(id, Ok(output), now());
+            let view = tasks.view(id, now()).unwrap();
+            assert_eq!(view.card.page, crate::task::Page::Todo);
+            assert!(!view.retryable);
+            assert!(tasks.result_line(id).unwrap().contains(AUDIT_FAILED));
+            assert!(!run(&actions, TO_ALEX, Some(true)).0);
+            assert_eq!(opened.load(Ordering::SeqCst), 1);
+            fs::remove_dir_all(dir).unwrap();
+        }
     }
 
     #[test]

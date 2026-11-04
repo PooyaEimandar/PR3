@@ -1170,13 +1170,13 @@ mod tests {
         let dir = folder("cut");
         let dest = dir.join("model.gguf");
         let costly = Arc::new(AtomicBool::new(false));
-        // The connection drops after a megabyte, and the phone reports mobile data only
-        // a moment later, once the download has failed.
-        let later = Arc::clone(&costly);
-        let url = serve_cut(body.clone(), true, 2, 1 << 20, move || {
-            std::thread::sleep(Duration::from_millis(300));
-            later.store(true, Ordering::Relaxed);
-        });
+        let received = Cell::new(0);
+        let end_checks = Cell::new(0);
+        // The connection drops after a megabyte. Allow the next read to observe EOF,
+        // then report mobile data when turns_costly checks after the failure. A timed
+        // switch could fire before buffered data was consumed on a busy machine,
+        // testing cancellation instead of connection loss. Tests check every read.
+        let url = serve_cut(body.clone(), true, 2, 1 << 20, || {});
         let mut events = Vec::new();
         let mut cut_at = 0;
         download_when_free(
@@ -1186,7 +1186,15 @@ mod tests {
             body.len() as u64,
             &sha256,
             &AtomicBool::new(false),
-            &|| costly.load(Ordering::Relaxed),
+            &|| {
+                if received.get() == 1 << 20 && end_checks.get() < 2 {
+                    end_checks.set(end_checks.get() + 1);
+                    if end_checks.get() == 2 {
+                        costly.store(true, Ordering::Relaxed);
+                    }
+                }
+                costly.load(Ordering::Relaxed)
+            },
             &mut |waiting| {
                 if waiting {
                     cut_at = fs::metadata(partial_path(&dest, &sha256)).unwrap().len();
@@ -1194,10 +1202,11 @@ mod tests {
                 }
                 events.push(waiting);
             },
-            &mut |_| {},
+            &mut |bytes| received.set(bytes),
         )
         .unwrap();
         assert_eq!(events, [true, false]);
+        assert_eq!(end_checks.get(), 2);
         assert_eq!(cut_at, 1 << 20);
         assert_eq!(fs::read(&dest).unwrap(), body);
         let _ = fs::remove_dir_all(dir);

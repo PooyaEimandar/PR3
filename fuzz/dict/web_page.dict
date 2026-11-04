@@ -1,6 +1,12 @@
 # HTML that changes how a page is read, and the shapes of links.
 "<div>"
+"<div/>"
+"<div></bogus>"
 "</div>"
+"<noscript>"
+"</noscript>"
+"<b><i>"
+"<div title='> </bogus>'>"
 "<main>"
 "<article>"
 "<header>"

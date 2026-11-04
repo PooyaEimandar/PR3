@@ -188,6 +188,27 @@ fn cancelling_stops_the_node_mid_answer() {
     );
     assert!(matches!(result, Err(HybridError::Cancelled)), "{result:?}");
     assert!(tokens < 50, "the node kept going: {tokens} tokens");
+    // A per-task stop and a host shutdown must both cancel the remote request.
+    let task_cancel = AtomicBool::new(false);
+    let shutdown = AtomicBool::new(false);
+    let mut tokens = 0;
+    let result = client.generate_with_cancellation(
+        &request(&long),
+        &mut |_| {
+            tokens += 1;
+            if tokens == 3 {
+                shutdown.store(true, Ordering::Release);
+            }
+        },
+        &|| task_cancel.load(Ordering::Acquire) || shutdown.load(Ordering::Acquire),
+    );
+    assert!(matches!(result, Err(HybridError::Cancelled)), "{result:?}");
+    assert!(tokens < 50);
+    // Cancellation of one attempt must leave the node usable by the next.
+    let next = client
+        .generate(&request("back again"), &mut |_| {}, &AtomicBool::new(false))
+        .unwrap();
+    assert_eq!(next.content, "back again");
     let _ = std::fs::remove_dir_all(dir);
 }
 
@@ -244,4 +265,91 @@ fn an_unreachable_node_is_reported_as_such() {
     let client = NodeClient::new(key, node, "phone");
     assert!(matches!(client.model(), Err(HybridError::Unreachable(_))));
     let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn continuity_is_separate_from_generation_authenticated_and_revocable() {
+    use pr3_protocol::{ContinuityPage, ContinuityReply, ContinuityRequest};
+    struct Handler(Mutex<Vec<String>>);
+    impl Continuity for Handler {
+        fn exchange(
+            &self,
+            peer: &str,
+            request: ContinuityRequest,
+        ) -> Result<ContinuityReply, String> {
+            self.0.lock().unwrap().push(peer.into());
+            Ok(ContinuityReply {
+                acknowledged: 0,
+                page: request.page,
+            })
+        }
+    }
+    let (node, address, dir) = node("continuity");
+    let key = DeviceKey::open(&dir.join("phone/device.key")).unwrap();
+    let public = key.public_hex();
+    let paired = pair(
+        &address,
+        &node.start_pairing().unwrap().code,
+        &key,
+        "Test phone",
+    )
+    .unwrap();
+    let client = NodeClient::new(key, paired, "untrusted display name");
+    let request = ContinuityRequest {
+        version: 1,
+        cursor: 0,
+        page: ContinuityPage::default(),
+    };
+    // A host without a continuity handler cannot service synchronization requests.
+    assert!(client.continuity(request.clone()).is_err());
+    let handler = Arc::new(Handler(Mutex::new(Vec::new())));
+    node.set_continuity(handler.clone());
+    client.continuity(request.clone()).unwrap();
+    assert_eq!(*handler.0.lock().unwrap(), vec![public.clone()]);
+    node.forget(&public[..16]).unwrap();
+    assert!(client.continuity(request).is_err());
+    assert_eq!(handler.0.lock().unwrap().len(), 1);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn forgetting_a_phone_refuses_generation_on_an_authenticated_idle_connection() {
+    use pr3_protocol::{FromNode, ToNode, VERSION};
+    let dir = temp("revoke-idle-session");
+    let generator = Arc::new(Echo {
+        calls: Mutex::new(0),
+    });
+    let node = Node::open(&dir.join("node"), "Test Mac", generator.clone()).unwrap();
+    let address = node.serve("127.0.0.1:0").unwrap().to_string();
+    let key = DeviceKey::open(&dir.join("phone/device.key")).unwrap();
+    let code = node.start_pairing().unwrap().code;
+    let paired = pair(&address, &code, &key, "phone").unwrap();
+    let stream = TcpStream::connect(&address).unwrap();
+    stream
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    let channel = crate::pairing::open_session(&stream, &key, &paired.key().unwrap()).unwrap();
+    channel
+        .send(&ToNode::Hello {
+            version: VERSION,
+            device: "phone".into(),
+        })
+        .unwrap();
+    assert!(matches!(
+        channel.recv::<FromNode>().unwrap(),
+        FromNode::Hello { .. }
+    ));
+    assert!(node.forget(&paired_phone_id(&node)).unwrap());
+    channel
+        .send(&ToNode::Generate {
+            id: 1,
+            request: request("after revocation"),
+        })
+        .unwrap();
+    assert!(channel.recv::<FromNode>().is_err());
+    assert_eq!(*generator.calls.lock().unwrap(), 0);
+    channel.close();
+    // Fresh authentication is refused too; no work was admitted by either route.
+    assert!(NodeClient::new(key, paired, "phone").model().is_err());
+    std::fs::remove_dir_all(dir).unwrap();
 }

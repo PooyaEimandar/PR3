@@ -1,5 +1,6 @@
 [package]
 name = "pr3-app"
+default-run = "pr3-app"
 description = "PR3 reference app: a voice-first private assistant for macOS, iOS and Android"
 version.workspace = true
 edition.workspace = true
@@ -15,6 +16,15 @@ workspace = true
 # staticlib/cdylib for iOS and Android, rlib for the desktop binary.
 name = "pr3_app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
+
+[features]
+# Explicit opt-in, debug builds only. Never part of a distributed app.
+e2e = ["dep:tauri-plugin-wdio-webdriver"]
+
+[[bin]]
+name = "pr3-e2e"
+path = "src/e2e_main.rs"
+required-features = ["e2e"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -38,6 +48,7 @@ toml = { version = "1", default-features = false, features = ["std", "serde", "p
 # which pairing already builds, and Mozilla's root certificates on every platform.
 ureq = { version = "3", default-features = false, features = ["rustls"] }
 sha2 = "0.10"
+tauri-plugin-wdio-webdriver = { version = "=1.5.1", optional = true }
 
 # The computer's name, shown on paired phones.
 [target.'cfg(not(any(target_os = "ios", target_os = "android")))'.dependencies]
@@ -48,10 +59,12 @@ rfd = { version = "0.17", default-features = false, features = ["gtk3"] }
 # Physical memory, to pick the phone model (config/pr3.toml).
 [target.'cfg(target_vendor = "apple")'.dependencies]
 libc = "0.2"
-
-# Excluding the data folder from iCloud and computer backups.
-[target.'cfg(target_os = "ios")'.dependencies]
 objc2 = "0.6"
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSError", "NSString", "NSURL", "NSValue"] }
-# The Network framework's path monitor takes a block (network.rs).
 block2 = "0.6"
+
+# Excluding the data folder from iCloud and computer backups.
+
+[dev-dependencies]
+# File-backed storage failure injection, using the same bundled SQLite as production.
+rusqlite = { version = "0.40", features = ["bundled"] }

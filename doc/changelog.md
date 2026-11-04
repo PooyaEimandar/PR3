@@ -2,6 +2,71 @@
 
 Part of the [PR3 documentation](README.md). Newest first; each version records what changed in the design and why.
 
+## Unreleased (4 November 2026) - audit, sync and task-storage review fixes
+
+- The first question after task restoration receives bounded excerpts of persisted user wording alongside the question, so the model can use the restored details directly. Recall supplies bounded current-task user excerpts and filters unconfirmed proposals from other tasks in both search and recent-note fallback; an empty lookup no longer implies that task details are missing. Email preparation uses the latest corrected contact name, lets the host resolve the address, waits when requested, and follows the actual connector's outcome description.
+- Local memory correction reviews use a request-scoped JSON grammar and stable id ordering within each bounded batch. Validation still rejects incomplete output, unavailable ids and tool calls; comparisons remain local and read-only. The real-model regression now checks the full review path at seeds 1/2/7, including negative and injection cases, instead of a single direct-prompt check.
+- Added restart/approval/context isolation and grammar cancellation regressions, plus a focused workflow corpus that checks corrected recipients on approval cards even when declined. Post-fix verification is separate from the unchanged frozen full rebaseline.
+- Added native automated workflow regressions using the real Tauri UI/IPC, Host, approval gate and SQLite with isolated model/contacts/mail adapters. Tests cover capture/correction/restart/approval/finish/delete, rejected/failed actions, interrupted approvals, Stop/Retry, saving after storage failure, memory correction/forget and contact removal. A separate debug-only binary and release compile guard keep the automation server out of distributed builds; CI runs the native suite on macOS.
+- Added a frozen, resumable full rebaseline runner: 4B/27B × four AgentDojo suites × three arms × seeds 1/2/7, plus all workflow and multilingual memory-review cases on 2B/4B/27B. Manifests bind outputs to model/corpus/binary hashes and seeds; errors are unscored, duplicate/foreign rows rejected, and per-job completion is reported explicitly. Workflow checks now reject listed obsolete values and numeric substring matches, require exact approval/outbox equality, reject unapproved/duplicate effects, and record first-visible response time. Android measurements and full-matrix results are separate evidence, not implied by passing fixture tests.
+
+- Failed audit appends disable further actions for the session and retain unwritten entries. Execution requires a committed audit; failure after a draft handoff preserves the actual result and shows the audit warning, without permitting one-click action retry.
+- A shared task that grows past the 192 KiB limit reports an item-specific problem in Devices. Its last good replica and ownership remain unchanged; other updates and deletions continue syncing in both directions, including deletion of the oversized task itself.
+- Task writes are retained in order until committed. Storage failures show **Needs attention** and **Retry saving**, stop further work, and cannot be hidden by a sync reload or a successful completion state. Saving retries records only, never the model or an email action. Chat inserts and summary updates roll back on failure; task splitting commits before changing the visible conversation. Failed task loading is surfaced instead of silently falling back to volatile storage.
+- Generation requests recheck pairing after the encrypted handshake, closing the idle-session revocation gap. Regression coverage uses temporary databases, injected audit/storage failures, simulated email handoffs and real localhost pairing sessions; it does not send live email.
+
+## Unreleased (3 November 2026) - phone/computer continuity
+
+- Pairing in Settings → Devices automatically enables continuity; Unpair/Forget disables it. There is no separate continuity switch, and existing pairings are reconciled at startup. Each confirmed non-sensitive memory or task is shared explicitly; tasks include their chat. Other memories, contacts, vault keys and approvals are not replicated.
+- Share keeps editing on the source; Move transfers ownership durably before delivery. Storage and app controls reject editing/resuming on the previous owner. Pending calls become review-required on import; unknown action outcomes remain unknown.
+- Schema v6 stores stable identities, ownership epochs, revisions, a content-free journal, cursors and permanent tombstones. Local deletion also erases queued payloads in the same transaction. Bounded pages resume after interrupted delivery, deduplicate repeats and reject conflicting versions.
+- Recover a separate copy works after unpairing, creates a private local record and tombstones the old identity. Recovered tasks explicitly mark the post-sync outcome unknown and disable one-click retry. A disconnected or unpaired device cannot be remotely erased until it reconnects and is paired again. Replacement-device enrollment and encrypted backup/key recovery remain planned.
+- Regression evidence covers storage migration, handoff, correction, deletion, restart/lost acknowledgements and pagination across seeds 1/2/7, host cache invalidation, authenticated transport and revocation. Physical-device acceptance remains in [the continuity checklist](continuity-checklist.md).
+
+## Unreleased (3 November 2026) - device contacts and email drafts
+
+- Removed the two built-in sample recipients from the app. Settings → Contacts now has an opt-in **Sync address book contacts** switch in PR3's theme and a red **Remove all contacts** button. Android requests `READ_CONTACTS`; Apple uses Contacts.framework authorization, including limited access. Only names and email addresses are read, never written to the device address book. Disabling/removing clears PR3's in-memory list and turns sync off; only the preference is persisted.
+- Approved emails open in the device's default email app on Android, iOS and macOS. The user reviews and presses Send there. PR3 holds no mailbox credentials and reports **draft opened**, with sending/delivery unverified. Offline drafting is supported; actual delivery depends on the email app and connectivity. The sandbox connector remains for deterministic tests and benchmarks.
+- Contact access and exact recipients are rechecked after approval. Denial, revocation, removed/changed contacts, malformed addresses, duplicate names, slow permission responses and missing mail apps have regression coverage. Draft URI fields are encoded independently, and a successful handoff keeps the task open for the user's remaining step.
+- Android device acceptance is tracked in [the email test checklist](android-email-checklist.md). Cross-device memory/task sync, the full multi-seed benchmark rebaseline, real-phone latency and the 30-day usefulness study remain separate release gates.
+
+## Unreleased (3 November 2026) - semantic and multilingual memory correction
+
+- Local-model review compares the person and attribute/event across paraphrases, languages and negation for chat capture and **Review & confirm** in Memory. The user still chooses every replacement. The model only suggests validated live memory ids and cannot rewrite the submitted fact, execute a tool or approve a correction.
+- Added explicit capture/update/correction forms for English, Persian, Arabic, Spanish, French, German, Chinese and Japanese, including localized digits in correction ids. Review preserves the submitted text and supports right-to-left facts.
+- Memory comparisons stay on the device even when a node is paired. Bounded batches, strict output validation, cancellation and stale-snapshot checks prevent failed or partial comparisons from silently saving/confirming. Missing local models retain the disclosed wording-only fallback. Automatic factual notes now contain confirmed memories only.
+- Regression coverage includes multilingual parsing, malformed/injected output, identity/retention, partial coverage, cancellation, stale memory, reopen/correction and proposal confirmation, plus paired-node egress prevention. The installed Qwen3.5 4B model passed the 10-case development corpus at 3.6–5.0 seconds per small batch; this is not held-out accuracy or mobile performance evidence. See [development notes](development.md#correcting-memory).
+
+## Unreleased (3 November 2026) - memory correction and runtime completion replies
+
+- Chat capture offers a review when a new fact may update an existing memory. The user chooses Replace or Save separately, or names an exact id with `Correct memory #3: …`. Review cards survive restart; stale ids cannot overwrite a newer correction.
+- Memory proposals show possible conflicts with Replace/Keep both choices. Corrections atomically retire old facts and duplicate proposals and invalidate summaries while preserving identity, privacy and retention. Forgetting traverses all superseded branches. Automatic notes exclude unreviewed updates that compete with confirmed facts.
+- Operation replies come from recorded memory/email outcomes before they enter history, exports or speech. Write-capable model prose is buffered until checked, and a bounded English fallback handles common unsupported completion claims. Read-only answer streaming remains; these changes do not claim general factual or multilingual validation.
+- Seven new regressions cover review/correction across restart, explicit choices, recall precedence, stale/malformed commands, transaction rollback, identity/retention, proposal erasure, and lying completion messages through the approval flow. Real-model latency/utility benchmarks remain to be rerun because reply buffering and the mail prompt changed.
+
+## Unreleased (3 November 2026) - task recovery and roadmap gaps
+
+- **Stop** requests cancellation from the composer or task menu. Late model tool calls are discarded, pending approval is closed, and an in-flight operation reports its actual result before the turn ends. Local and private-node cancellation leave the next attempt usable.
+- Failed/stopped tasks remain in To Do as **Needs attention**. **Retry last request** keeps the same task and requires fresh validation and approval. Successful or uncertain consequential effects cannot be retried with this control.
+- A persisted checkpoint before the device check prevents an interrupted execution from returning as a reusable approval card. It shows **Outcome unknown** after restart; provider reconciliation remains planned. Failed checkpoint writes prevent execution.
+- Five new regressions cover inference cancellation, stop/approval races, results after execution, same-task retry across restart, checkpoint persistence failure, and cancellation during the device check. The existing socket cancellation test also exercises shutdown and a fresh request afterwards. UI controls were checked with synthetic data; no live messages were sent.
+- The roadmap now separates implemented slices from pending milestone gates and records the unified inbox for email, Telegram, WhatsApp and other supported channels as planned work only.
+
+## Unreleased (3 November 2026) - task closure and recorded results
+
+- **Finish task** in a task's More menu, or "finish this task" / "mark the trip as done", closes it explicitly without deleting its chat or executing pending work. Ambiguous names require a choice, unknown names report a mismatch, and a task open in the browser is the target of "this task". Finished tasks stay finished after restart; schema v5 preserves chats, summaries and audit hashes.
+- **Recorded result** lines in chat, task history and exports come from tool outcomes. Task cards use those outcomes or "Reply ready", rather than copying model claims. Approval acknowledgement and sandbox outbox writes are labelled separately from delivery.
+- Whole-message **Remember that…**, **Remember: …** and **Save to memory: …** commands store the user's wording as confirmed memory without inference, report failed writes, and keep the conversation's web provenance.
+- Regression tests cover closing failed and waiting tasks, restart, ambiguous commands, failed persistence, migration, misleading model replies, and capture → restart → resume → approve/decline → finish. Real-model utility benchmarks have not been rerun for this change.
+
+## Unreleased (3 November 2026) - web reading review fixes
+
+- Failed web reads now block consequential proposals for the rest of the turn, because errors can contain hostile response headers.
+- HTML parsing stops at a bounded amount of live parser state. Self-closing non-void tags, unmatched closing tags and scripting-disabled `noscript` content cannot bypass a separate tag counter.
+- Invalid configuration disables web reading as well as actions, and switching web reading off blocks cached pages too.
+- Approval warnings use the final response host after redirects. Sources travel separately from page text and stay attached to each result until it leaves conversation history.
+- Regression tests cover malformed nesting, parser cutoff boundaries, hostile content-type headers through the host's approval flow, config fallback, cached reads, redirected sources and source expiry.
+
 ## v1.40 (31 October 2026) - PR3 reads the web pages the user links
 
 The first version of [RFC-002](rfc/002-reading-web-pages.md) is built and benchmarked; the 2B on a phone and the time to the first word are still to do.

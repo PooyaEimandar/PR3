@@ -115,7 +115,7 @@ fuzz_target!(|turn: Turn| {
     let Ok(mut pending) = core.step(utterance) else {
         return;
     };
-    // Whether the turn has had a successful lookup, whose result is untrusted.
+    // Whether the turn has had any lookup result, including an untrusted error.
     let mut read = false;
     for round in turn.rounds {
         let mut next = Vec::new();
@@ -152,8 +152,9 @@ fuzz_target!(|turn: Turn| {
                 Action::CallTool(call) | Action::Propose(call) => {
                     let (success, output) =
                         outcomes.next().cloned().unwrap_or((true, String::new()));
-                    reads = success && call.name == LOOKUP;
+                    reads = call.name == LOOKUP;
                     Input::ToolOutcome {
+                        sources: Vec::new(),
                         call_id: call.id,
                         success,
                         output,

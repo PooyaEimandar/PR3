@@ -2,9 +2,8 @@
 //! phones it paired with, and a paired phone uses it, answering on its own whenever the
 //! computer cannot be reached.
 //!
-//! Only generation crosses: the phone keeps the conversation, memory, tools and the whole
-//! trusted side. A model on the computer can propose sending an email; the phone
-//! validates the proposal, shows the card, asks for Face ID and sends — or not.
+//! Pairing enables generation and continuity. Per-item Share/Move selects the data;
+//! tools, vault keys and approval authority always stay with the executing device.
 
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -85,6 +84,7 @@ pub fn start_node(
     }
     let generator = Arc::new(HostGenerator { app: app.clone() });
     let started = Node::open(dir, &device_name(), generator).and_then(|node| {
+        node.set_continuity(Arc::new(crate::continuity::NodeSync(app.clone())));
         let bound = node.serve(&settings.listen)?;
         Ok((node, bound))
     });
@@ -170,6 +170,10 @@ impl Link {
         Ok(())
     }
 
+    pub fn client(&self) -> Option<Arc<NodeClient>> {
+        self.0.read().ok().and_then(|c| c.clone())
+    }
+
     pub fn node(&self) -> Option<Peer> {
         self.get().map(|c| c.node().clone())
     }
@@ -200,6 +204,15 @@ impl Delegating {
 }
 
 impl Backend for Delegating {
+    fn generate_memory_review(
+        &self,
+        request: &InferenceRequest,
+        cancel: &AtomicBool,
+    ) -> Option<Result<Generation, String>> {
+        // Never ask the paired node to inspect the phone's private memory pool.
+        self.local.generate_memory_review(request, cancel)
+    }
+
     fn label(&self) -> String {
         let local = self.local.label();
         match self.link.get() {
@@ -223,9 +236,23 @@ impl Backend for Delegating {
         request: &InferenceRequest,
         on_token: &mut dyn FnMut(&str),
     ) -> Result<Generation, String> {
+        self.cancel.store(false, Ordering::Relaxed);
+        self.generate_cancellable(request, on_token, &self.cancel)
+    }
+
+    fn generate_cancellable(
+        &self,
+        request: &InferenceRequest,
+        on_token: &mut dyn FnMut(&str),
+        cancel: &AtomicBool,
+    ) -> Result<Generation, String> {
+        if cancel.load(Ordering::Acquire) || self.cancel.load(Ordering::Acquire) {
+            return Err("cancelled".to_string());
+        }
         if let Some(client) = self.link.get() {
-            self.cancel.store(false, Ordering::Relaxed);
-            match client.generate(request, on_token, &self.cancel) {
+            match client.generate_with_cancellation(request, on_token, &|| {
+                cancel.load(Ordering::Acquire) || self.cancel.load(Ordering::Acquire)
+            }) {
                 Ok(generated) => {
                     self.unreachable.store(false, Ordering::Relaxed);
                     if let Ok(mut model) = self.remote_model.write() {
@@ -245,7 +272,7 @@ impl Backend for Delegating {
                 }
             }
         }
-        self.local.generate(request, on_token)
+        self.local.generate_cancellable(request, on_token, cancel)
     }
 
     /// Only while this phone answers itself: the computer reads its own conversation.
@@ -259,6 +286,75 @@ impl Backend for Delegating {
     fn stop(&self) {
         self.cancel.store(true, Ordering::Relaxed);
         self.local.stop();
+    }
+}
+
+#[cfg(test)]
+mod memory_review_tests {
+    use super::*;
+
+    #[test]
+    fn paired_phones_never_delegate_private_memory_comparisons() {
+        struct LocalOnly;
+        impl Backend for LocalOnly {
+            fn label(&self) -> String {
+                "local-only fixture".into()
+            }
+            fn generate(
+                &self,
+                _: &InferenceRequest,
+                _: &mut dyn FnMut(&str),
+            ) -> Result<Generation, String> {
+                panic!("private comparison used ordinary generation")
+            }
+            fn generate_memory_review(
+                &self,
+                request: &InferenceRequest,
+                _: &AtomicBool,
+            ) -> Option<Result<Generation, String>> {
+                assert!(request.tools.is_empty());
+                assert_eq!(request.messages[0].content, "sensitive device-only fixture");
+                Some(Ok(Generation {
+                    content: r#"{"matches":[]}"#.into(),
+                    ..Generation::default()
+                }))
+            }
+        }
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let link = Link::default();
+        link.set(Some(Arc::new(NodeClient::new(
+            DeviceKey::generate().unwrap(),
+            Peer {
+                name: "paired fixture".into(),
+                public_key: "00".repeat(32),
+                paired_at: 1,
+                address: Some(listener.local_addr().unwrap().to_string()),
+            },
+            "test phone",
+        ))));
+        let backend = Delegating::new(link, Arc::new(LocalOnly));
+        let request = InferenceRequest {
+            id: crate::memory::semantic::REQUEST,
+            session: pr3_core::SessionId(0),
+            tools: vec![],
+            messages: vec![pr3_core::Message::new(
+                pr3_core::Role::User,
+                "sensitive device-only fixture".into(),
+                crate::host::now(),
+            )],
+        };
+        assert!(
+            backend
+                .generate_memory_review(&request, &AtomicBool::new(false))
+                .unwrap()
+                .is_ok()
+        );
+        assert_eq!(
+            listener.accept().unwrap_err().kind(),
+            std::io::ErrorKind::WouldBlock
+        );
+        assert!(!backend.unreachable.load(Ordering::Relaxed));
     }
 }
 

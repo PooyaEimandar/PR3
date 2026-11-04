@@ -79,6 +79,21 @@ impl NodeClient {
         }
     }
 
+    pub fn continuity(
+        &self,
+        request: pr3_protocol::ContinuityRequest,
+    ) -> Result<pr3_protocol::ContinuityReply, HybridError> {
+        let (channel, _) = self.session()?;
+        channel.send(&ToNode::Continuity { request })?;
+        let result = match channel.recv::<FromNode>()? {
+            FromNode::Continuity { reply } => Ok(reply),
+            FromNode::Failed { reason, .. } => Err(HybridError::Refused(reason)),
+            _ => Err(HybridError::Protocol("Expected continuity reply".into())),
+        };
+        channel.close();
+        result
+    }
+
     pub fn node(&self) -> &Peer {
         &self.node
     }
@@ -129,6 +144,20 @@ impl NodeClient {
         on_token: &mut dyn FnMut(&str),
         cancel: &AtomicBool,
     ) -> Result<Generated, HybridError> {
+        self.generate_with_cancellation(request, on_token, &|| cancel.load(Ordering::Relaxed))
+    }
+
+    /// Like `generate`, with a predicate so a host can combine task cancellation
+    /// and shutdown without letting one task cancel another's inference.
+    pub fn generate_with_cancellation(
+        &self,
+        request: &InferenceRequest,
+        on_token: &mut dyn FnMut(&str),
+        cancelled: &(impl Fn() -> bool + Sync),
+    ) -> Result<Generated, HybridError> {
+        if cancelled() {
+            return Err(HybridError::Cancelled);
+        }
         const ID: u64 = 1;
         let (channel, _) = self.session()?;
         channel.send(&ToNode::Generate {
@@ -140,7 +169,7 @@ impl NodeClient {
             // Passes a cancellation on while this thread waits for the node.
             scope.spawn(|| {
                 while !finished.load(Ordering::Relaxed) {
-                    if cancel.load(Ordering::Relaxed) {
+                    if cancelled() {
                         let _ = channel.send(&ToNode::Cancel { id: ID });
                         return;
                     }
@@ -151,7 +180,7 @@ impl NodeClient {
                 match channel.recv::<FromNode>() {
                     Ok(FromNode::Token { id: ID, text }) => on_token(&text),
                     Ok(FromNode::Done { id: ID, generated }) => break Ok(generated),
-                    Ok(FromNode::Failed { .. }) if cancel.load(Ordering::Relaxed) => {
+                    Ok(FromNode::Failed { .. }) if cancelled() => {
                         break Err(HybridError::Cancelled);
                     }
                     Ok(FromNode::Failed { id: ID, reason }) => {

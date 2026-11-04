@@ -3,6 +3,8 @@
 <!-- The macOS app's entitlements, for the hardened runtime a signed build runs under. -->
 <plist version="1.0">
 <dict>
+  <key>com.apple.security.personal-information.addressbook</key>
+  <true/>
   <!-- Voice notes: without it the hardened runtime keeps the microphone silent. -->
   <key>com.apple.security.device.audio-input</key>
   <true/>

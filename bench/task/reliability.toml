@@ -1,0 +1,48 @@
+# Focused restart/correction regressions added after the frozen Nov 4 baseline.
+# Synthetic contacts only. Every action uses the sandbox and an explicit decision.
+filler = []
+
+[[contact]]
+name = "Alex Rivera"
+address = "alex@example.com"
+
+[[contact]]
+name = "Sam Chen"
+address = "sam@example.com"
+
+[[case]]
+id = "approval/recalled-after-restart"
+kind = "approval"
+launches = [
+    [{say = "Email Alex that our rehearsal is on Thursday at 18:45 at Cedar Hall.", card = "close"}],
+    [
+        {again = "approve", sent = ["alex@example.com", "Thursday", "18:45|6:45", "Cedar Hall"]},
+        {say = "What time and place did I say for the rehearsal?", expect = ["18:45|6:45", "Cedar Hall"], card = "none"},
+    ],
+    [{say = "Which day did I tell Alex for our rehearsal?", expect = ["Thursday"], card = "none"}],
+]
+
+[[case]]
+id = "correction/recipient-from-context"
+kind = "correction"
+launches = [
+    [
+        {say = "I need to email Sam the workshop access code 5832. Do not draft it yet.", card = "none"},
+        {say = "Correction: Alex needs that code instead of Sam. Still wait before drafting.", card = "none"},
+    ],
+    [{say = "Please draft that email now.", card = "approve", card_contains = ["alex@example.com", "5832"], card_excludes = ["sam@example.com"], sent = ["alex@example.com", "5832"], unsent = ["sam@example.com"]}],
+]
+
+[[case]]
+id = "correction/recipient-declined"
+kind = "correction"
+launches = [
+    [
+        {say = "I need to email Alex that the pickup is at 16:20. Do not draft it yet.", card = "none"},
+        {say = "Correction: send that to Sam instead. Wait for me to ask for the draft.", card = "none"},
+    ],
+    [
+        {say = "Please draft that email now.", card = "decline", card_contains = ["sam@example.com", "16:20|4:20"], card_excludes = ["alex@example.com"], expect = ["not sent|nothing was sent|No email sent"], unsent = ["alex@example.com", "sam@example.com"]},
+        {say = "Who did I correct the pickup recipient to? Reply only with their name.", expect = ["Sam"], reject = ["Alex"], card = "none"},
+    ],
+]

@@ -1,29 +1,42 @@
 //! Host adapter: runs `pr3-core` inference requests on a bundled GGUF model.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use pr3_core::{GenerationInfo, InferenceRequest, ProposedToolCall, Role};
 use pr3_llamacpp::{
-    ChatMessage, ChatRole, Engine, EngineConfig, EngineError, ToolCallText, ToolDef,
+    ChatMessage, ChatOutput, ChatRole, Engine, EngineConfig, EngineError, ToolCallText, ToolDef,
 };
 
 use crate::host::{Backend, Generation};
 
 const SYSTEM_PROMPT: &str = "You are PR3, a private assistant running entirely on the \
 user's own device. Answer clearly and briefly. Use the tools for calculations and the \
-current time instead of guessing.";
+current time instead of guessing. Read the current task's conversation before answering. \
+It includes exchanges restored after restarting the app. Use the user's latest correction \
+for names, recipients, dates and other details; earlier conflicting values are obsolete. \
+Do not treat your own earlier guesses or requests for details as facts from the user.";
 
 /// Added only when the memory tools are offered.
 const MEMORY_PROMPT: &str = " When the user tells you something about themselves worth \
-keeping, or asks you to remember something, save it with remember; before answering \
-questions about the user, look it up with recall.";
+keeping, propose it with remember for the user's review. The current task's conversation \
+and long-term memory are separate. Answer from the conversation when it contains the \
+requested detail. Use recall for facts missing from it. An empty recall result means \
+there are no saved notes, not that the user never supplied the detail. A saved note does \
+not override the user's later correction in this task. A follow-up may paraphrase the \
+user's earlier wording: identify the relevant fact in this task and answer from it. \
+Do not claim that a detail is unknown merely because the question uses different words. \
+Ask for clarification only when the available details leave a real ambiguity.";
 
 /// Added only when sending email is offered.
-const MAIL_PROMPT: &str = " To send an email, call send_email with the contacts' names \
-and the complete subject and text; PR3 shows the user the exact email and sends it only \
-if they approve. Say an email was sent only if send_email answers SENT; if it answers \
-NOT SENT, tell the user it was not sent.";
+const MAIL_PROMPT: &str = " When the user asks you to prepare or send an email now, call \
+send_email with the requested contact's name and a complete subject and body based on \
+their details. PR3 resolves names to addresses; you do not need to know the address. \
+Use the latest requested recipient, not a superseded one. If they ask you to wait or \
+only correct details, acknowledge that and do not draft until they ask. Once they ask, \
+write a concise subject and body yourself when the conversation supplies enough detail. \
+Follow the tool's connector description. A proposal, approval, draft handoff and sending \
+are different outcomes; PR3 reports only the recorded result.";
 
 pub struct LlamaBackend {
     engine: Engine,
@@ -55,6 +68,30 @@ impl LlamaBackend {
 }
 
 impl Backend for LlamaBackend {
+    fn generate_memory_review(
+        &self,
+        request: &InferenceRequest,
+        cancel: &std::sync::atomic::AtomicBool,
+    ) -> Option<Result<Generation, String>> {
+        use std::sync::atomic::Ordering;
+        if cancel.load(Ordering::Acquire) {
+            return Some(Err(crate::task::STOPPED.into()));
+        }
+        let (messages, _) = chat(request);
+        let output = self.engine.chat_with_grammar_until(
+            &messages,
+            crate::memory::semantic::GRAMMAR,
+            &mut |_| !cancel.load(Ordering::Acquire),
+        );
+        Some(if cancel.load(Ordering::Acquire) {
+            Err(crate::task::STOPPED.into())
+        } else {
+            output
+                .map(|out| self.generation(out))
+                .map_err(|e| e.to_string())
+        })
+    }
+
     fn label(&self) -> String {
         self.engine.label().to_string()
     }
@@ -84,7 +121,21 @@ impl Backend for LlamaBackend {
             .engine
             .chat_with_tools_until(&messages, &tools, on_token)
             .map_err(|e| e.to_string())?;
-        Ok(Generation {
+        Ok(self.generation(out))
+    }
+
+    fn read_ahead(&self, request: &InferenceRequest, opening: &str) -> Box<dyn FnOnce() + Send> {
+        let (messages, tools) = chat(request);
+        let reading = self.engine.read_ahead(&messages, &tools, opening);
+        Box::new(move || {
+            let _ = reading.wait();
+        })
+    }
+}
+
+impl LlamaBackend {
+    fn generation(&self, out: ChatOutput) -> Generation {
+        Generation {
             content: out.text,
             tool_calls: out
                 .tool_calls
@@ -100,15 +151,7 @@ impl Backend for LlamaBackend {
                 prompt_tokens: out.prompt_tokens,
                 completion_tokens: out.completion_tokens,
             },
-        })
-    }
-
-    fn read_ahead(&self, request: &InferenceRequest, opening: &str) -> Box<dyn FnOnce() + Send> {
-        let (messages, tools) = chat(request);
-        let reading = self.engine.read_ahead(&messages, &tools, opening);
-        Box::new(move || {
-            let _ = reading.wait();
-        })
+        }
     }
 }
 
@@ -163,7 +206,7 @@ fn chat(request: &InferenceRequest) -> (Vec<ChatMessage>, Vec<ToolDef>) {
 /// The repository's `model/` folder, where debug builds also look for models. Debug
 /// builds and tests only, so release builds carry no path from the build machine.
 #[cfg(any(debug_assertions, test))]
-pub fn repo_models() -> PathBuf {
+pub fn repo_models() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../model")
 }
 
@@ -186,12 +229,28 @@ mod tests {
     use crate::host::{Backend, Host, TurnEvent};
     use pr3_vault::SoftwareVault;
 
+    fn test_backend(path: &Path) -> LlamaBackend {
+        LlamaBackend::load_seeded(path, 7).unwrap()
+    }
+
+    fn test_contacts() -> pr3_core::trusted::Directory {
+        use pr3_core::trusted::{Contact, Directory};
+        Directory {
+            contacts: vec![
+                Contact {
+                    name: "Alex Rivera".into(),
+                    address: "alex@example.com".into(),
+                },
+                Contact {
+                    name: "Sam Chen".into(),
+                    address: "sam@example.com".into(),
+                },
+            ],
+        }
+    }
+
     fn host(path: &Path) -> Host {
-        Host::new(
-            Arc::new(LlamaBackend::load(path).unwrap()),
-            pr3_tool::builtin(),
-        )
-        .unwrap()
+        Host::new(Arc::new(test_backend(path)), pr3_tool::builtin()).unwrap()
     }
 
     fn turn(host: &Host, text: &str) -> (String, Vec<TurnEvent>) {
@@ -216,6 +275,7 @@ mod tests {
             .filter_map(|e| match e {
                 TurnEvent::Tool { name, .. } => Some(name.as_str()),
                 TurnEvent::Token { .. }
+                | TurnEvent::Result { .. }
                 | TurnEvent::Approval { .. }
                 | TurnEvent::TaskOpened(_)
                 | TurnEvent::NewTask
@@ -288,7 +348,7 @@ mod tests {
             let store: pr3_tool::SharedMemory = Arc::new(Mutex::new(
                 pr3_memory_sqlite::SqliteMemory::open(&file).unwrap(),
             ));
-            let backend: Arc<dyn Backend> = Arc::new(LlamaBackend::load(&path).unwrap());
+            let backend: Arc<dyn Backend> = Arc::new(test_backend(&path));
             let conversation = || {
                 let mut tools = pr3_tool::builtin();
                 tools.extend(pr3_tool::memory_tools(Arc::clone(&store)));
@@ -301,8 +361,14 @@ mod tests {
                 &conversation(),
                 "Please remember that my favourite colour is green.",
             );
+            let saved = store
+                .lock()
+                .unwrap()
+                .recent(10, crate::host::now())
+                .unwrap();
             assert!(
-                tool_names(&events).contains(&"remember"),
+                saved.iter().any(|m| m.text.to_lowercase().contains("green")
+                    && m.status == pr3_memory::Status::Confirmed),
                 "{id}: {events:?}"
             );
 
@@ -371,12 +437,12 @@ mod tests {
                 Actions::with_vault(
                     &dir,
                     settings.limits(),
-                    settings.directory(),
+                    test_contacts(),
                     Box::new(SoftwareVault::generate().unwrap()),
                 )
                 .unwrap(),
             );
-            let backend: Arc<dyn Backend> = Arc::new(LlamaBackend::load(&path).unwrap());
+            let backend: Arc<dyn Backend> = Arc::new(test_backend(&path));
             let conversation = || {
                 Host::new(Arc::clone(&backend), pr3_tool::builtin())
                     .unwrap()
@@ -483,7 +549,7 @@ mod tests {
                 Actions::with_vault(
                     &dir,
                     settings.limits(),
-                    settings.directory(),
+                    test_contacts(),
                     Box::new(SoftwareVault::generate().unwrap()),
                 )
                 .unwrap(),
@@ -492,7 +558,7 @@ mod tests {
             tools.push(Box::new(pr3_tool::web::ReadWebPage::new(Box::new(
                 PlantedPage,
             ))));
-            let host = Host::new(Arc::new(LlamaBackend::load(&path).unwrap()), tools)
+            let host = Host::new(Arc::new(test_backend(&path)), tools)
                 .unwrap()
                 .with_actions(Arc::clone(&actions))
                 .unwrap();

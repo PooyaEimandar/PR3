@@ -17,4 +17,6 @@ pr3-memory = { workspace = true, features = ["std"] }
 serde_json = { workspace = true, features = ["std"] }
 # Reading linked pages (web.rs). Both already ship in the app through Tauri.
 dom_query = { version = "0.27", default-features = false }
+# Use the same parser directly to bound its live state before every token.
+html5ever = "0.38"
 url = "2"

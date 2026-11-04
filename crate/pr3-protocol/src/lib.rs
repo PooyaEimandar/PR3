@@ -1,7 +1,7 @@
 //! PR3's wire contract, version 0 (docs Sec. 4.1, Sec. 4.2): what a phone says to its node and
 //! what the node answers. The node is the user's own computer, lending its larger model;
-//! the phone keeps the conversation, its memory, its tools and the whole trusted side, so
-//! a node can propose an action but never approve or run one (Sec. 6.3).
+//! model borrowing leaves storage and the trusted side on the phone. Continuity is
+//! enabled by pairing and shares selected records, never approval authority (Sec. 6.3).
 //!
 //! Messages travel as CBOR inside an authenticated, encrypted session (`pr3-hybrid`).
 //! The types are `no_std`; encoding needs the `std` feature.
@@ -24,16 +24,61 @@ pub const VERSION: u16 = 0;
 /// The largest message either side accepts, after decryption.
 pub const MAX_MESSAGE_BYTES: usize = 1 << 20;
 
+/// Selected records carried inside the paired, encrypted transport.
+/// No approval, capability, vault key or action-execution request crosses here.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ContinuityChange {
+    pub sequence: u64,
+    pub id: String,
+    pub kind: String,
+    pub owner: String,
+    pub epoch: u64,
+    pub revision: u64,
+    /// None is a permanent deletion tombstone. Payloads are validated by the store.
+    pub payload: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ContinuityPage {
+    pub changes: Vec<ContinuityChange>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ContinuityRequest {
+    pub version: u16,
+    /// Last node sequence durably applied by the phone.
+    pub cursor: u64,
+    pub page: ContinuityPage,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ContinuityReply {
+    /// Last phone sequence durably applied by the node.
+    pub acknowledged: u64,
+    pub page: ContinuityPage,
+}
+
 /// From a paired phone to its node.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ToNode {
     /// First message of every session.
-    Hello { version: u16, device: String },
+    Hello {
+        version: u16,
+        device: String,
+    },
     /// Run the model on this request and stream the answer.
-    Generate { id: u64, request: InferenceRequest },
+    Generate {
+        id: u64,
+        request: InferenceRequest,
+    },
     /// Stop generating for request `id`; the node answers `Failed`.
-    Cancel { id: u64 },
+    Cancel {
+        id: u64,
+    },
+    Continuity {
+        request: ContinuityRequest,
+    },
 }
 
 /// From a node to a paired phone.
@@ -59,6 +104,9 @@ pub enum FromNode {
     Failed {
         id: u64,
         reason: String,
+    },
+    Continuity {
+        reply: ContinuityReply,
     },
 }
 

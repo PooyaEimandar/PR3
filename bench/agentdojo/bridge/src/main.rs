@@ -405,6 +405,7 @@ fn run_pr3(
                 step(
                     &mut core,
                     Input::ToolOutcome {
+                        sources: Vec::new(),
                         call_id: call.id,
                         success,
                         output,
@@ -428,6 +429,7 @@ fn run_pr3(
                 step(
                     &mut core,
                     Input::ToolOutcome {
+                        sources: Vec::new(),
                         call_id: call.id,
                         success,
                         output,

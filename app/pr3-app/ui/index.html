@@ -26,6 +26,7 @@
         <button type="button" role="tab" data-tab="voice" class="secondary small">Voice</button>
         <button type="button" role="tab" data-tab="memory" class="secondary small">Memory</button>
         <button type="button" role="tab" data-tab="devices" class="secondary small">Devices</button>
+        <button type="button" role="tab" data-tab="email" class="secondary small">Contacts</button>
         <button type="button" role="tab" data-tab="web" class="secondary small">Web</button>
       </div>
       <div id="models" class="pane" role="tabpanel" hidden></div>
@@ -43,6 +44,7 @@
       </div>
       <div id="memory" class="pane" role="tabpanel" hidden></div>
       <div id="devices" class="pane" role="tabpanel" hidden></div>
+      <div id="email" class="pane" role="tabpanel" hidden></div>
       <div id="web" class="pane" role="tabpanel" hidden></div>
     </section>
     <!-- Tasks: To Do, Doing and Done, swiped left and right; a task opens to its chat
@@ -63,13 +65,43 @@
       <div id="task-detail" hidden></div>
     </section>
     <!-- Asked before a task is deleted, which cannot be undone; Cancel has the focus. -->
-    <dialog id="delete-dialog" aria-labelledby="delete-title">
+    <dialog id="delete-dialog" class="confirm-dialog" aria-labelledby="delete-title">
       <form method="dialog">
         <h2 id="delete-title">Delete task?</h2>
         <p>This will permanently delete this task. This can't be undone.</p>
         <div class="choices">
           <button type="submit" value="cancel" class="secondary">Cancel</button>
           <button type="submit" value="delete" class="danger">Delete</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="forget-device-dialog" class="confirm-dialog" aria-labelledby="forget-device-title" aria-describedby="forget-device-description">
+      <form method="dialog">
+        <h2 id="forget-device-title">Forget device?</h2>
+        <p id="forget-device-description"></p>
+        <div class="choices">
+          <button type="submit" value="cancel" class="secondary" autofocus>Cancel</button>
+          <button type="submit" value="forget" class="danger">Forget</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="remove-contacts-dialog" class="confirm-dialog" aria-labelledby="remove-contacts-title" aria-describedby="remove-contacts-description">
+      <form method="dialog">
+        <h2 id="remove-contacts-title">Remove all contacts?</h2>
+        <p id="remove-contacts-description">This will remove all contacts from PR3 and turn off sync. Your device's address book stays unchanged.</p>
+        <div class="choices">
+          <button type="submit" value="cancel" class="secondary" autofocus>Cancel</button>
+          <button type="submit" value="remove" class="danger">Remove all</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="remove-item-dialog" class="confirm-dialog" aria-labelledby="remove-item-title" aria-describedby="remove-item-description">
+      <form method="dialog">
+        <h2 id="remove-item-title"></h2>
+        <p id="remove-item-description"></p>
+        <div class="choices">
+          <button type="submit" value="cancel" class="secondary" autofocus>Cancel</button>
+          <button id="remove-item-action" type="submit" value="remove" class="danger">Remove</button>
         </div>
       </form>
     </dialog>
@@ -86,6 +118,7 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11z"/></svg>
       </button>
       <button type="submit">Send</button>
+      <button id="stop-task" type="button" class="secondary" hidden>Stop</button>
       <!-- Over the chat, above Send, while the chat is not at its end. -->
       <button id="to-end" type="button" aria-label="Go to the end" title="Go to the end" hidden>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12l-1.41-1.41L13 16.17V4h-2v12.17l-5.58-5.59L4 12l8 8 8-8z"/></svg>

@@ -18,6 +18,7 @@
 
 extern crate alloc;
 
+use alloc::collections::BTreeSet;
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt;
@@ -27,7 +28,9 @@ pub use pr3_core::{SessionId, Timestamp};
 /// The principal a memory is about when nobody else is named.
 pub const USER: &str = "user";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct MemoryId(pub i64);
 
 impl fmt::Display for MemoryId {
@@ -37,7 +40,7 @@ impl fmt::Display for MemoryId {
 }
 
 /// Where a memory came from.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Source {
     /// Said in a conversation. `excerpt` is what the user said in that turn, so every
     /// memory can be traced back to the user's own words.
@@ -46,7 +49,7 @@ pub enum Source {
     User,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Status {
     /// Written by the model: a proposal the user has not confirmed.
     Proposed,
@@ -54,7 +57,7 @@ pub enum Status {
     Confirmed,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Privacy {
     Personal,
     /// Never leaves the device and is never sent to a remote model.
@@ -62,14 +65,15 @@ pub enum Privacy {
 }
 
 /// What the user has agreed a memory may be used for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Consent {
-    /// Stays on this device: not synced, not sent to a node. The only scope until
-    /// device sync exists (docs Sec. 6.3).
+    /// Local by default. Pairing enables continuity transport; an explicit per-item
+    /// grant selects a confirmed Personal fact to share with that peer.
+    /// Sensitive facts remain ineligible even with that grant (docs Sec. 6.3).
     DeviceOnly,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Retention {
     Keep,
     /// No longer recalled after this time.
@@ -77,7 +81,7 @@ pub enum Retention {
 }
 
 /// The provenance every memory carries (docs Sec. 4.4).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Provenance {
     pub source: Source,
     /// Whose information this is: [`USER`], or the person it is about.
@@ -118,7 +122,7 @@ impl Provenance {
 }
 
 /// A stored memory.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Memory {
     pub id: MemoryId,
     pub text: String,
@@ -129,14 +133,14 @@ pub struct Memory {
 }
 
 /// A memory to store.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct NewMemory {
     pub text: String,
     pub status: Status,
     pub provenance: Provenance,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct MemoryError(pub String);
 
 impl fmt::Display for MemoryError {
@@ -182,6 +186,85 @@ pub trait MemoryStore {
     /// was forgotten. Forgetting an earlier version leaves its correction, which is the
     /// user's own text. Returns false if there was nothing to forget.
     fn forget(&mut self, id: MemoryId, at: Timestamp) -> Result<bool, MemoryError>;
+}
+
+/// Conservative candidates for user review, never permission to overwrite a fact.
+/// Matching words suggest a shared subject; they do not establish a contradiction.
+pub fn possible_updates(
+    store: &dyn MemoryStore,
+    text: &str,
+    principal: &str,
+    exclude: Option<MemoryId>,
+    now: Timestamp,
+) -> Result<Vec<Memory>, MemoryError> {
+    let words = subject_words(text);
+    if words.is_empty() {
+        return Ok(Vec::new());
+    }
+    let query = words.iter().cloned().collect::<Vec<_>>().join(" ");
+    let normalized = comparable(text);
+    Ok(store
+        .search(&query, 24, now)?
+        .into_iter()
+        .filter(|m| {
+            if Some(m.id) == exclude || m.provenance.principal != principal {
+                return false;
+            }
+            if comparable(&m.text) == normalized {
+                return false;
+            }
+            let other = subject_words(&m.text);
+            let shared = words.intersection(&other).count();
+            shared > 0 && shared * 2 >= words.len().min(other.len())
+        })
+        .take(5)
+        .collect())
+}
+
+fn comparable(text: &str) -> String {
+    text.replace(['\u{2018}', '\u{2019}'], "'")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .trim_end_matches(['.', '!'])
+        .to_lowercase()
+}
+
+fn subject_words(text: &str) -> BTreeSet<String> {
+    text.split(|c: char| !c.is_alphanumeric())
+        .map(str::to_lowercase)
+        .filter(|w| w.chars().count() >= 3 && !w.chars().all(char::is_numeric))
+        .filter(|w| {
+            !matches!(
+                w.as_str(),
+                "the"
+                    | "and"
+                    | "for"
+                    | "that"
+                    | "this"
+                    | "with"
+                    | "from"
+                    | "user"
+                    | "was"
+                    | "are"
+                    | "has"
+                    | "have"
+                    | "now"
+                    | "new"
+                    | "not"
+                    | "instead"
+                    | "actually"
+                    | "please"
+                    | "remember"
+                    | "about"
+                    | "their"
+                    | "they"
+                    | "will"
+                    | "been"
+                    | "moved"
+            )
+        })
+        .collect()
 }
 
 #[cfg(test)]

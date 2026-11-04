@@ -110,6 +110,54 @@ jobs:
           tool: cargo-audit
       - run: cargo audit
 
+  workflows:
+    # A real native Tauri webview, IPC, Host, approval gate and SQLite; only model,
+    # contacts and mail adapters are fixtures. No multi-gigabyte weights in CI.
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: app/pr3-app/package-lock.json
+      - name: Pinned Rust toolchain
+        run: |
+          stable="$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)"
+          rustup toolchain install "$stable" --profile minimal
+          echo "RUSTUP_TOOLCHAIN=$stable" >> "$GITHUB_ENV"
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
+        with:
+          key: native-workflow
+      - run: npm ci --ignore-scripts
+        working-directory: app/pr3-app
+      - run: npm run test:e2e:build
+        working-directory: app/pr3-app
+      - run: npm run test:e2e
+        working-directory: app/pr3-app
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: failure()
+        with:
+          name: native-workflow-failures
+          path: app/pr3-app/test-results/
+          retention-days: 7
+
+  benchmark-harness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: bench/agentdojo/requirements.txt
+      - run: python -m pip install -r bench/agentdojo/requirements.txt
+      - name: Approver, scoring and resume identity
+        run: python -m unittest discover test
+        working-directory: bench/agentdojo
+      - name: Full matrix completeness and error accounting
+        run: python -m unittest discover -s bench/rebaseline -p 'test_*.py'
+
   miri:
     # Undefined behaviour in the core and the code it calls (docs Sec. 12), on the
     # nightly pinned in fuzz/rust-toolchain.toml. Property tests run few cases: Miri

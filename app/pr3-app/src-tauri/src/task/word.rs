@@ -15,6 +15,8 @@ pub enum Words {
     WhatHappened(Vec<String>),
     /// Hand the task these words name to the share sheet.
     Export(Vec<String>),
+    /// Explicit user closure. No name means the task open on screen.
+    Finish(Option<Vec<String>>),
 }
 
 /// Whole messages asking what is open, as [`normalize`] leaves them.
@@ -153,6 +155,49 @@ pub fn starts_anew(text: &str, earlier: &[&str]) -> bool {
 /// Reads a whole message as words about the task list, if it is one.
 pub fn parse(text: &str) -> Option<Words> {
     let said = normalize(text);
+    if [
+        "finish this task",
+        "finish the task",
+        "finish task",
+        "close this task",
+        "close the task",
+        "mark this task as done",
+        "mark this task done",
+        "mark this task as complete",
+        "mark this task complete",
+        "im done with this task",
+        "this task is done",
+        "this task is finished",
+        "this task is complete",
+    ]
+    .contains(&said.as_str())
+    {
+        return Some(Words::Finish(None));
+    }
+    let finish_name = [
+        "finish the task",
+        "finish task",
+        "close the task",
+        "close task",
+    ]
+    .iter()
+    .find_map(|start| after(&said, start))
+    .or_else(|| {
+        said.strip_prefix("mark ").and_then(|rest| {
+            [
+                " as done",
+                " as complete",
+                " as finished",
+                " done",
+                " complete",
+            ]
+            .iter()
+            .find_map(|end| rest.strip_suffix(end))
+        })
+    });
+    if let Some(name) = finish_name {
+        return named(name).map(|name| Words::Finish(Some(name)));
+    }
     if STILL_OPEN.contains(&said.as_str()) {
         return Some(Words::StillOpen);
     }
@@ -245,6 +290,36 @@ mod tests {
 
     fn name(words: &[&str]) -> Vec<String> {
         words.iter().map(|w| w.to_string()).collect()
+    }
+
+    #[test]
+    fn finishing_is_an_explicit_whole_message_not_a_request_to_do_the_work() {
+        for said in [
+            "Finish this task.",
+            "Hey PR3, mark this task as done!",
+            "I'm done with this task",
+            "close the task",
+        ] {
+            assert_eq!(parse(said), Some(Words::Finish(None)), "{said}");
+        }
+        assert_eq!(
+            parse("finish task about the trip"),
+            Some(Words::Finish(Some(name(&["trip"]))))
+        );
+        assert_eq!(
+            parse("mark the trip as done"),
+            Some(Words::Finish(Some(name(&["trip"]))))
+        );
+        for said in [
+            "finish writing the email",
+            "finish the story",
+            "don't finish this task",
+            "is this task finished?",
+            "I said finish this task yesterday",
+            "finish this task and email Alex",
+        ] {
+            assert!(!matches!(parse(said), Some(Words::Finish(_))), "{said}");
+        }
     }
 
     #[test]

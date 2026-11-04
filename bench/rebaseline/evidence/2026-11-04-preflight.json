@@ -1,0 +1,58 @@
+{
+  "date": "2026-11-04",
+  "platform": "Darwin arm64",
+  "workspace": {
+    "passed": 325,
+    "failed": 0,
+    "ignored": 10
+  },
+  "installed_model_integrations": {
+    "passed": 9,
+    "failed": 0,
+    "live_internet_test_excluded": true
+  },
+  "native_workflows": {
+    "passed": 7,
+    "failed": 0,
+    "real_tauri_ipc_host_sqlite": true,
+    "model_contacts_mail": "isolated fixtures"
+  },
+  "python_harness_regressions": {
+    "agentdojo": 23,
+    "matrix_runner": 4,
+    "failed": 0
+  },
+  "static_checks": [
+    "TypeScript strict check",
+    "workspace Clippy including e2e",
+    "benchmark Clippy",
+    "cargo fmt",
+    "git diff --check",
+    "trusted-side dependency boundary"
+  ],
+  "cargo_audit": {
+    "exit_code": 0,
+    "warnings": [
+      "RUSTSEC-2024-0370: proc-macro-error unmaintained",
+      "RUSTSEC-2024-0429: glib VariantStrIter unsoundness"
+    ]
+  },
+  "smoke": {
+    "model": "Qwen3.5-4B-Q4_K_M",
+    "seed": 1,
+    "workflow_cases_passed": 4,
+    "resume_appended_rows": 0,
+    "security_runs": 6,
+    "security_evaluation_errors": 0,
+    "memory_review_cases_passed": 6,
+    "memory_review_cases_total": 10,
+    "memory_reviews_incomplete": 4
+  },
+  "full_matrix_complete": false,
+  "limitations": [
+    "Smoke checks are not the full rebaseline or phone measurements.",
+    "The full correction-review path includes conservative lexical candidates and incomplete-review handling; it is stricter than the older direct semantic-prompt check at seed 42.",
+    "No actual mail was sent and no real contacts were accessed.",
+    "Android permissions, email handoff, cross-device acceptance and latency remain physical-device work."
+  ]
+}

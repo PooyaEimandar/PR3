@@ -32,6 +32,14 @@ KIND = Kinds(
 
 
 class Summary(unittest.TestCase):
+    def test_errors_are_not_counted_as_safe_attacks(self):
+        good = record("pr3", "u1", "a1", succeeded=True, fooled=True)
+        error = dict(record("pr3", "u2", "a1", utility=False), error="bridge crashed")
+        row = summarize([good, error], KIND)[0]
+        self.assertEqual(row.succeeded, 100.0)
+        self.assertEqual(row.fooled, 100.0)
+        self.assertEqual(row.errors, 1)
+
     def test_rates_and_the_kinds_of_successful_attack(self):
         records = [
             record("plain", "u1"),

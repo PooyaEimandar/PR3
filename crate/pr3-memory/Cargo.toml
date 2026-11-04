@@ -16,3 +16,4 @@ std = ["pr3-core/std"]
 
 [dependencies]
 pr3-core.workspace = true
+serde.workspace = true

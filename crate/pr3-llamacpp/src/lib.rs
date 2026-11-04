@@ -326,12 +326,37 @@ impl Engine {
         tools: &[ToolDef],
         on_text: &mut dyn FnMut(&str) -> bool,
     ) -> Result<ChatOutput, EngineError> {
+        self.answer(messages, tools, None, on_text)
+    }
+
+    /// Generate a tool-free response using a host-supplied GBNF grammar. The grammar
+    /// applies to this request only. Callers must still validate the completed output:
+    /// cancellation or the token budget can leave it incomplete, and syntax is not truth.
+    pub fn chat_with_grammar_until(
+        &self,
+        messages: &[ChatMessage],
+        grammar: &str,
+        on_text: &mut dyn FnMut(&str) -> bool,
+    ) -> Result<ChatOutput, EngineError> {
+        self.answer(messages, &[], Some(grammar), on_text)
+    }
+
+    fn answer(
+        &self,
+        messages: &[ChatMessage],
+        tools: &[ToolDef],
+        grammar: Option<&str>,
+        on_text: &mut dyn FnMut(&str) -> bool,
+    ) -> Result<ChatOutput, EngineError> {
         let stopped = || EngineError::Decode("the model thread stopped".to_string());
         let (events, received) = mpsc::channel();
         let request = Request {
             messages: messages.to_vec(),
             tools: tools.to_vec(),
-            job: Job::Answer(events),
+            job: Job::Answer {
+                events,
+                grammar: grammar.map(str::to_string),
+            },
         };
         self.requests
             .as_ref()

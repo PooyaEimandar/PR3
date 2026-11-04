@@ -133,7 +133,10 @@ impl fmt::Display for Refusal {
                 "'{text}' is an address; name a contact instead, PR3 sends only to the user's contacts"
             ),
             Self::UnknownContact { name, known } if known.is_empty() => {
-                write!(f, "no contact named '{name}'; the user has no contacts")
+                write!(
+                    f,
+                    "no contact named '{name}'; check the name and email in the device's Contacts app and enable contact sync in PR3 Settings → Contacts"
+                )
             }
             Self::UnknownContact { name, known } => write!(
                 f,
@@ -268,7 +271,11 @@ fn resolve<'a>(reference: &str, contacts: &'a [Contact]) -> Result<&'a Contact, 
     let candidates = if by_name.is_empty() {
         contacts
             .iter()
-            .filter(|c| normalize(&c.name).split(' ').next() == Some(wanted.as_str()))
+            .filter(|c| {
+                let name = normalize(&c.name);
+                name.split(' ').next() == Some(wanted.as_str())
+                    || name.split(" [email ").next() == Some(wanted.as_str())
+            })
             .collect()
     } else {
         by_name
@@ -277,11 +284,11 @@ fn resolve<'a>(reference: &str, contacts: &'a [Contact]) -> Result<&'a Contact, 
         [one] => Ok(one),
         [] => Err(Refusal::UnknownContact {
             name: quote(reference),
-            known: contacts.iter().map(|c| c.name.clone()).collect(),
+            known: Vec::new(),
         }),
         many => Err(Refusal::AmbiguousContact {
             name: quote(reference),
-            matches: many.iter().map(|c| c.name.clone()).collect(),
+            matches: many.iter().take(10).map(|c| c.name.clone()).collect(),
         }),
     }
 }

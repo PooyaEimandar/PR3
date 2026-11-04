@@ -6,7 +6,9 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use pr3_core::trusted::{Contact, Directory, Limits};
+#[cfg(test)]
+use pr3_core::trusted::Directory;
+use pr3_core::trusted::{Contact, Limits};
 use serde::Deserialize;
 
 const BUILT_IN: &str = include_str!("../../../../config/pr3.toml");
@@ -89,6 +91,7 @@ impl Actions {
         }
     }
 
+    #[cfg(test)]
     pub fn directory(&self) -> Directory {
         Directory {
             contacts: self.contacts.clone(),
@@ -260,7 +263,7 @@ impl Config {
     /// The data folder's `pr3.toml` if there is one, otherwise the built-in config. A
     /// broken override still lets the app start, on the built-in config, but closed:
     /// whatever the user turned off or kept there may be what failed to read, so
-    /// actions are off and no task is erased, and [`Config::problem`] says why.
+    /// actions and web reading are off, no task is erased, and [`Config::problem`] says why.
     pub fn load(data_dir: Option<&Path>) -> Result<Self, String> {
         let path = data_dir.map(|dir| dir.join(FILE_NAME));
         if let Some(path) = path.filter(|p| p.is_file()) {
@@ -273,10 +276,11 @@ impl Config {
                     eprintln!("PR3: ignoring {}: {e}", path.display());
                     let mut config = Self::built_in()?;
                     config.actions.enabled = false;
+                    config.web.enabled = false;
                     config.tasks.keep_days = u64::MAX;
                     config.problem = Some(format!(
                         "{} could not be read, so PR3 runs on its built-in settings with \
-                         actions turned off and no task erased: {e}",
+                         actions turned off, web reading disabled and no task erased: {e}",
                         path.display()
                     ));
                     return Ok(config);
@@ -438,17 +442,14 @@ mod tests {
     }
 
     #[test]
-    fn built_in_actions_have_limits_and_sandbox_contacts() {
+    fn built_in_actions_have_limits_and_no_sample_contacts() {
         let actions = Config::built_in().unwrap().actions;
         assert!(actions.enabled);
         assert_eq!(actions.limits().approval_ms, 120_000);
-        assert!(
-            actions
-                .contacts
-                .iter()
-                .all(|c| c.address.ends_with("@example.com"))
+        assert!(actions.directory().contacts.is_empty());
+        let bad = format!(
+            "{BUILT_IN}\n[[actions.contacts]]\nname = \"Alex Rivera\"\naddress = \"alex example.com\"\n"
         );
-        let bad = BUILT_IN.replace("alex@example.com", "alex example.com");
         assert!(Config::parse(&bad).unwrap_err().contains("Alex Rivera"));
     }
 
@@ -491,6 +492,7 @@ mod tests {
                 "qwen3.8-27b"
             );
             assert!(!config.actions.enabled, "{broken}");
+            assert!(!config.web.enabled, "{broken}");
             assert_eq!(config.tasks.keep_days, u64::MAX);
             assert!(
                 config
@@ -500,6 +502,24 @@ mod tests {
             );
         }
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn an_unrelated_config_error_never_reenables_web_reading() {
+        let dir = std::env::temp_dir().join(format!("pr3-config-web-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let off = BUILT_IN.replace("[web]\nenabled = true", "[web]\nenabled = false");
+        std::fs::write(dir.join(FILE_NAME), &off).unwrap();
+        assert!(!Config::load(Some(&dir)).unwrap().web.enabled);
+        std::fs::write(
+            dir.join(FILE_NAME),
+            format!("{off}\n[typo]\nenabled = true"),
+        )
+        .unwrap();
+        let config = Config::load(Some(&dir)).unwrap();
+        assert!(!config.web.enabled);
+        assert!(config.problem.unwrap().contains("web reading disabled"));
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[cfg(target_os = "macos")]

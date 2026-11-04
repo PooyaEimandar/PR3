@@ -6,10 +6,13 @@
   "scripts": {
     "build": "tsc",
     "watch": "tsc --watch --preserveWatchOutput",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "test:e2e:build": "npm run build && cargo build -p pr3-app --features e2e --locked",
+    "test:e2e": "node --test --test-concurrency=1 test/workflow.test.mjs"
   },
   "devDependencies": {
     "@tauri-apps/api": "2.11.1",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "webdriverio": "10.1.0"
   }
 }

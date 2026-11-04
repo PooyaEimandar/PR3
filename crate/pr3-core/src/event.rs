@@ -49,6 +49,9 @@ pub enum Input {
         call_id: String,
         success: bool,
         output: String,
+        /// Origins reported by the host, separate from the untrusted result text.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        sources: Vec<String>,
         at: Timestamp,
     },
 }
@@ -82,4 +85,18 @@ pub struct InferenceRequest {
     pub messages: Vec<Message>,
     /// Tools the model may call this turn.
     pub tools: Vec<ToolSpec>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn older_tool_outcomes_without_sources_still_deserialize() {
+        let input: Input = serde_json::from_str(
+            r#"{"type":"tool_outcome","call_id":"call-1","success":true,"output":"hello","at":1}"#,
+        )
+        .unwrap();
+        assert!(matches!(input, Input::ToolOutcome { sources, .. } if sources.is_empty()));
+    }
 }

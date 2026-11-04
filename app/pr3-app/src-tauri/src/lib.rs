@@ -9,6 +9,13 @@ mod android_speech;
 mod android_vault;
 mod backup;
 mod config;
+mod contacts;
+mod continuity;
+mod device_mail;
+#[cfg(feature = "e2e")]
+mod e2e;
+#[cfg(all(feature = "e2e", not(debug_assertions)))]
+compile_error!("The e2e driver and fixtures must never be compiled into a release build");
 mod host;
 mod hybrid;
 mod llama;
@@ -142,8 +149,9 @@ fn forget_phone(app: tauri::AppHandle, id: String) -> Result<(), String> {
         .try_state::<NodeHandle>()
         .ok_or("this device is not a node")?;
     let node = handle.0.as_ref().ok_or("the node is off")?;
-    node.forget(&id).map_err(|e| e.to_string())?;
-    Ok(())
+    continuity::pairing_change(&app, || {
+        node.forget(&id).map(|_| ()).map_err(|e| e.to_string())
+    })
 }
 
 /// On a phone: pairs with the computer at `address` using the code it shows.
@@ -159,9 +167,12 @@ async fn pair_with_node(
         .inner()
         .clone();
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let node = tauri::async_runtime::spawn_blocking(move || link.pair(&dir, &address, &code))
-        .await
-        .map_err(|e| e.to_string())??;
+    let pairing_app = app.clone();
+    let node = tauri::async_runtime::spawn_blocking(move || {
+        continuity::pairing_change(&pairing_app, || link.pair(&dir, &address, &code))
+    })
+    .await
+    .map_err(|e| e.to_string())??;
     let _ = app.emit(MODEL_CHANGED, ());
     Ok((&node).into())
 }
@@ -173,7 +184,7 @@ fn unpair(app: tauri::AppHandle) -> Result<(), String> {
         .try_state::<hybrid::Link>()
         .ok_or("this device is not paired")?;
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    link.unpair(&dir)?;
+    continuity::pairing_change(&app, || link.unpair(&dir))?;
     let _ = app.emit(MODEL_CHANGED, ());
     Ok(())
 }
@@ -189,6 +200,7 @@ fn start_hybrid(app: &tauri::AppHandle, settings: &config::Node) {
         let node = hybrid::start_node(app, &dir, settings);
         app.manage(NodeHandle(node, settings.listen.clone()));
     }
+    continuity::refresh_pairing(app);
 }
 
 /// The user's answer on the confirmation card for a consequential action.
@@ -297,7 +309,15 @@ fn open_actions(app: &tauri::AppHandle, settings: &config::Actions) -> Option<Ar
         .map_err(|e| e.to_string())
         .and_then(|dir| {
             let vault = platform_vault(app, &dir)?;
-            Actions::with_vault(&dir, settings.limits(), settings.directory(), vault)
+            let book = app.state::<contacts::Handle>().0.clone();
+            let app = app.clone();
+            Actions::with_device(
+                &dir,
+                settings.limits(),
+                vault,
+                book,
+                Box::new(move |mail| device_mail::open(&app, mail)),
+            )
         });
     match opened {
         Ok(actions) => Some(Arc::new(actions)),
@@ -320,6 +340,29 @@ fn host(
         let memory: pr3_tool::SharedMemory = store.clone();
         // The panel where the user reviews what PR3 remembers uses the same store.
         app.manage(memory::MemoryHandle(memory));
+        match app
+            .path()
+            .app_data_dir()
+            .map_err(|e| e.to_string())
+            .and_then(|dir| {
+                pr3_hybrid::DeviceKey::open(&dir.join("device.key")).map_err(|e| e.to_string())
+            }) {
+            Ok(key) => {
+                let ready = store
+                    .lock()
+                    .map_err(|_| "Memory unavailable".to_string())
+                    .and_then(|mut db| {
+                        db.continuity_init(&key.public_hex())
+                            .map_err(|e| e.to_string())
+                    });
+                if ready.is_ok() {
+                    app.manage(continuity::State::new(store.clone()));
+                } else if let Err(e) = ready {
+                    eprintln!("PR3 continuity unavailable: {e}");
+                }
+            }
+            Err(e) => eprintln!("PR3 continuity unavailable: {e}"),
+        }
     }
     let actions = actions.and_then(|settings| open_actions(app, settings));
     compose_host(
@@ -352,7 +395,7 @@ pub fn compose_host(
             tools.extend(pr3_tool::memory_tools(Arc::clone(&memory)));
             Host::new(backend, tools)?
                 .with_memory(memory)
-                .with_tasks(store, keep_days)
+                .with_tasks(store, keep_days)?
         }
         None => Host::new(backend, tools)?,
     };
@@ -371,6 +414,27 @@ pub mod bench {
     pub use crate::llama::LlamaBackend;
     /// The runtime the host's async calls run on.
     pub use tauri::async_runtime::block_on;
+
+    /// The same bounded, read-only correction review used by the app. A benchmark
+    /// gets candidates and the incomplete flag, never a write or confirmation.
+    pub async fn review_memory(
+        backend: std::sync::Arc<dyn Backend>,
+        memory: pr3_tool::SharedMemory,
+        text: String,
+    ) -> Result<(Vec<i64>, bool, Option<String>), String> {
+        let review = crate::memory::semantic::inspect(
+            backend,
+            memory,
+            text,
+            "user".into(),
+            None,
+            std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        )
+        .await?;
+        let mut ids: Vec<i64> = review.candidates.into_iter().map(|c| c.id).collect();
+        ids.sort_unstable();
+        Ok((ids, review.incomplete, review.notice))
+    }
 }
 
 /// Finished turns are appended as OpenJarvis trace records to `traces.jsonl` in the app's
@@ -420,20 +484,40 @@ fn prepare_data_dir(app: &tauri::AppHandle) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default();
+    #[cfg(feature = "e2e")]
+    let builder = builder.plugin(tauri_plugin_wdio_webdriver::init());
     #[cfg(target_os = "android")]
     let builder = builder
         .plugin(android_vault::plugin())
         .plugin(android_speech::plugin())
         .plugin(network::plugin())
-        .plugin(share::plugin());
+        .plugin(share::plugin())
+        .plugin(contacts::plugin())
+        .plugin(device_mail::plugin());
+    let context = tauri::generate_context!();
+    #[cfg(feature = "e2e")]
+    let context = {
+        let mut context = context;
+        context.config_mut().identifier = "ai.pooya.pr3.e2e".into();
+        context
+    };
     let app = builder
         .setup(|app| {
+            #[cfg(feature = "e2e")]
+            if app.config().identifier == "ai.pooya.pr3.e2e" {
+                return e2e::setup(app);
+            }
             prepare_data_dir(app.handle());
             // An export waits in the cache for the share sheet; it holds a chat in plain text.
             if let Ok(dir) = task::export::dir(app.handle()) {
                 task::export::clear(&dir);
             }
             let data_dir = app.path().app_data_dir().ok();
+            let contacts_dir = app.path().app_data_dir()?;
+            app.manage(contacts::Handle(contacts::open(
+                app.handle(),
+                &contacts_dir,
+            )));
             let config = config::Config::load(data_dir.as_deref());
             let actions = config.as_ref().ok().map(|c| &c.actions);
             let tasks = config.as_ref().map(|c| c.tasks).unwrap_or_default();
@@ -453,9 +537,16 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            continuity::continuity_info,
+            continuity::sync_continuity,
+            continuity::share_item,
+            continuity::recover_item,
             platform_info,
             send_message,
             answer_approval,
+            contacts::contacts_info,
+            contacts::set_contact_sync,
+            contacts::remove_all_contacts,
             devices_info,
             start_pairing,
             forget_phone,
@@ -472,6 +563,7 @@ pub fn run() {
             memory::list_memories,
             memory::add_memory,
             memory::confirm_memory,
+            memory::keep_memory_separately,
             memory::correct_memory,
             memory::forget_memory,
             models::list_models,
@@ -489,12 +581,16 @@ pub fn run() {
             task::start_new_task,
             task::new_topic,
             task::continue_task,
+            task::finish_task,
+            task::stop_task,
+            task::retry_task_save,
+            task::retry_task,
             task::follow_up_task,
             task::task_words,
             task::export_task,
             task::delete_task
         ])
-        .build(tauri::generate_context!());
+        .build(context);
     match app {
         Ok(app) => app.run(|handle, event| {
             if let tauri::RunEvent::Exit = event

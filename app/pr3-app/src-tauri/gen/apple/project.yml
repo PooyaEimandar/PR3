@@ -39,6 +39,7 @@ targets:
     info:
       path: pr3-app_iOS/Info.plist
       properties:
+        NSContactsUsageDescription: PR3 uses contact names and email addresses to prepare emails you review and send in your email app. Contact sync is optional.
         LSRequiresIPhoneOS: true
         UILaunchStoryboardName: LaunchScreen
         UIRequiredDeviceCapabilities: [arm64, metal]

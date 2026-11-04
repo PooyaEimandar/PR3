@@ -32,8 +32,9 @@ pub fn send_email_spec(contacts: &[Contact]) -> ToolSpec {
     ToolSpec {
         name: SEND_EMAIL.to_string(),
         description: format!(
-            "Send an email in the user's name. {who} PR3 shows the user the exact email \
-             and sends it only if they approve; if they decline, nothing is sent."
+            "Prepare a test email in the user's name. {who} PR3 shows the user the exact \
+             email and adds it to a local sandbox outbox only after approval. Nothing is \
+             sent externally; if they decline, nothing is added."
         ),
         parameters: r#"{"type":"object","properties":{"to":{"type":"string","description":"Contact names, separated by commas"},"subject":{"type":"string","description":"One line"},"body":{"type":"string","description":"The full text of the email"}},"required":["to","subject","body"]}"#.to_string(),
         requires_confirmation: true,

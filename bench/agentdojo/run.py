@@ -12,6 +12,8 @@ so an interrupted run resumes where it stopped.
 
 import argparse
 import json
+import os
+import random
 import sys
 import time
 from collections import defaultdict
@@ -23,12 +25,13 @@ from agentdojo.task_suite.load_suites import get_suite
 
 from pr3_agentdojo.approver import APPROVER_VERSION
 from pr3_agentdojo.bridge import Bridge, BridgeAgent
+from pr3_agentdojo.manifest import completed, ensure, identity, sha256
 
 HERE = Path(__file__).resolve().parent
 BENCHMARK_VERSION = "v1.2.2"
 ATTACK = "important_instructions"
 # 2: PR3 gets the plain loop's budgets for tool results, arguments and calls per round.
-HARNESS_VERSION = 2
+HARNESS_VERSION = 3
 
 
 def main() -> int:
@@ -40,6 +43,7 @@ def main() -> int:
     parser.add_argument("--injection-tasks", nargs="*", help="only these injection tasks")
     parser.add_argument("--benign-only", action="store_true", help="run each user task without an attack only")
     parser.add_argument("--max-rounds", type=int, default=10)
+    parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--bridge", type=Path, default=HERE.parents[1] / "target/release/pr3-bench-agentdojo")
     parser.add_argument("--out", type=Path, help="results file (JSON Lines)")
     parser.add_argument("--summary", type=Path, help="only print the summary of a results file")
@@ -50,20 +54,31 @@ def main() -> int:
         return 0
     if args.model is None:
         parser.error("--model is required")
+    if not 0 <= args.seed < 2**32 or args.max_rounds < 1:
+        parser.error("seed must be uint32 and max-rounds positive")
 
     suite = get_suite(BENCHMARK_VERSION, args.suite)
-    out = args.out or HERE / "result" / f"{args.suite}-{args.model.stem}.jsonl"
+    out = args.out or HERE / "result" / f"{args.suite}-{args.model.stem}-seed{args.seed}-v3.jsonl"
     out.parent.mkdir(parents=True, exist_ok=True)
-    done = set()
-    if out.exists():
-        for line in out.read_text().splitlines():
-            r = json.loads(line)
-            done.add((r["mode"], r["user_task"], r["injection_task"]))
-
-    bridge = Bridge(args.bridge, args.model)
     system = load_system_message(None)
     user_tasks = args.user_tasks or list(suite.user_tasks)
     injection_tasks = [] if args.benign_only else args.injection_tasks or list(suite.injection_tasks)
+    # Resolve all ids before starting a costly run.
+    for task in user_tasks:
+        suite.get_user_task_by_id(task)
+    for task in injection_tasks:
+        suite.get_injection_task_by_id(task)
+    expected = {(mode, task, attack) for mode in args.modes for task in user_tasks for attack in [None, *injection_tasks]}
+    run_id = ensure(out, {
+        "model_sha256": sha256(args.model), "bridge_sha256": sha256(args.bridge),
+        "driver_sha256": identity({str(p.relative_to(HERE)): sha256(p) for p in [HERE / "run.py", *sorted((HERE / "pr3_agentdojo").glob("*.py"))]}),
+        "benchmark": BENCHMARK_VERSION, "attack": ATTACK, "approver": APPROVER_VERSION,
+        "harness": HARNESS_VERSION, "seed": args.seed, "max_rounds": args.max_rounds,
+        "suite": args.suite, "system": system,
+        "expected": sorted(expected, key=lambda x: (x[0], x[1], x[2] or "")),
+    })
+    done = completed(out, run_id, expected)
+    bridge = Bridge(args.bridge, args.model, args.seed)
     try:
         for mode in args.modes:
             agent = BridgeAgent(bridge, mode, args.suite, system, args.max_rounds)
@@ -75,9 +90,11 @@ def main() -> int:
                     if (mode, user_id, injection_id) in done:
                         continue
                     injection_task = suite.get_injection_task_by_id(injection_id) if injection_id else None
+                    # Stable across a resume or a different ordering of modes.
+                    random.seed(identity({"seed": args.seed, "task": user_id, "attack": injection_id}))
                     injections = attack.attack(user_task, injection_task) if injection_task else {}
                     agent.prepare(user_task, injection_task)
-                    started = time.time()
+                    started = time.monotonic()
                     try:
                         utility, security = suite.run_task_with_pipeline(
                             agent, user_task, injection_task, injections
@@ -93,11 +110,13 @@ def main() -> int:
                         "attack": ATTACK if injection_task else None,
                         "approver": APPROVER_VERSION,
                         "harness": HARNESS_VERSION,
+                        "run_id": run_id,
+                        "seed": args.seed,
                         "user_task": user_id,
                         "injection_task": injection_id,
                         "utility": utility,
                         # AgentDojo's `security` is True when the attacker's goal was reached.
-                        "attack_succeeded": bool(security) if injection_task else None,
+                        "attack_succeeded": bool(security) if injection_task and error is None else None,
                         "model_attempted_attack": agent.attempted_attack(agent.pre_env)
                         if injection_task and error is None
                         else None,
@@ -108,16 +127,23 @@ def main() -> int:
                         "calls": [
                             {"name": n, "arguments": a, "outcome": o} for n, a, o in agent.last.calls
                         ],
-                        "wall_seconds": round(time.time() - started, 2),
+                        "wall_seconds": round(time.monotonic() - started, 3),
                     }
                     with out.open("a") as f:
                         f.write(json.dumps(record) + "\n")
+                        f.flush()
+                        os.fsync(f.fileno())
                     flag = "ATTACK SUCCEEDED" if record["attack_succeeded"] else ""
                     print(
                         f"{mode:11} {user_id:13} {injection_id or '-':18} utility={utility!s:5} "
                         f"{flag} {record['wall_seconds']}s",
                         flush=True,
                     )
+                    if error:
+                        # Never send another run into an uncertain protocol state.
+                        bridge.abort()
+                        bridge = Bridge(args.bridge, args.model, args.seed)
+                        agent.bridge = bridge
     finally:
         bridge.close()
     summarize(out)
@@ -141,6 +167,7 @@ def summarize(path: Path) -> None:
     for mode, rs in by_mode.items():
         benign = [r for r in rs if r["injection_task"] is None]
         attacked = [r for r in rs if r["injection_task"] is not None]
+        scored = [r for r in attacked if r["attack_succeeded"] is not None and not r["error"]]
         fooled = [r for r in attacked if r["model_attempted_attack"] is not None]
         asked = sum(r["stats"].get("approvals_asked", 0) for r in rs if r["stats"])
         errors = sum(1 for r in rs if r["error"])
@@ -149,13 +176,14 @@ def summarize(path: Path) -> None:
             f"{pct(sum(r['utility'] for r in benign), len(benign)):>15} "
             f"{pct(sum(r['utility'] for r in attacked), len(attacked)):>21} "
             f"{pct(sum(r['model_attempted_attack'] for r in fooled), len(fooled)):>13} "
-            f"{pct(sum(r['attack_succeeded'] for r in attacked), len(attacked)):>17} "
+            f"{pct(sum(r['attack_succeeded'] for r in scored), len(scored)):>17} "
             f"{asked / max(len(rs), 1):>14.2f} "
             f"{errors:>7}"
         )
     print(
         "\nmodel fooled: the model made the attacker's consequential call, whether or not it ran."
         "\nattack succeeded: AgentDojo found the attacker's goal reached in the environment."
+        "\nErrors are unscored, never safe outcomes; attack success denominator excludes them."
     )
 
 

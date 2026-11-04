@@ -10,6 +10,7 @@
 #![forbid(unsafe_code)]
 #![cfg_attr(test, allow(clippy::disallowed_macros))] // tests may assert (clippy.toml)
 
+pub mod continuity;
 mod task;
 
 use std::path::Path;
@@ -128,6 +129,55 @@ const MIGRATIONS: &[&str] = &[
     ALTER TABLE tasks ADD COLUMN summary TEXT;
     ALTER TABLE tasks ADD COLUMN summarized INTEGER NOT NULL DEFAULT 0;
     ",
+    // v5: an explicit user finish, distinct from a turn that merely got a reply.
+    // Copy both sides of the foreign key before replacing tasks, so ON DELETE
+    // CASCADE cannot erase the chat during the migration.
+    "
+    CREATE TABLE tasks_v5 (
+        id INTEGER PRIMARY KEY,
+        title TEXT NOT NULL,
+        parent INTEGER,
+        state TEXT NOT NULL
+            CHECK (state IN ('working', 'waiting', 'done', 'failed', 'expired', 'finished')),
+        reason TEXT,
+        waiting_tool TEXT,
+        waiting_arguments TEXT,
+        waiting_until INTEGER,
+        updated_at INTEGER NOT NULL,
+        summary TEXT,
+        summarized INTEGER NOT NULL DEFAULT 0
+    );
+    INSERT INTO tasks_v5 SELECT * FROM tasks;
+    CREATE TABLE messages_v5 (
+        id INTEGER PRIMARY KEY,
+        task_id INTEGER NOT NULL REFERENCES tasks_v5(id) ON DELETE CASCADE,
+        at INTEGER NOT NULL,
+        kind TEXT NOT NULL CHECK (kind IN ('user', 'reply', 'tool', 'failed')),
+        text TEXT NOT NULL,
+        tool TEXT,
+        arguments TEXT,
+        success INTEGER
+    );
+    INSERT INTO messages_v5 SELECT * FROM messages;
+    DROP TABLE messages;
+    DROP TABLE tasks;
+    ALTER TABLE tasks_v5 RENAME TO tasks;
+    ALTER TABLE messages_v5 RENAME TO messages;
+    CREATE INDEX messages_task ON messages(task_id, id);
+    CREATE TABLE task_events_v5 (
+        id INTEGER PRIMARY KEY,
+        task_id INTEGER NOT NULL,
+        at INTEGER NOT NULL,
+        event TEXT NOT NULL CHECK (event IN ('opened', 'working', 'waiting', 'done',
+            'failed', 'expired', 'finished', 'deleted', 'erased')),
+        parent INTEGER,
+        hash TEXT NOT NULL
+    );
+    INSERT INTO task_events_v5 SELECT * FROM task_events;
+    DROP TABLE task_events;
+    ALTER TABLE task_events_v5 RENAME TO task_events;
+    ",
+    continuity::MIGRATION,
 ];
 
 const COLUMNS: &str = "m.id, m.text, m.status, m.principal, m.created_at, m.valid_at,
@@ -254,6 +304,7 @@ impl MemoryStore for SqliteMemory {
         let id = match existing {
             Some((id, status)) => {
                 if new.status == Status::Confirmed && status != "confirmed" {
+                    continuity::writable_tx(&tx, "memory", id)?;
                     tx.execute(
                         "UPDATE memories SET status = 'confirmed',
                          confidence = MAX(confidence, ?2) WHERE id = ?1",
@@ -320,6 +371,7 @@ impl MemoryStore for SqliteMemory {
     }
 
     fn confirm(&mut self, id: MemoryId, now: Timestamp) -> Result<bool, MemoryError> {
+        self.continuity_writable("memory", id.0)?;
         let changed = self
             .conn
             .execute(
@@ -343,6 +395,7 @@ impl MemoryStore for SqliteMemory {
         if text.is_empty() {
             return Err(MemoryError("a correction needs text".to_string()));
         }
+        self.continuity_writable("memory", id.0)?;
         let old = self
             .get(id)?
             .ok_or_else(|| MemoryError(format!("no memory {id}")))?;
@@ -360,10 +413,14 @@ impl MemoryStore for SqliteMemory {
                 MemoryId(newer)
             )));
         }
+        if matches!(old.provenance.retention, Retention::Until(until) if until <= at) {
+            return Err(MemoryError("that memory has expired".to_string()));
+        }
         let provenance = Provenance {
             principal: old.provenance.principal,
             privacy: old.provenance.privacy,
             consent: old.provenance.consent,
+            retention: old.provenance.retention,
             ..Provenance::from_user(at)
         };
         let tx = self.conn.transaction().map_err(error)?;
@@ -376,8 +433,29 @@ impl MemoryStore for SqliteMemory {
             Some(id),
         )?;
         tx.execute(
-            "UPDATE memories SET superseded_by = ?1 WHERE id = ?2",
+            "UPDATE memories SET superseded_by = ?1 WHERE id = ?2 OR
+             (id != ?1 AND status = 'proposed' AND normalized = ?3 AND principal = ?4
+              AND deleted_at IS NULL AND superseded_by IS NULL
+              AND (retain_until IS NULL OR retain_until > ?5))",
+            params![
+                new,
+                id.0,
+                normalize(text),
+                provenance.principal,
+                db_time(at)?
+            ],
+        )
+        .map_err(error)?;
+        tx.execute(
+            "UPDATE continuity_records SET local_id=?1 WHERE kind='memory' AND local_id=?2",
             params![new, id.0],
+        )
+        .map_err(error)?;
+        // Both the correction and invalidation commit together; a failed write leaves
+        // the old fact and summaries intact.
+        tx.execute(
+            "UPDATE tasks SET summary = NULL, summarized = 0 WHERE summary IS NOT NULL",
+            [],
         )
         .map_err(error)?;
         tx.commit().map_err(error)?;
@@ -388,18 +466,22 @@ impl MemoryStore for SqliteMemory {
     fn forget(&mut self, id: MemoryId, at: Timestamp) -> Result<bool, MemoryError> {
         let at = db_time(at)?;
         let tx = self.conn.transaction().map_err(error)?;
-        let mut next = Some(id.0);
+        let mut next = vec![id.0];
+        let mut visited = std::collections::BTreeSet::new();
         let mut forgot = false;
-        while let Some(current) = next {
-            next = tx
-                .query_row(
-                    "SELECT supersedes FROM memories WHERE id = ?1",
-                    params![current],
-                    |r| r.get(0),
-                )
-                .optional()
-                .map_err(error)?
-                .flatten();
+        while let Some(current) = next.pop() {
+            if !visited.insert(current) {
+                continue;
+            }
+            // A correction can also supersede duplicate proposals. Erase every
+            // predecessor, including those branches, when its newest version is forgotten.
+            let mut earlier = tx
+                .prepare("SELECT id FROM memories WHERE superseded_by = ?1")
+                .map_err(error)?;
+            let ids = earlier
+                .query_map(params![current], |row| row.get::<_, i64>(0))
+                .map_err(error)?;
+            next.extend(ids.collect::<Result<Vec<_>, _>>().map_err(error)?);
             let erased = tx
                 .execute(
                     "UPDATE memories SET text = '', normalized = '', principal = '',
@@ -670,6 +752,83 @@ mod tests {
     }
 
     #[test]
+    fn v5_preserves_task_chats_summaries_memory_and_audit_then_records_user_finish() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", true).unwrap();
+        for sql in &MIGRATIONS[..4] {
+            conn.execute_batch(sql).unwrap();
+        }
+        conn.pragma_update(None, "user_version", 4).unwrap();
+        let mut old = SqliteMemory { conn };
+        old.remember(proposed("The meeting is at 14:30.")).unwrap();
+        let mut task = TaskRecord {
+            id: 1,
+            title: "Email Alex".into(),
+            parent: None,
+            state: TaskState::Working,
+            updated_at: NOW,
+        };
+        {
+            let tx = old.conn.transaction().unwrap();
+            crate::task::upsert(&tx, &task).unwrap();
+            tx.commit().unwrap();
+        }
+        // Seed the old schema directly: current storage APIs require v6 ownership tables.
+        old.conn.execute("INSERT INTO messages(task_id,at,kind,text) VALUES(1,?1,'user','Email Alex the meeting time')",params![NOW.0 as i64]).unwrap();
+        old.save_summary(
+            1,
+            &Summary {
+                text: "Meeting at 14:30".into(),
+                steps: 1,
+            },
+        )
+        .unwrap();
+        task.state = TaskState::Waiting(WaitingCall {
+            tool: "send_email".into(),
+            arguments: "{}".into(),
+            until: Timestamp(NOW.0 + 60_000),
+        });
+        {
+            let tx = old.conn.transaction().unwrap();
+            crate::task::upsert(&tx, &task).unwrap();
+            tx.commit().unwrap();
+        }
+        let before = old.tasks().unwrap();
+        let events = old.task_events(1).unwrap();
+        let mut migrated = SqliteMemory::init(old.conn).unwrap();
+        assert_eq!(migrated.tasks().unwrap(), before);
+        assert_eq!(migrated.task_events(1).unwrap(), events);
+        assert!(migrated.task_events_intact().unwrap());
+        assert_eq!(migrated.search("meeting", 5, NOW).unwrap().len(), 1);
+        task.state = TaskState::Finished;
+        migrated.save_task(&task).unwrap();
+        assert_eq!(
+            migrated.tasks().unwrap()[0].record.state,
+            TaskState::Finished
+        );
+        assert_eq!(
+            migrated.task_events(1).unwrap().last().unwrap().event,
+            "finished"
+        );
+        assert!(migrated.task_events_intact().unwrap());
+        assert_eq!(
+            migrated
+                .erase_tasks_finished_before(Timestamp(NOW.0 + 1), Timestamp(NOW.0 + 2))
+                .unwrap(),
+            [1]
+        );
+        let messages: i64 = migrated
+            .conn
+            .query_row("SELECT count(*) FROM messages", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(
+            messages, 0,
+            "the migrated foreign key must still erase a task's chat"
+        );
+        assert!(migrated.task_events_intact().unwrap());
+    }
+
+    #[test]
     fn privacy_settings_are_on() {
         let m = store();
         let secure: i64 = m
@@ -792,6 +951,94 @@ mod tests {
         assert!(m.forget(newer, NOW).unwrap());
         assert!(!m.confirm(newer, NOW).unwrap());
         assert!(!m.confirm(MemoryId(999), NOW).unwrap());
+    }
+
+    #[test]
+    fn corrections_invalidate_summaries_atomically_and_forgetting_erases_merged_proposals() {
+        let mut m = store();
+        let old = m
+            .remember(proposed("The project meeting is at 14:30."))
+            .unwrap();
+        m.confirm(old, NOW).unwrap();
+        let pending = m
+            .remember(proposed("The project meeting is at 15:00."))
+            .unwrap();
+        m.save_task(&TaskRecord {
+            id: 7,
+            title: "meeting".into(),
+            parent: None,
+            state: TaskState::Done,
+            updated_at: NOW,
+        })
+        .unwrap();
+        m.save_summary(
+            7,
+            &Summary {
+                text: "Meeting at 14:30".into(),
+                steps: 0,
+            },
+        )
+        .unwrap();
+        m.conn.execute_batch("CREATE TRIGGER reject_correction BEFORE INSERT ON memories WHEN NEW.supersedes IS NOT NULL BEGIN SELECT RAISE(ABORT, 'storage full'); END;").unwrap();
+        assert!(
+            m.correct(old, "The project meeting is at 15:00.", NOW)
+                .is_err()
+        );
+        assert_eq!(m.recent(10, NOW).unwrap().len(), 2);
+        assert!(m.tasks().unwrap()[0].summary.is_some());
+        m.conn
+            .execute_batch("DROP TRIGGER reject_correction;")
+            .unwrap();
+        let new = m
+            .correct(old, "The project meeting is at 15:00.", NOW)
+            .unwrap();
+        assert_eq!(m.search("meeting", 10, NOW).unwrap().len(), 1);
+        assert!(m.tasks().unwrap()[0].summary.is_none());
+        assert!(!m.confirm(pending, NOW).unwrap());
+        assert!(m.forget(new, NOW).unwrap());
+        for id in [old, pending, new] {
+            assert!(m.get(id).unwrap().is_none());
+        }
+        let excerpts: i64 = m
+            .conn
+            .query_row(
+                "SELECT count(*) FROM sources WHERE excerpt IS NOT NULL",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(excerpts, 0);
+    }
+
+    #[test]
+    fn correction_candidates_respect_identity_and_retention() {
+        let mut m = store();
+        let mut private = proposed("The meeting is at 14:30.");
+        private.provenance.principal = "Alex".into();
+        private.provenance.privacy = Privacy::Sensitive;
+        private.provenance.retention = Retention::Until(Timestamp(NOW.0 + 10));
+        let id = m.remember(private).unwrap();
+        assert!(
+            pr3_memory::possible_updates(&m, "The meeting is at 15:00.", "user", None, NOW)
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(
+            pr3_memory::possible_updates(&m, "The meeting is at 15:00.", "Alex", None, NOW)
+                .unwrap()[0]
+                .id,
+            id
+        );
+        let new = m.correct(id, "The meeting is at 15:00.", NOW).unwrap();
+        let stored = m.get(new).unwrap().unwrap();
+        assert_eq!(stored.provenance.privacy, Privacy::Sensitive);
+        assert_eq!(stored.provenance.principal, "Alex");
+        assert!(m.correct(new, "later", Timestamp(NOW.0 + 10)).is_err());
+        assert!(
+            m.search("meeting", 10, Timestamp(NOW.0 + 10))
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]

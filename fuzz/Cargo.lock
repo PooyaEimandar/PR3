@@ -1089,6 +1089,7 @@ name = "pr3-tool"
 version = "0.1.1"
 dependencies = [
  "dom_query",
+ "html5ever",
  "pr3-core",
  "pr3-memory",
  "serde_json",

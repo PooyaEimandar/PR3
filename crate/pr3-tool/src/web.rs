@@ -8,14 +8,19 @@
 //! tool's results are marked untrusted, so the core refuses consequential calls in a turn
 //! that read one.
 
+use std::cell::Cell;
 use std::sync::Mutex;
 
-use dom_query::{Document, NodeRef};
-use pr3_core::{Timestamp, ToolCall, ToolSpec};
+use dom_query::{Document, NodeId, NodeRef};
+use html5ever::TokenizerResult;
+use html5ever::buffer_queue::BufferQueue;
+use html5ever::tokenizer::{Token, TokenSink, TokenSinkResult, Tokenizer};
+use html5ever::tree_builder::{Tracer, TreeBuilder, TreeBuilderOpts};
+use pr3_core::{Timestamp, ToolSpec};
 use serde_json::{Map, Value};
 use url::Url;
 
-use crate::{Tool, ToolContext};
+use crate::{Tool, ToolContext, ToolOutput};
 
 pub const READ_WEB_PAGE: &str = "read_web_page";
 /// The media types read; the host refuses anything else before downloading it.
@@ -28,18 +33,10 @@ pub const PART_BYTES: usize = 3_000;
 const CACHED_PAGES: usize = 4;
 const CACHE_MS: u64 = 10 * 60 * 1000;
 const MAX_TITLE_CHARS: usize = 200;
-/// Deepest nesting read. html5ever's time grows with the square of the depth (40,000
-/// nested `<div>`s take seconds), so a page is read only down to this.
-const MAX_DEPTH: usize = 512;
-/// Elements that never hold others, or whose end the parser supplies when the next one
-/// starts: neither deepens a page however many there are.
-const SHALLOW: [&str; 26] = [
-    "area", "base", "br", "col", "dd", "dt", "embed", "hr", "img", "input", "li", "link", "meta",
-    "optgroup", "option", "p", "param", "rp", "rt", "source", "tbody", "td", "tfoot", "th",
-    "thead", "tr",
-];
-/// Elements whose content is text, not tags.
-const RAW_TEXT: [&str; 6] = ["script", "style", "textarea", "title", "xmp", "noscript"];
+/// Bound the parser's open elements and active formatting entries together. Counting
+/// its live handles also includes a few fixed document/head/form references, so this
+/// is a conservative depth limit, independent of malformed HTML's spelling.
+const MAX_PARSER_HANDLES: usize = 512;
 /// Why a link the user did not write is not read.
 pub const NOT_GIVEN: &str = "PR3 reads only links the user wrote. Ask the user to paste the link.";
 const NO_TEXT: &str =
@@ -103,6 +100,11 @@ pub struct Fetched {
 /// The host's way to the web. `url` is always an `https` link the user wrote. An `Err`
 /// is a reason the model can pass on, such as "the site did not answer".
 pub trait Fetch: Send + Sync {
+    /// Checks the user's current permission without network I/O, including cache hits.
+    fn check_enabled(&self) -> Result<(), String> {
+        Ok(())
+    }
+
     fn fetch(&self, url: &str) -> Result<Fetched, String>;
 }
 
@@ -136,14 +138,20 @@ impl ReadWebPage {
         }
     }
 
-    fn page(&self, link: &str, now: Timestamp) -> Result<Page, String> {
+    fn page(&self, link: &str, now: Timestamp, sources: &mut Vec<String>) -> Result<Page, String> {
+        self.fetch.check_enabled()?;
         let fresh = |c: &Cached| now.0.saturating_sub(c.at.0) < CACHE_MS;
         if let Ok(pages) = self.pages.lock()
             && let Some(cached) = pages.iter().find(|c| c.link == link && fresh(c))
         {
+            *sources = site(&cached.page.url).into_iter().collect();
             return Ok(cached.page.clone());
         }
-        let page = page_of(&self.fetch.fetch(link)?)?;
+        let fetched = self.fetch.fetch(link)?;
+        *sources = site(&fetched.url).into_iter().collect();
+        let page = page_of(&fetched)?;
+        // A switch changed during the fetch also prevents the result being returned.
+        self.fetch.check_enabled()?;
         if let Ok(mut pages) = self.pages.lock() {
             pages.retain(|c| c.link != link && fresh(c));
             if pages.len() >= CACHED_PAGES {
@@ -156,6 +164,38 @@ impl ReadWebPage {
             });
         }
         Ok(page)
+    }
+
+    fn read(
+        &self,
+        arguments: &Map<String, Value>,
+        ctx: &ToolContext,
+        sources: &mut Vec<String>,
+    ) -> Result<String, String> {
+        let url = arguments
+            .get("url")
+            .and_then(Value::as_str)
+            .ok_or("missing 'url'")?;
+        let part = match arguments.get("part") {
+            None | Some(Value::Null) => 1,
+            Some(part) => part
+                .as_u64()
+                .and_then(|p| usize::try_from(p).ok())
+                .filter(|&p| p >= 1)
+                .ok_or("'part' must be 1 or more")?,
+        };
+        let link = given(url, ctx).ok_or(NOT_GIVEN)?;
+        *sources = site(&link).into_iter().collect();
+        let page = self.page(&link, ctx.now, sources)?;
+        let count = page.parts.len();
+        let text = part
+            .checked_sub(1)
+            .and_then(|i| page.parts.get(i))
+            .ok_or_else(|| match count {
+                1 => "the page has only one part".to_string(),
+                _ => format!("the page has {count} parts"),
+            })?;
+        Ok(shown(&page, &link, part, text))
     }
 }
 
@@ -176,29 +216,13 @@ impl Tool for ReadWebPage {
     }
 
     fn run(&self, arguments: &Map<String, Value>, ctx: &ToolContext) -> Result<String, String> {
-        let url = arguments
-            .get("url")
-            .and_then(Value::as_str)
-            .ok_or("missing 'url'")?;
-        let part = match arguments.get("part") {
-            None | Some(Value::Null) => 1,
-            Some(part) => part
-                .as_u64()
-                .and_then(|p| usize::try_from(p).ok())
-                .filter(|&p| p >= 1)
-                .ok_or("'part' must be 1 or more")?,
-        };
-        let link = given(url, ctx).ok_or(NOT_GIVEN)?;
-        let page = self.page(&link, ctx.now)?;
-        let count = page.parts.len();
-        let text = part
-            .checked_sub(1)
-            .and_then(|i| page.parts.get(i))
-            .ok_or_else(|| match count {
-                1 => "the page has only one part".to_string(),
-                _ => format!("the page has {count} parts"),
-            })?;
-        Ok(shown(&page, &link, part, text))
+        self.run_with_sources(arguments, ctx).result
+    }
+
+    fn run_with_sources(&self, arguments: &Map<String, Value>, ctx: &ToolContext) -> ToolOutput {
+        let mut sources = Vec::new();
+        let result = self.read(arguments, ctx, &mut sources);
+        ToolOutput { result, sources }
     }
 }
 
@@ -229,23 +253,12 @@ fn shown(page: &Page, link: &str, part: usize, text: &str) -> String {
     out
 }
 
-/// The sites that `calls` to `read_web_page` read, as `example.com`, without repeats: for
-/// a confirmation card to say where text the model has seen came from.
-pub fn sites(calls: &[ToolCall]) -> Vec<String> {
-    let mut sites: Vec<String> = Vec::new();
-    for call in calls.iter().filter(|c| c.name == READ_WEB_PAGE) {
-        let site = serde_json::from_str::<Value>(&call.arguments)
-            .ok()
-            .and_then(|args| args.get("url").and_then(Value::as_str).and_then(normalize))
-            .and_then(|link| Url::parse(&link).ok())
-            .and_then(|url| url.host_str().map(str::to_string));
-        if let Some(site) = site
-            && !sites.contains(&site)
-        {
-            sites.push(site);
-        }
-    }
-    sites
+/// The final response's host, in ASCII, supplied as provenance outside the page text.
+fn site(link: &str) -> Option<String> {
+    Url::parse(&normalize(link)?)
+        .ok()?
+        .host_str()
+        .map(str::to_string)
 }
 
 /// The user's link that `url` names, normalized, if the user wrote it in this message or
@@ -375,7 +388,7 @@ pub fn page_of(fetched: &Fetched) -> Result<Page, String> {
 /// become `#` lines, list items `- ` lines and table rows tab-separated cells. Links keep
 /// their text, not their address: nothing on a page can be followed.
 pub fn page_text(html: &str) -> (Option<String>, String) {
-    let doc = Document::from(shallow(html, MAX_DEPTH));
+    let doc = bounded_document(html);
     let title = doc
         .try_select("title")
         .map(|t| one_line(&t.first().text()))
@@ -396,79 +409,92 @@ pub fn page_text(html: &str) -> (Option<String>, String) {
     (title, text_of(root, whole_page))
 }
 
-/// `html` up to where its tags nest deeper than `max`, by a quick count of start and end
-/// tags that leaves out [`SHALLOW`] elements, comments and the content of [`RAW_TEXT`]
-/// ones. It only bounds the parser's work, so it need not match the parser exactly.
-fn shallow(html: &str, max: usize) -> &str {
-    let bytes = html.as_bytes();
-    let mut depth = 0usize;
-    let mut i = 0;
-    while let Some(lt) = bytes
-        .get(i..)
-        .and_then(|rest| rest.iter().position(|&b| b == b'<'))
-    {
-        let at = i + lt;
-        let rest = bytes.get(at + 1..).unwrap_or_default();
-        if rest.starts_with(b"!--") {
-            i = find(bytes, at + 4, b"-->").map_or(bytes.len(), |end| end + 3);
-            continue;
+/// Feed the real tokenizer/tree builder, stopping before a token can make an already
+/// full parser state grow. Its trace hook visits every open element and active
+/// formatting entry; malformed closing tags, self-closing HTML tags, raw text and
+/// foreign content therefore follow exactly the same rules as DOM construction.
+fn bounded_document(html: &str) -> Document {
+    let sink = BoundedParser {
+        tree: TreeBuilder::new(
+            Document::default(),
+            TreeBuilderOpts {
+                scripting_enabled: false,
+                ..TreeBuilderOpts::default()
+            },
+        ),
+        stopped: Cell::new(false),
+        finishing: Cell::new(false),
+    };
+    let tokenizer = Tokenizer::new(sink, Default::default());
+    let input = BufferQueue::default();
+    input.push_back(html.into());
+    loop {
+        let result = tokenizer.feed(&input);
+        if tokenizer.sink.stopped.get() {
+            // Do not feed the remainder or run EOF recovery after hitting the limit.
+            // The DOM already contains the safe prefix and needs no finalization.
+            break;
         }
-        let closing = rest.first() == Some(&b'/');
-        let name_from = at + 1 + usize::from(closing);
-        let name_len = bytes
-            .get(name_from..)
-            .unwrap_or_default()
-            .iter()
-            .take_while(|b| b.is_ascii_alphanumeric())
-            .count();
-        // A tag's name starts with a letter: "a <3 b" holds none.
-        if !bytes.get(name_from).is_some_and(u8::is_ascii_alphabetic) {
-            i = at + 1;
-            continue;
+        if matches!(result, TokenizerResult::Done) {
+            tokenizer.sink.finishing.set(true);
+            tokenizer.end();
+            break;
         }
-        let name = html
-            .get(name_from..name_from + name_len)
-            .unwrap_or_default()
-            .to_ascii_lowercase();
-        let end = find(bytes, name_from, b">").map_or(bytes.len(), |end| end + 1);
-        i = end;
-        if closing {
-            if !SHALLOW.contains(&name.as_str()) {
-                depth = depth.saturating_sub(1);
-            }
-            continue;
-        }
-        let self_closing = bytes.get(end.saturating_sub(2)) == Some(&b'/');
-        if RAW_TEXT.contains(&name.as_str()) {
-            let close = format!("</{name}");
-            i = find_ignoring_case(bytes, end, close.as_bytes()).unwrap_or(bytes.len());
-            continue;
-        }
-        if SHALLOW.contains(&name.as_str()) || self_closing {
-            continue;
-        }
-        depth += 1;
-        if depth > max {
-            return html.get(..at).unwrap_or_default();
-        }
+        // As html5ever's document parser does, resume after scripts (never executed)
+        // and encoding indicators (the host has already decoded UTF-8).
     }
-    html
+    tokenizer.sink.tree.sink
 }
 
-fn find(bytes: &[u8], from: usize, needle: &[u8]) -> Option<usize> {
-    bytes
-        .get(from..)?
-        .windows(needle.len())
-        .position(|w| w == needle)
-        .map(|p| from + p)
+struct BoundedParser {
+    tree: TreeBuilder<NodeId, Document>,
+    stopped: Cell<bool>,
+    /// EOF recovery cannot suspend; discard further tokens if it reaches the bound.
+    finishing: Cell<bool>,
 }
 
-fn find_ignoring_case(bytes: &[u8], from: usize, needle: &[u8]) -> Option<usize> {
-    bytes
-        .get(from..)?
-        .windows(needle.len())
-        .position(|w| w.eq_ignore_ascii_case(needle))
-        .map(|p| from + p)
+#[derive(Default)]
+struct Handles(Cell<usize>);
+
+impl Tracer for Handles {
+    type Handle = NodeId;
+
+    fn trace_handle(&self, _: &NodeId) {
+        self.0.set(self.0.get().saturating_add(1));
+    }
+}
+
+impl TokenSink for BoundedParser {
+    type Handle = NodeId;
+
+    fn process_token(&self, token: Token, line: u64) -> TokenSinkResult<NodeId> {
+        let full = self.stopped.get() || {
+            let handles = Handles::default();
+            self.tree.trace_handles(&handles);
+            handles.0.get() >= MAX_PARSER_HANDLES
+        };
+        if full {
+            self.stopped.set(true);
+            // Script is the tokenizer's public suspension mechanism. No script runs;
+            // it accepts suspension only for tags. Other tokens are discarded until
+            // the next tag or EOF; none can grow the tree after the limit is reached.
+            return if !self.finishing.get() && matches!(token, Token::TagToken(_)) {
+                TokenSinkResult::Script(self.tree.sink.root().id)
+            } else {
+                TokenSinkResult::Continue
+            };
+        }
+        self.tree.process_token(token, line)
+    }
+
+    fn end(&self) {
+        self.tree.end();
+    }
+
+    fn adjusted_current_node_present_but_not_in_html_namespace(&self) -> bool {
+        self.tree
+            .adjusted_current_node_present_but_not_in_html_namespace()
+    }
 }
 
 enum Step<'a> {
@@ -901,18 +927,49 @@ mod tests {
     }
 
     #[test]
-    fn shallow_counts_start_and_end_tags() {
-        assert_eq!(
-            shallow("<div><div></div></div><div>x", 2),
-            "<div><div></div></div><div>x"
+    fn malformed_nesting_cannot_bypass_the_parser_limit() {
+        for tags in [
+            "<div/>",
+            "<div></bogus>",
+            "<div></span>",
+            "<noscript><div>",
+            "<b><i>",
+        ] {
+            let html = format!("<p>top</p>{}DEEP_SENTINEL", tags.repeat(20_000));
+            let doc = bounded_document(&html);
+            assert!(!doc.text().contains("DEEP_SENTINEL"), "{tags}");
+            assert!(doc.select("*").length() <= MAX_PARSER_HANDLES + 4, "{tags}");
+            assert_eq!(page_text(&html).1, "top", "{tags}");
+        }
+    }
+
+    #[test]
+    fn flat_pages_with_tag_like_text_are_not_cut_short() {
+        let html = format!(
+            "{}<script>{}</script><p>END_SENTINEL</p>",
+            "<div title='<div/> > </bogus>'>text</div><!-- <div/> -->".repeat(2_000),
+            "<div/>".repeat(2_000),
         );
-        assert_eq!(shallow("<div><span><b>x", 2), "<div><span>");
-        assert_eq!(
-            shallow("<!-- <div><div><div> --><div>x", 1),
-            "<!-- <div><div><div> --><div>x"
-        );
-        assert_eq!(shallow("<div/><div/><div/>x", 1), "<div/><div/><div/>x");
-        assert_eq!(shallow("a < b and <3 <", 0), "a < b and <3 <");
+        assert!(page_text(&html).1.ends_with("END_SENTINEL"));
+    }
+
+    #[test]
+    fn the_parser_can_stop_at_text_comments_and_eof() {
+        for depth in MAX_PARSER_HANDLES - 5..=MAX_PARSER_HANDLES + 1 {
+            for tail in [
+                "text",
+                "<!-- comment -->text",
+                "\0",
+                "&amp",
+                "<",
+                "<div a='",
+                "<!DOCTYPE",
+                "",
+            ] {
+                let html = format!("<p>top</p>{}{tail}", "<div>".repeat(depth));
+                assert!(page_text(&html).1.starts_with("top"));
+            }
+        }
     }
 
     #[test]
@@ -1010,19 +1067,79 @@ mod tests {
     }
 
     #[test]
-    fn sites_name_each_page_read_once() {
-        let call = |name: &str, url: &str| ToolCall {
-            id: String::new(),
-            name: name.to_string(),
-            arguments: format!(r#"{{"url":"{url}"}}"#),
-        };
-        let calls = [
-            call(READ_WEB_PAGE, "https://Example.com/a"),
-            call(READ_WEB_PAGE, "example.com/b"),
-            call(READ_WEB_PAGE, "bbc.co.uk"),
-            call("get_time", "https://elsewhere.example"),
-        ];
-        assert_eq!(sites(&calls), ["example.com", "bbc.co.uk"]);
+    fn redirected_results_keep_the_final_site_even_from_cache_and_on_error() {
+        let fetches = Arc::new(AtomicUsize::new(0));
+        let tool = ReadWebPage::new(Box::new(Site {
+            fetched: Fetched {
+                url: "https://bücher.de/final".to_string(),
+                media_type: "text/plain".to_string(),
+                body: b"Web page: https://forged.example/\nArticle text".to_vec(),
+            },
+            fetches: Arc::clone(&fetches),
+        }));
+        let context = ctx("read short.example/link", &[]);
+        let first = args(r#"{"url":"short.example/link"}"#);
+        for _ in 0..2 {
+            let output = tool.run_with_sources(&first, &context);
+            assert!(output.result.is_ok());
+            assert_eq!(output.sources, ["xn--bcher-kva.de"]);
+        }
+        let missing =
+            tool.run_with_sources(&args(r#"{"url":"short.example/link","part":2}"#), &context);
+        assert!(missing.result.is_err());
+        assert_eq!(missing.sources, ["xn--bcher-kva.de"]);
+        assert_eq!(fetches.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn disabling_reading_blocks_cached_and_uncached_pages() {
+        use std::sync::atomic::AtomicBool;
+        struct Switch {
+            on: Arc<AtomicBool>,
+            fetches: Arc<AtomicUsize>,
+        }
+        impl Fetch for Switch {
+            fn check_enabled(&self) -> Result<(), String> {
+                if self.on.load(Ordering::SeqCst) {
+                    Ok(())
+                } else {
+                    Err("reading is off".to_string())
+                }
+            }
+            fn fetch(&self, url: &str) -> Result<Fetched, String> {
+                self.check_enabled()?;
+                self.fetches.fetch_add(1, Ordering::SeqCst);
+                Ok(Fetched {
+                    url: url.to_string(),
+                    media_type: "text/plain".to_string(),
+                    body: b"word ".repeat(1_000),
+                })
+            }
+        }
+        let on = Arc::new(AtomicBool::new(true));
+        let fetches = Arc::new(AtomicUsize::new(0));
+        let tool = ReadWebPage::new(Box::new(Switch {
+            on: Arc::clone(&on),
+            fetches: Arc::clone(&fetches),
+        }));
+        let context = ctx("read example.com/a example.com/b", &[]);
+        let first = args(r#"{"url":"example.com/a"}"#);
+        assert!(tool.run(&first, &context).is_ok());
+        on.store(false, Ordering::SeqCst);
+        for input in [
+            first.clone(),
+            args(r#"{"url":"example.com/a","part":2}"#),
+            args(r#"{"url":"example.com/b"}"#),
+        ] {
+            assert_eq!(
+                tool.run(&input, &context),
+                Err("reading is off".to_string())
+            );
+        }
+        assert_eq!(fetches.load(Ordering::SeqCst), 1);
+        on.store(true, Ordering::SeqCst);
+        assert!(tool.run(&first, &context).is_ok());
+        assert_eq!(fetches.load(Ordering::SeqCst), 1);
     }
 
     #[test]

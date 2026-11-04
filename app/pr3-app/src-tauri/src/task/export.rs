@@ -16,7 +16,7 @@ use tauri::Manager;
 use super::{Entry, Page, Task, TaskCard, state};
 
 /// What the JSON file is; a change that breaks its readers changes this.
-const FORMAT: &str = "pr3.task/1";
+const FORMAT: &str = "pr3.task/2";
 /// How each event's hash is made (pr3-memory-sqlite's `task_events`).
 const EVENT_HASH: &str = "SHA-256, in hex, of five parts, each prefixed with its length as \
     an 8-byte big-endian integer: `previous` as hex text; the task id and `at` as 8-byte \
@@ -38,6 +38,8 @@ struct Step<'a> {
     at: u64,
     #[serde(flatten)]
     entry: &'a Entry,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    result: Option<String>,
 }
 
 /// `now` is when, and in which UTC offset, the user exports it.
@@ -97,7 +99,9 @@ fn markdown(task: &Task, card: &TaskCard, parent: Option<&Task>, at: (Timestamp,
         md += &format!("\nFollows up: {}\n", parent.title);
     }
     md += &format!("\nExported from PR3 on {}.\n", clock::describe(now, offset));
+    let mut results = super::result::Results::default();
     for (at, entry) in &task.chat {
+        results.record(entry);
         let when = clock::minute(*at, offset);
         md += &match entry {
             Entry::User { text } => format!("\n**You** · {when}\n\n{text}\n"),
@@ -117,6 +121,9 @@ fn markdown(task: &Task, card: &TaskCard, parent: Option<&Task>, at: (Timestamp,
             }
             Entry::Failed { reason } => format!("\n**Didn't finish** · {when}\n\n{reason}\n"),
         };
+        if matches!(entry, Entry::Reply { .. } | Entry::Failed { .. }) {
+            md += &format!("\n**Recorded result:** {}\n", results.line());
+        }
     }
     md
 }
@@ -135,13 +142,23 @@ fn json(task: &Task, events: &[TaskEvent], intact: Option<bool>, at: (Timestamp,
             })),
         ),
         TaskState::Done => ("done", None, None),
+        TaskState::Finished => ("finished", None, None),
         TaskState::Failed(reason) => ("failed", Some(reason), None),
         TaskState::Expired => ("expired", None, None),
     };
+    let mut results = super::result::Results::default();
     let chat: Vec<Step<'_>> = task
         .chat
         .iter()
-        .map(|(at, entry)| Step { at: at.0, entry })
+        .map(|(at, entry)| {
+            results.record(entry);
+            Step {
+                at: at.0,
+                entry,
+                result: matches!(entry, Entry::Reply { .. } | Entry::Failed { .. })
+                    .then(|| results.line()),
+            }
+        })
         .collect();
     let events: Vec<_> = events
         .iter()
@@ -260,7 +277,7 @@ mod tests {
         let md = &export.markdown;
         assert!(
             md.starts_with(
-                "# Email Alex the plan\n\nDone · Sent to Alex Rivera. · 2026-10-20 19:48\n"
+                "# Email Alex the plan\n\nDone · No new memory saved · 1 email added to sandbox outbox; nothing sent externally · 2026-10-20 19:48\n"
             ),
             "{md}"
         );

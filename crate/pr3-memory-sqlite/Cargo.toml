@@ -15,5 +15,8 @@ workspace = true
 pr3-memory = { workspace = true, features = ["std"] }
 # SHA-256 for the chain of task events, as the audit log uses.
 pr3-core.workspace = true
+pr3-protocol = { workspace = true, features = ["std"] }
+serde.workspace = true
+serde_json.workspace = true
 # Bundled: the same SQLite, with FTS5, on every platform including iOS and Android.
 rusqlite = { version = "0.40", features = ["bundled"] }
