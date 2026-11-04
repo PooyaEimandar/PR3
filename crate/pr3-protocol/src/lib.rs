@@ -8,6 +8,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![forbid(unsafe_code)]
+#![cfg_attr(test, allow(clippy::disallowed_macros))] // tests may assert (clippy.toml)
 
 extern crate alloc;
 

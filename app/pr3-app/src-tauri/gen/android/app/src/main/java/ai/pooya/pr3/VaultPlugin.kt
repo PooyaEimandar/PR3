@@ -98,9 +98,11 @@ class VaultPlugin(private val activity: Activity) : Plugin(activity) {
           invoke.reject(text.toString(), if (cancelled) "cancelled" else "failed")
         }
       }
+      // The description wraps where a subtitle is cut to one line, so the whole
+      // reason - recipients first, then the subject - stays on screen.
       val info = BiometricPrompt.PromptInfo.Builder()
         .setTitle("Approve with PR3")
-        .setSubtitle(args.reason)
+        .setDescription(args.reason)
         .setConfirmationRequired(true)
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
         info.setAllowedAuthenticators(BIOMETRIC_STRONG or DEVICE_CREDENTIAL)

@@ -4,7 +4,7 @@ AgentDojo calls `query` with the task's prompt, tools and environment. The bridg
 the agent loop and the model; this side runs each tool call against AgentDojo's
 environment, answers approval requests with the scripted approver, and turns the run
 into AgentDojo messages for scoring. Only calls that actually ran appear as tool calls
-in those messages; declined proposals are counted separately.
+in those messages; declined and refused proposals are counted separately.
 """
 
 import json
@@ -19,7 +19,7 @@ from agentdojo.base_tasks import BaseInjectionTask, BaseUserTask
 from agentdojo.functions_runtime import EmptyEnv, Env, FunctionCall, FunctionsRuntime
 from agentdojo.types import ChatMessage, text_content_block_from_string
 
-from .approver import CONSEQUENTIAL, Context, fooled, markers, matches, required
+from .approver import CONSEQUENTIAL, FETCH, Context, fooled, markers, matches, required
 from .schema import reduce
 
 
@@ -63,13 +63,14 @@ class Run:
 
     stats: dict = field(default_factory=dict)
     failed: str | None = None
-    # Every call the model got as far as making: executed, or proposed and declined.
+    # Every call the model got as far as making: executed, or proposed and declined, or
+    # refused for a rule that stands in for the approver (`pr3_web`).
     calls: list[tuple[str, dict, str]] = field(default_factory=list)
 
 
 class BridgeAgent(BasePipelineElement):
-    """`mode` is `pr3`, `plain` or `confirm_all`. The name contains "local" so AgentDojo's
-    attack addresses the model the same way in every arm."""
+    """`mode` is `pr3`, `plain`, `confirm_all` or `pr3_web`. The name contains "local" so
+    AgentDojo's attack addresses the model the same way in every arm."""
 
     def __init__(self, bridge: Bridge, mode: str, suite: str, system: str, max_rounds: int):
         self.bridge = bridge
@@ -123,6 +124,9 @@ class BridgeAgent(BasePipelineElement):
             }
             for f in runtime.functions.values()
         ]
+        # In `pr3_web` the page reader is read as `read_web_page` reads (RFC-002): no
+        # approval, only a link the prompt names, and an untrusted result.
+        reads = [FETCH[self.suite]] if self.mode == "pr3_web" and self.suite in FETCH else []
         self.bridge.send(
             {
                 "type": "run",
@@ -130,7 +134,8 @@ class BridgeAgent(BasePipelineElement):
                 "system": self.system,
                 "prompt": query,
                 "tools": tools,
-                "consequential": sorted(CONSEQUENTIAL[self.suite]),
+                "consequential": sorted(set(CONSEQUENTIAL[self.suite]) - set(reads)),
+                "reads": reads,
                 "max_rounds": self.max_rounds,
             }
         )
@@ -150,6 +155,8 @@ class BridgeAgent(BasePipelineElement):
                 if not ok:
                     run.calls.append((message["name"], args, "declined"))
                 self.bridge.send({"type": "approval", "id": message["id"], "approve": ok})
+            elif kind == "refused":
+                run.calls.append((message["name"], message["arguments"] or {}, "refused"))
             elif kind == "tool_call":
                 args = message["arguments"] or {}
                 run.calls.append((message["name"], args, "executed"))

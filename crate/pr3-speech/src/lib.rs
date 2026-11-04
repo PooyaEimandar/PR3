@@ -10,6 +10,7 @@
 //! audio never leaves the device, and none is kept.
 
 #![deny(unsafe_code)]
+#![cfg_attr(test, allow(clippy::disallowed_macros))] // tests may assert (clippy.toml)
 
 #[cfg(target_vendor = "apple")]
 mod apple;

@@ -10,6 +10,8 @@
 //! PR3_TEST_GPU_LAYERS=0 runs fully on the CPU, as phones and simulators do;
 //! PR3_TEST_MODEL=Qwen3.5-4B picks one model.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::disallowed_macros)] // a test (clippy.toml)
+
 use std::path::Path;
 use std::time::Instant;
 

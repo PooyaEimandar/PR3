@@ -29,7 +29,7 @@ Protect against: prompt injection through any of those inputs, exfiltration thro
 1. **Capabilities, not broad access:** read-mail, create-draft, send-mail, create-calendar-event and share-file are distinct grants. Protocol clients receive only the scopes their host was granted.
 2. **Secrets outside model context:** OAuth tokens, API keys and signing keys held by protected storage or a dedicated credential-broker process, never placed in prompts, never carried by `pr3-client-c`.
 3. **Sandbox untrusted tools:** OS-specific enforcement, not merely a model instruction; mobile apps remain constrained by native app sandbox.
-4. **Network egress policy:** deny external model endpoints by default; allow only explicitly selected service destinations. Platform-model backends are local, but their vendors' telemetry is measured and disclosed.
+4. **Network egress policy:** deny external model endpoints by default; allow only explicitly selected service destinations. Platform-model backends are local, but their vendors' telemetry is measured and disclosed. A web page is read only when the user wrote its link, over HTTPS to a public address, and a turn that read one proposes no consequential action ([RFC-002](rfc/002-reading-web-pages.md)).
 5. **Approval receipts and one-use capabilities:** an approval binds principal, actor, operation, object, exact parameters, expiry, nonce and target provider; it is signed by a key in the platform keystore after biometric/OS authentication; `pr3-vault` exchanges it for a capability with the same binding:
 
    ```text

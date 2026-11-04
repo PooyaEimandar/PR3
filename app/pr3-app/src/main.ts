@@ -32,7 +32,8 @@ interface ApprovalRequest {
 type TurnEvent =
   | { type: "token"; text: string }
   | { type: "tool"; name: string; arguments: string; success: boolean; output: string }
-  | { type: "approval"; request: ApprovalRequest }
+  // `sources`: the sites whose pages the model has read and still sees, if any.
+  | { type: "approval"; request: ApprovalRequest; sources?: string[] }
   // The message opened a new task; the one the conversation was on is set aside.
   | ({ type: "task_opened" } & Opened)
   // The message seemed to start something new; comes once the turn has ended.
@@ -265,8 +266,10 @@ function toolNode(t: { name: string; arguments: string; output: string; success:
 
 // The confirmation card for a consequential action. What it shows comes from the
 // validated intent — the contacts' real addresses and the exact text that will be
-// sent — never from the model's reply. Nothing is sent unless the user taps Send.
-function showApproval(request: ApprovalRequest, before: Node): void {
+// sent — never from the model's reply. Nothing is sent unless the user taps Send. When
+// the model has read web pages, the card names their sites: a page may have asked for
+// this.
+function showApproval(request: ApprovalRequest, before: Node, sources: string[] = []): void {
   const { mail } = request;
   const card = document.createElement("div");
   card.className = "msg approval";
@@ -333,7 +336,12 @@ function showApproval(request: ApprovalRequest, before: Node): void {
   tick();
   timer = setInterval(tick, 1000);
 
-  card.append(title, fields, body, meta, choices);
+  card.append(title);
+  if (sources.length) {
+    const from = sources.join(", ");
+    card.append(el("p", `This conversation includes text from ${from}. Check that this is what you asked for.`, "sources"));
+  }
+  card.append(fields, body, meta, choices);
   log.insertBefore(card, before);
 }
 
@@ -383,7 +391,7 @@ async function send(text: string): Promise<void> {
       streamed = "";
       bubble.textContent = "";
     } else if (event.type === "approval") {
-      showApproval(event.request, bubble);
+      showApproval(event.request, bubble, event.sources);
     } else if (event.type === "new_task") {
       if (answered) offerNewTask(said);
       else offer = true;
@@ -534,7 +542,7 @@ async function askAgain(id: number): Promise<void> {
   const bubble = show("assistant pending", "");
   const onEvent = new Channel<TurnEvent>();
   onEvent.onmessage = (event) => {
-    if (event.type === "approval") showApproval(event.request, bubble);
+    if (event.type === "approval") showApproval(event.request, bubble, event.sources);
     else if (event.type === "tool") log.insertBefore(toolNode(event), bubble);
     follow();
   };
@@ -1277,12 +1285,57 @@ window.__TAURI__.event.listen<DownloadProgress>("model-download", ({ payload: p 
   shown.text.textContent = progressText(p.bytes, p.size);
 });
 
-// Settings: models, voice, memory and pairing, one tab at a time, opened from the
-// button beside the composer.
+// Reading the web pages the user links (web.rs's WebInfo).
+interface WebInfo {
+  /** False when the config leaves reading out. */
+  available: boolean;
+  on: boolean;
+}
+
+const webPane = find("#web", HTMLElement);
+
+// Whether PR3 reads the pages the user links. Off, the model is told so when it tries.
+async function renderWeb(problem?: string): Promise<void> {
+  let info: WebInfo;
+  try {
+    info = await invoke<WebInfo>("web_reading");
+  } catch (err) {
+    webPane.replaceChildren(el("p", String(err), "error-text"));
+    return;
+  }
+  webPane.replaceChildren(el("h2", "Web"));
+  if (problem) webPane.append(el("p", problem, "error-text"));
+  if (!info.available) {
+    webPane.append(el("p", "Reading web pages is left out by pr3.toml.", "meta"));
+    return;
+  }
+  const toggle = el("label", undefined, "toggle");
+  const box = el("input");
+  box.type = "checkbox";
+  box.checked = info.on;
+  box.addEventListener("change", () => {
+    invoke("set_web_reading", { on: box.checked })
+      .then(() => renderWeb())
+      .catch((err) => renderWeb(String(err)));
+  });
+  toggle.append(box, el("span", "Read web pages you link"));
+  webPane.append(
+    toggle,
+    el(
+      "p",
+      "PR3 reads only links you write, over HTTPS, and never addresses on your own network. " +
+        "A page is information, not instructions: in the turn PR3 reads one, it sends nothing.",
+      "meta",
+    ),
+  );
+}
+
+// Settings: models, voice, memory, pairing and the web, one tab at a time, opened from
+// the button beside the composer.
 const settings = find("#settings", HTMLElement);
 const settingsButton = find("#settings-button", HTMLButtonElement);
 const tabs = [...settings.querySelectorAll<HTMLButtonElement>("[role=tab]")];
-const TABS = ["models", "voice", "memory", "devices"] as const;
+const TABS = ["models", "voice", "memory", "devices", "web"] as const;
 type Tab = (typeof TABS)[number];
 const isTab = (name: string | null | undefined): name is Tab => TABS.some((t) => t === name);
 const panes: Record<Tab, HTMLElement> = {
@@ -1290,6 +1343,7 @@ const panes: Record<Tab, HTMLElement> = {
   voice: find("#voice", HTMLElement),
   memory: memoryPanel,
   devices: panel,
+  web: webPane,
 };
 let tab: Tab = ((): Tab => {
   const last = recall("pr3.settingsTab");
@@ -1309,6 +1363,7 @@ function openTab(name: Tab): void {
   if (name === "models") renderModels();
   else if (name === "memory") renderMemory();
   else if (name === "devices") renderDevices();
+  else if (name === "web") renderWeb();
 }
 
 // Settings slides in from the left over the whole screen and back out when closed.

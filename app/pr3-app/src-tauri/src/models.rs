@@ -614,7 +614,7 @@ impl Models {
         ModelsInfo {
             folder: self.dir.as_ref().map(|d| d.display().to_string()),
             forced: self.forced.as_ref().map(|p| p.display().to_string()),
-            problem: None,
+            problem: config.problem.clone(),
             mobile_data: self.mobile_data(),
             models,
         }

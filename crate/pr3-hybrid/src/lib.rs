@@ -16,6 +16,7 @@
 //!   or run one. When the node cannot be reached, the phone answers on its own.
 
 #![forbid(unsafe_code)]
+#![cfg_attr(test, allow(clippy::disallowed_macros))] // tests may assert (clippy.toml)
 
 mod channel;
 mod client;

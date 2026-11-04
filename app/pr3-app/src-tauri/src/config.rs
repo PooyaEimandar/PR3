@@ -13,6 +13,7 @@ const BUILT_IN: &str = include_str!("../../../../config/pr3.toml");
 pub const FILE_NAME: &str = "pr3.toml";
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Config {
     pub model: ModelChoice,
     pub models: BTreeMap<String, ModelEntry>,
@@ -24,6 +25,11 @@ pub struct Config {
     pub actions: Actions,
     #[serde(default)]
     pub node: Node,
+    #[serde(default)]
+    pub web: Web,
+    /// Why the data folder's `pr3.toml` was not used, if it was not.
+    #[serde(skip)]
+    pub problem: Option<String>,
 }
 
 /// The private hybrid (docs Sec. 6.3): a computer lends its model to paired phones.
@@ -110,7 +116,7 @@ impl Actions {
 /// OpenJarvis-format traces of every turn. Off unless the config turns them on: they
 /// hold whole conversations in plain text.
 #[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Traces {
     pub enabled: bool,
     /// The file is rotated at this size; one older file is kept.
@@ -123,6 +129,21 @@ impl Default for Traces {
             enabled: false,
             max_mb: 8,
         }
+    }
+}
+
+/// Reading the web pages the user links (docs RFC-002).
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Web {
+    /// False leaves the tool out entirely; true offers it, and the user can still turn it
+    /// off in Settings.
+    pub enabled: bool,
+}
+
+impl Default for Web {
+    fn default() -> Self {
+        Self { enabled: true }
     }
 }
 
@@ -143,6 +164,7 @@ impl Default for Tasks {
 
 /// Which model each kind of device runs, by id.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ModelChoice {
     pub desktop: String,
     /// For computers with less than `desktop_min_memory_gb` of memory.
@@ -236,7 +258,9 @@ impl Config {
     }
 
     /// The data folder's `pr3.toml` if there is one, otherwise the built-in config. A
-    /// broken override is reported and ignored, so the app still starts.
+    /// broken override still lets the app start, on the built-in config, but closed:
+    /// whatever the user turned off or kept there may be what failed to read, so
+    /// actions are off and no task is erased, and [`Config::problem`] says why.
     pub fn load(data_dir: Option<&Path>) -> Result<Self, String> {
         let path = data_dir.map(|dir| dir.join(FILE_NAME));
         if let Some(path) = path.filter(|p| p.is_file()) {
@@ -245,7 +269,18 @@ impl Config {
                 .and_then(|text| Self::parse(&text))
             {
                 Ok(config) => return Ok(config),
-                Err(e) => eprintln!("PR3: ignoring {}: {e}", path.display()),
+                Err(e) => {
+                    eprintln!("PR3: ignoring {}: {e}", path.display());
+                    let mut config = Self::built_in()?;
+                    config.actions.enabled = false;
+                    config.tasks.keep_days = u64::MAX;
+                    config.problem = Some(format!(
+                        "{} could not be read, so PR3 runs on its built-in settings with \
+                         actions turned off and no task erased: {e}",
+                        path.display()
+                    ));
+                    return Ok(config);
+                }
             }
         }
         Self::built_in()
@@ -438,15 +473,32 @@ mod tests {
             "qwen3.8-27b-q8"
         );
 
-        std::fs::write(dir.join(FILE_NAME), "not toml [").unwrap();
-        let config = Config::load(Some(&dir)).unwrap();
-        assert_eq!(
-            config
-                .model_for(Device::Desktop { memory: None })
-                .unwrap()
-                .0,
-            "qwen3.8-27b"
-        );
+        assert!(config.actions.enabled && config.problem.is_none());
+
+        // A typo, such as `enable` for `enabled`, must not turn actions back on.
+        for broken in [
+            "not toml [",
+            &BUILT_IN.replace("enabled = true", "enable = false"),
+            &format!("{BUILT_IN}\n[action]\nenabled = false\n"),
+        ] {
+            std::fs::write(dir.join(FILE_NAME), broken).unwrap();
+            let config = Config::load(Some(&dir)).unwrap();
+            assert_eq!(
+                config
+                    .model_for(Device::Desktop { memory: None })
+                    .unwrap()
+                    .0,
+                "qwen3.8-27b"
+            );
+            assert!(!config.actions.enabled, "{broken}");
+            assert_eq!(config.tasks.keep_days, u64::MAX);
+            assert!(
+                config
+                    .problem
+                    .as_deref()
+                    .is_some_and(|p| p.contains("actions turned off"))
+            );
+        }
         let _ = std::fs::remove_dir_all(dir);
     }
 

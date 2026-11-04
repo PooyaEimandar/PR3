@@ -21,6 +21,7 @@ pr3-llamacpp = { path = "../crate/pr3-llamacpp" }
 pr3-memory = { path = "../crate/pr3-memory" }
 pr3-memory-sqlite = { path = "../crate/pr3-memory-sqlite" }
 pr3-protocol = { path = "../crate/pr3-protocol", features = ["std"] }
+pr3-tool = { path = "../crate/pr3-tool" }
 serde = "1"
 serde_json = "1"
 
@@ -55,6 +56,13 @@ bench = false
 [[bin]]
 name = "memory_search"
 path = "fuzz_target/memory_search.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "web_page"
+path = "fuzz_target/web_page.rs"
 test = false
 doc = false
 bench = false

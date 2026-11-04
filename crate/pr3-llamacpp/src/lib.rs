@@ -11,6 +11,7 @@
 //! the part of its prompt that earlier calls have not (see `cache`).
 
 #![forbid(unsafe_code)]
+#![cfg_attr(test, allow(clippy::disallowed_macros))] // tests may assert (clippy.toml)
 
 mod cache;
 mod prompt;

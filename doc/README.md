@@ -23,6 +23,7 @@ Decisions and proposals:
 - [ADR-002](adr/002-trust-architecture.md): the trust architecture, with a verified-microkernel tier preserved for later.
 - [ADR-003](adr/003-llamacpp-binding.md): `pr3-llamacpp` wraps `llama-cpp-2` for the spike.
 - [RFC-001](rfc/001-console-cognition-tiers.md): console cognition tiers (deferred).
+- [RFC-002](rfc/002-reading-web-pages.md): reading web pages the user links (first version built).
 - [Lineage](lineage.md): what PR3 kept, changed and dropped from an earlier plan for a pure AI OS.
 
 ## Section numbers

@@ -8,6 +8,9 @@ repository.workspace = true
 rust-version.workspace = true
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 pr3-memory = { workspace = true, features = ["std"] }
 # SHA-256 for the chain of task events, as the audit log uses.

@@ -1,5 +1,7 @@
 //! PR3 reference app. The Rust side owns the runtime; the webview only renders.
 
+#![cfg_attr(test, allow(clippy::disallowed_macros))] // tests may assert (clippy.toml)
+
 mod actions;
 #[cfg(target_os = "android")]
 mod android_speech;
@@ -17,6 +19,7 @@ mod share;
 mod speech;
 mod task;
 mod trace_export;
+mod web;
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -310,6 +313,7 @@ fn host(
     app: &tauri::AppHandle,
     actions: Option<&config::Actions>,
     tasks: config::Tasks,
+    web: Option<Box<dyn pr3_tool::web::Fetch>>,
 ) -> Result<Host, host::HostError> {
     let store = open_memory(app);
     if let Some(store) = &store {
@@ -323,28 +327,34 @@ fn host(
         store,
         actions,
         tasks.keep_days,
+        web,
     )
 }
 
 /// The host with the built-in tools, plus memory tools, per-message recall and kept
-/// tasks when there is a memory store, and consequential actions when there is a
-/// trusted path. The task benchmark builds the same host, so it measures this one.
+/// tasks when there is a memory store, reading the pages the user links when there is a
+/// fetcher, and consequential actions when there is a trusted path. The task benchmark
+/// builds the same host, so it measures this one.
 pub fn compose_host(
     backend: Arc<dyn Backend>,
     store: Option<Arc<Mutex<pr3_memory_sqlite::SqliteMemory>>>,
     actions: Option<Arc<Actions>>,
     keep_days: u64,
+    web: Option<Box<dyn pr3_tool::web::Fetch>>,
 ) -> Result<Host, host::HostError> {
+    let mut tools = pr3_tool::builtin();
+    if let Some(fetch) = web {
+        tools.push(Box::new(pr3_tool::web::ReadWebPage::new(fetch)));
+    }
     let host = match store {
         Some(store) => {
             let memory: pr3_tool::SharedMemory = store.clone();
-            let mut tools = pr3_tool::builtin();
             tools.extend(pr3_tool::memory_tools(Arc::clone(&memory)));
             Host::new(backend, tools)?
                 .with_memory(memory)
                 .with_tasks(store, keep_days)
         }
-        None => Host::new(backend, pr3_tool::builtin())?,
+        None => Host::new(backend, tools)?,
     };
     match actions {
         Some(actions) => host.with_actions(actions),
@@ -427,7 +437,10 @@ pub fn run() {
             let config = config::Config::load(data_dir.as_deref());
             let actions = config.as_ref().ok().map(|c| &c.actions);
             let tasks = config.as_ref().map(|c| c.tasks).unwrap_or_default();
-            app.manage(host(app.handle(), actions, tasks)?);
+            let reading = config.as_ref().map(|c| c.web).unwrap_or_default();
+            let (web, fetcher) = web::open(data_dir.as_deref(), reading.enabled);
+            app.manage(web);
+            app.manage(host(app.handle(), actions, tasks, fetcher)?);
             let node = config.as_ref().map(|c| c.node.clone()).unwrap_or_default();
             start_hybrid(app.handle(), &node);
             start_tracing(
@@ -465,6 +478,8 @@ pub fn run() {
             models::download_model,
             models::cancel_download,
             models::set_mobile_data,
+            web::web_reading,
+            web::set_web_reading,
             models::use_model,
             models::delete_model,
             task::list_tasks,

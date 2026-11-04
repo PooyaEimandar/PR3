@@ -510,6 +510,22 @@ impl Tasks {
             .collect()
     }
 
+    /// What the user wrote in task `id`, oldest first and in their own words: the links in
+    /// it are the ones PR3 may read (docs RFC-002).
+    pub fn said(&self, id: SessionId) -> Vec<String> {
+        self.get(id)
+            .map(|task| {
+                task.chat
+                    .iter()
+                    .filter_map(|(_, entry)| match entry {
+                        Entry::User { text } => Some(text.clone()),
+                        _ => None,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     /// What the model goes on from instead of a task's earlier chat (docs Sec. 4.8): the
     /// task's goal, the message that opened it in the user's own words, and its summary;
     /// or, until it has a summary, those of the task it follows up.

@@ -192,6 +192,31 @@ fn cancelling_stops_the_node_mid_answer() {
 }
 
 #[test]
+fn an_answer_may_take_longer_than_the_idle_time() {
+    let dir = temp("long");
+    let generator = Arc::new(Echo {
+        calls: Mutex::new(0),
+    });
+    let idle = Duration::from_millis(200);
+    let node = Node::open_with(&dir.join("node"), "Test Mac", generator, idle).unwrap();
+    let address = node.serve("127.0.0.1:0").unwrap().to_string();
+    let key = DeviceKey::open(&dir.join("phone/device.key")).unwrap();
+    let code = node.start_pairing().unwrap().code;
+    let client = NodeClient::new(
+        DeviceKey::open(&dir.join("phone/device.key")).unwrap(),
+        pair(&address, &code, &key, "phone").unwrap(),
+        "phone",
+    );
+    // 25 words at 20 ms each: the phone says nothing for half a second while it waits.
+    let long = "word ".repeat(25);
+    let answer = client
+        .generate(&request(&long), &mut |_| {}, &AtomicBool::new(false))
+        .unwrap();
+    assert_eq!(answer.content.split_whitespace().count(), 25);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
 fn garbage_and_silent_connections_do_not_disturb_the_node() {
     let (node, address, dir) = node("garbage");
     let mut junk = TcpStream::connect(&address).unwrap();

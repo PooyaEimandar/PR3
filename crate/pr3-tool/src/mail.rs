@@ -37,6 +37,7 @@ pub fn send_email_spec(contacts: &[Contact]) -> ToolSpec {
         ),
         parameters: r#"{"type":"object","properties":{"to":{"type":"string","description":"Contact names, separated by commas"},"subject":{"type":"string","description":"One line"},"body":{"type":"string","description":"The full text of the email"}},"required":["to","subject","body"]}"#.to_string(),
         requires_confirmation: true,
+        untrusted_output: false,
         required_capabilities: vec![MAIL_SEND.to_string()],
     }
 }

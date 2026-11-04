@@ -8,11 +8,15 @@ repository.workspace = true
 rust-version.workspace = true
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 pr3-app = { path = "../../app/pr3-app/src-tauri" }
 pr3-core = { workspace = true, features = ["std"] }
 pr3-memory = { workspace = true, features = ["std"] }
 pr3-memory-sqlite = { path = "../../crate/pr3-memory-sqlite" }
+pr3-tool = { path = "../../crate/pr3-tool" }
 pr3-vault = { path = "../../crate/pr3-vault" }
 serde = { workspace = true, features = ["std"] }
 serde_json = { workspace = true, features = ["std"] }

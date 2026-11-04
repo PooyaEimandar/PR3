@@ -1,15 +1,19 @@
-//! Built-in tools PR3 offers the model. Each is deterministic and offline. The
+//! Built-in tools PR3 offers the model. None does network I/O of its own. The
 //! calculator and clock only read; the memory tools write proposals the user can
 //! review, never confirmed facts or deletions, so none needs the trusted confirmation
 //! path (docs Sec. 4.4, Sec. 4.6). Tools run on the host; the core only sees their specs and
-//! results. The one exception is [`mail`], a sandbox connector for the trusted path.
+//! results. The exceptions are [`mail`], a sandbox connector for the trusted path, and
+//! [`web`], which reads pages the user links through a fetcher the host supplies and
+//! whose results are untrusted (docs RFC-002).
 
 #![forbid(unsafe_code)]
+#![cfg_attr(test, allow(clippy::disallowed_macros))] // tests may assert (clippy.toml)
 
 pub mod calculator;
 pub mod clock;
 pub mod mail;
 pub mod memory;
+pub mod web;
 
 use pr3_core::{SessionId, Timestamp, ToolSpec};
 use serde_json::{Map, Value};
@@ -25,6 +29,9 @@ pub struct ToolContext {
     pub session: SessionId,
     /// What the user said this turn: the source of anything a tool records.
     pub utterance: String,
+    /// What the user wrote earlier in this task, oldest first, in their own words: never
+    /// notes, replies or tool output.
+    pub earlier: Vec<String>,
 }
 
 pub trait Tool: Send + Sync {
@@ -51,6 +58,7 @@ impl Tool for Calculator {
                 .to_string(),
             parameters: r#"{"type":"object","properties":{"expression":{"type":"string","description":"Arithmetic using + - * / % ^ and parentheses, e.g. 12*(3+4)"}},"required":["expression"]}"#.to_string(),
             requires_confirmation: false,
+            untrusted_output: false,
             required_capabilities: Vec::new(),
         }
     }
@@ -78,6 +86,7 @@ impl Tool for Clock {
                 .to_string(),
             parameters: r#"{"type":"object","properties":{}}"#.to_string(),
             requires_confirmation: false,
+            untrusted_output: false,
             required_capabilities: Vec::new(),
         }
     }
@@ -108,6 +117,7 @@ mod tests {
             utc_offset_minutes: 0,
             session: SessionId(1),
             utterance: String::new(),
+            earlier: Vec::new(),
         };
         assert_eq!(Calculator.run(&args, &ctx), Ok("7006652".to_string()));
     }

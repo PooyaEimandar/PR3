@@ -8,6 +8,9 @@ repository.workspace = true
 rust-version.workspace = true
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 pr3-core = { workspace = true, features = ["std"] }
 pr3-protocol = { workspace = true, features = ["std"] }

@@ -14,6 +14,7 @@
     clippy::indexing_slicing,
     clippy::panic
 )]
+#![cfg_attr(test, allow(clippy::disallowed_macros))] // tests may assert (clippy.toml)
 
 extern crate alloc;
 

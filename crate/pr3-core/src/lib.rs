@@ -14,6 +14,7 @@
     clippy::indexing_slicing,
     clippy::panic
 )]
+#![cfg_attr(test, allow(clippy::disallowed_macros))] // tests may assert (clippy.toml)
 
 extern crate alloc;
 
@@ -28,7 +29,7 @@ mod types;
 
 pub use crate::error::CoreError;
 pub use crate::event::{Action, InferenceRequest, Input};
-pub use crate::runtime::{Config, Core};
+pub use crate::runtime::{AFTER_UNTRUSTED, Config, Core};
 pub use crate::trace::{Outcome, StepType, Trace, TraceStep};
 pub use crate::types::{
     GenerationInfo, Message, ProposedToolCall, RequestId, Role, SessionId, Timestamp, ToolCall,

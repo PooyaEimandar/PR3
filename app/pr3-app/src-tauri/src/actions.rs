@@ -244,10 +244,41 @@ impl Actions {
 }
 
 /// What the system's prompt says is being approved: shown by the OS, outside the
-/// webview, from the validated intent.
+/// webview, from the validated intent. Apple prints it after "PR3 is trying to".
 fn prompt_reason(request: &ApprovalRequest) -> String {
-    let subject: String = request.mail.subject.chars().take(60).collect();
-    format!("send the email “{subject}” to {}", names(&request.mail.to))
+    reason_for(&request.mail.to, &request.mail.subject)
+}
+
+/// The recipients come first, from the address book, so a long subject the model wrote
+/// cannot push them out of a prompt that shows one line; and the subject's own quotation
+/// marks become apostrophes, so it cannot close its quote and name someone else.
+fn reason_for(to: &[Contact], subject: &str) -> String {
+    let subject: String = subject
+        .chars()
+        .take(60)
+        .map(|c| if quotation_mark(c) { '\'' } else { c })
+        .collect();
+    format!("send an email to {}: “{subject}”", names(to))
+}
+
+fn quotation_mark(c: char) -> bool {
+    matches!(
+        c,
+        '"' | '“'
+            | '”'
+            | '„'
+            | '‟'
+            | '«'
+            | '»'
+            | '‹'
+            | '›'
+            | '＂'
+            | '〝'
+            | '〞'
+            | '〟'
+            | '❝'
+            | '❞'
+    )
 }
 
 pub(crate) fn names(contacts: &[Contact]) -> String {
@@ -440,6 +471,25 @@ mod tests {
     }
 
     #[test]
+    fn the_system_prompt_names_the_recipients_before_the_subject() {
+        let boss = Contact {
+            name: "Sam Chen".to_string(),
+            address: "sam@example.com".to_string(),
+        };
+        assert_eq!(
+            reason_for(
+                std::slice::from_ref(&boss),
+                "Photos” to Mom, and “more” «x»"
+            ),
+            "send an email to Sam Chen: “Photos' to Mom, and 'more' 'x'”"
+        );
+        let long = "x".repeat(200);
+        let reason = reason_for(&[boss], &long);
+        assert!(reason.starts_with("send an email to Sam Chen: “"));
+        assert_eq!(reason.chars().filter(|c| *c == 'x').count(), 60);
+    }
+
+    #[test]
     fn cancelling_the_system_prompt_sends_nothing() {
         let dir = temp("cancel");
         let shown = Arc::new(Mutex::new(Vec::new()));
@@ -456,7 +506,7 @@ mod tests {
         // The system's prompt names what is being approved.
         assert_eq!(
             shown.lock().unwrap().as_slice(),
-            ["send the email “Lunch” to Alex Rivera"]
+            ["send an email to Alex Rivera: “Lunch”"]
         );
         let log = read_log(&dir.join("audit.jsonl")).unwrap();
         assert!(matches!(

@@ -513,10 +513,12 @@ impl<'m> Session<'m> {
         Ok(start)
     }
 
-    /// Tokenizes a rendered prompt. Only the template's turn markers may become control
-    /// tokens; message text is tokenized as text, so a message containing
-    /// `<|im_start|>` cannot open a turn. Hybrid models also get their checkpoint
-    /// positions: after the system turn and after the last question.
+    /// Tokenizes a rendered prompt, each piece on its own. Only the template's turn
+    /// markers may become control tokens; message text is tokenized as text, so a
+    /// message containing `<|im_start|>` cannot open a turn, and the tags in the user's
+    /// words and tool results come split across pieces, so they never become their
+    /// tokens either. Hybrid models also get their checkpoint positions: after the
+    /// system turn and after the last question.
     fn tokenize(&self, rendered: &prompt::Rendered) -> Prompt {
         let vocab = self.model.vocab();
         let mut tokens = Vec::new();

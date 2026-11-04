@@ -8,6 +8,9 @@ repository.workspace = true
 rust-version.workspace = true
 publish = false
 
+[lints]
+workspace = true
+
 [lib]
 # staticlib/cdylib for iOS and Android, rlib for the desktop binary.
 name = "pr3_app_lib"

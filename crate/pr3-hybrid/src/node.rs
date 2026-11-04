@@ -19,7 +19,8 @@ const PAIRING_WINDOW: Duration = Duration::from_secs(120);
 /// Connections handled at once; more wait in the kernel's queue or are dropped.
 const MAX_CONNECTIONS: usize = 8;
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);
-/// A paired phone that goes silent this long is disconnected.
+/// A paired phone that goes silent this long before its request, or stops reading the
+/// answer this long, is disconnected.
 const IDLE_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// What a node lends: its model.
@@ -51,6 +52,7 @@ pub struct Node {
     pairing: Mutex<Option<(String, Instant)>>,
     generator: Arc<dyn Generator>,
     connections: AtomicUsize,
+    idle: Duration,
 }
 
 impl Node {
@@ -59,6 +61,15 @@ impl Node {
         dir: &Path,
         name: &str,
         generator: Arc<dyn Generator>,
+    ) -> std::io::Result<Arc<Self>> {
+        Self::open_with(dir, name, generator, IDLE_TIMEOUT)
+    }
+
+    pub(crate) fn open_with(
+        dir: &Path,
+        name: &str,
+        generator: Arc<dyn Generator>,
+        idle: Duration,
     ) -> std::io::Result<Arc<Self>> {
         let key = DeviceKey::open(&dir.join("device.key"))?;
         let phones_path = dir.join("phones.json");
@@ -71,6 +82,7 @@ impl Node {
             pairing: Mutex::new(None),
             generator,
             connections: AtomicUsize::new(0),
+            idle,
         }))
     }
 
@@ -198,7 +210,7 @@ impl Node {
             .into_iter()
             .find(|p| p.public_key == to_hex(&phone_key))
             .map_or_else(|| "a phone".to_string(), |p| p.name);
-        stream.set_read_timeout(Some(IDLE_TIMEOUT))?;
+        stream.set_read_timeout(Some(self.idle))?;
         match channel.recv::<ToNode>()? {
             // The phone compares versions and hangs up on a mismatch.
             ToNode::Hello { .. } => channel.send(&FromNode::Hello {
@@ -214,6 +226,12 @@ impl Node {
             Ok(_) => return Err(HybridError::Protocol("expected a request".to_string())),
             Err(_) => return Ok(()),
         };
+        // While the model runs the phone only listens, so a quiet phone has not gone:
+        // the watcher waits for Cancel or a hang-up with no deadline, and closing the
+        // channel after the answer ends it. A phone that stops reading is caught when a
+        // token cannot be written within the idle time.
+        stream.set_read_timeout(None)?;
+        stream.set_write_timeout(Some(self.idle))?;
         let cancelled = AtomicBool::new(false);
         std::thread::scope(|scope| {
             // Watches for Cancel, or the phone hanging up, while the model runs.

@@ -385,6 +385,12 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+.approval .sources {
+  margin: 0 0 8px;
+  color: var(--error);
+  font-size: 13px;
+}
+
 .approval .meta {
   margin: 8px 0;
   color: var(--muted);
@@ -485,8 +491,10 @@ button.small {
   display: none;
 }
 
+/* Five tabs fit a 411-pixel phone; narrower screens scroll the row. */
 #settings .tabs button {
   flex: none;
+  padding: 4px 8px;
   white-space: nowrap;
 }
 

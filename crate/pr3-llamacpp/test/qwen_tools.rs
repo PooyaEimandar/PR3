@@ -2,6 +2,8 @@
 //! model/. Opt-in because it needs them:
 //! script/fetch-model.sh && cargo test -p pr3-llamacpp --release -- --ignored --nocapture
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::disallowed_macros)] // a test (clippy.toml)
+
 use std::path::Path;
 
 use pr3_llamacpp::{ChatMessage, ChatRole, Engine, EngineConfig, PromptFormat, ToolDef};

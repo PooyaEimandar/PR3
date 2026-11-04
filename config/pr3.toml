@@ -26,6 +26,13 @@ max_mb = 8
 [tasks]
 keep_days = 30
 
+# Reading the web pages the user links (docs RFC-002): only a link the user wrote, over
+# HTTPS, never an address on the user's own network, at most 2 MB. The page is untrusted:
+# in a turn that read one, PR3 does not act. false leaves the tool out; true offers it,
+# and the user can still turn it off in Settings, under Web.
+[web]
+enabled = true
+
 # Consequential actions (docs Sec. 4.6). The spike has one: sending email through a
 # sandbox connector that delivers to outbox.jsonl in the app's data folder, never to
 # the internet. Every email waits for the user's approval on a confirmation card.

@@ -23,6 +23,17 @@ repository = "https://github.com/PooyaEimandar/pr3"
 # Tauri 2 needs 1.90; the code itself uses let-chains (1.88).
 rust-version = "1.90"
 
+# Runtime code never unwraps, expects, asserts or ensures (clippy.toml lists the
+# macros); tests may. Every member opts in with `[lints] workspace = true`.
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+disallowed_macros = "deny"
+
+[workspace.lints.rust]
+# cargo-fuzz builds with `--cfg fuzzing`, which exposes `fuzzing` for fuzz/.
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(fuzzing)"] }
+
 [workspace.dependencies]
 # `pr3-core` is `no_std + alloc`; hosts opt into `std` explicitly (docs Sec. 4.2).
 pr3-core = { path = "crate/pr3-core", default-features = false }

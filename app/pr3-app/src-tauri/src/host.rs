@@ -1,8 +1,9 @@
 //! The host side of the sans-I/O loop: it performs the actions `pr3-core` asks for —
 //! running the model, running validated tool calls, storing traces.
 //!
-//! The core's lock is held only for each `step()`; inference runs on a blocking worker
-//! thread with the lock released, so the UI thread never waits on a model.
+//! The core's lock is held only for each `step()`; inference and tool calls run on a
+//! blocking worker thread with the lock released, so the UI thread never waits on a
+//! model or a web page.
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -114,6 +115,10 @@ pub enum TurnEvent {
     /// from the validated intent, and send the answer with `answer_approval`.
     Approval {
         request: ApprovalRequest,
+        /// The sites whose pages the model has read in this conversation and still sees,
+        /// for the card to name (docs RFC-002).
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        sources: Vec<String>,
     },
     /// The message opened a new task (docs Sec. 4.8); comes before anything else.
     TaskOpened(Opened),
@@ -169,7 +174,7 @@ pub struct Host {
     /// Swappable: the app starts with a placeholder and installs the real model once
     /// it has loaded in the background.
     backend: RwLock<Arc<dyn Backend>>,
-    tools: BTreeMap<String, Box<dyn Tool>>,
+    tools: BTreeMap<String, Arc<dyn Tool>>,
     /// Searched for every message, so the model sees what it knows about the user
     /// without having to ask.
     memory: Option<SharedMemory>,
@@ -194,7 +199,7 @@ impl Host {
             let spec = tool.spec();
             let name = spec.name.clone();
             core.register_tool(spec)?;
-            by_name.insert(name, tool);
+            by_name.insert(name, Arc::from(tool));
         }
         Ok(Self {
             core: Mutex::new(core),
@@ -395,8 +400,10 @@ impl Host {
                     tasks.waiting(id, &call, request.expires_at, now());
                 }
                 asked = Some((actions::names(&request.mail.to), request.expires_at));
+                // Asked again after a restart: the model no longer sees any page.
                 on_event(TurnEvent::Approval {
                     request: request.clone(),
+                    sources: Vec::new(),
                 });
             })
             .await;
@@ -507,7 +514,7 @@ impl Host {
         let utterance = text.clone();
         let notes = match &self.memory {
             Some(memory) if text.len() <= MAX_LOOKUP_BYTES => {
-                pr3_tool::notes_for(memory, &text, now())
+                pr3_tool::notes_for(memory, &text, session, now())
             }
             _ => Vec::new(),
         };
@@ -653,13 +660,19 @@ impl Host {
                     queue.extend(self.step(input)?);
                 }
                 Action::CallTool(call) => {
+                    let earlier = self
+                        .tasks
+                        .lock()
+                        .map(|tasks| tasks.said(session))
+                        .unwrap_or_default();
                     let ctx = ToolContext {
                         now: now(),
                         utc_offset_minutes,
                         session,
                         utterance: utterance.to_string(),
+                        earlier,
                     };
-                    let (success, output) = self.run_tool(&call, &ctx);
+                    let (success, output) = self.run_tool(&call, ctx).await;
                     if let Ok(mut emit) = on_event.lock() {
                         emit(TurnEvent::Tool {
                             name: call.name.clone(),
@@ -676,6 +689,7 @@ impl Host {
                     })?);
                 }
                 Action::Propose(call) => {
+                    let sources = pr3_tool::web::sites(&self.core()?.untrusted_calls(session));
                     let (success, output) = match &self.actions {
                         Some(actions) => {
                             let ask = |request: &ApprovalRequest| {
@@ -686,6 +700,7 @@ impl Host {
                                 if let Ok(mut emit) = on_event.lock() {
                                     emit(TurnEvent::Approval {
                                         request: request.clone(),
+                                        sources: sources.clone(),
                                     });
                                 }
                             };
@@ -834,20 +849,26 @@ impl Host {
             .map_err(|_| HostError::Host("runtime state is unavailable".to_string()))
     }
 
-    /// Runs a call the core has already validated against the tool's schema.
-    fn run_tool(&self, call: &ToolCall, ctx: &ToolContext) -> (bool, String) {
-        let Some(tool) = self.tools.get(&call.name) else {
+    /// Runs a call the core has already validated against the tool's schema, on a
+    /// blocking worker thread, since a tool may wait on the network as `read_web_page`
+    /// does.
+    async fn run_tool(&self, call: &ToolCall, ctx: ToolContext) -> (bool, String) {
+        let Some(tool) = self.tools.get(&call.name).map(Arc::clone) else {
             return (false, format!("tool '{}' is not available", call.name));
         };
         let arguments: Map<String, Value> = match serde_json::from_str(&call.arguments) {
             Ok(Value::Object(map)) => map,
             _ => return (false, "arguments must be a JSON object".to_string()),
         };
-        // A tool that panics fails its call instead of the whole turn.
-        match catch_unwind(AssertUnwindSafe(|| tool.run(&arguments, ctx))) {
-            Ok(Ok(output)) => (true, output),
-            Ok(Err(error)) => (false, error),
-            Err(_) => (false, format!("tool '{}' crashed", call.name)),
+        let ran = tauri::async_runtime::spawn_blocking(move || {
+            // A tool that panics fails its call instead of the whole turn.
+            catch_unwind(AssertUnwindSafe(|| tool.run(&arguments, &ctx)))
+        })
+        .await;
+        match ran {
+            Ok(Ok(Ok(output))) => (true, output),
+            Ok(Ok(Err(error))) => (false, error),
+            Ok(Err(_)) | Err(_) => (false, format!("tool '{}' crashed", call.name)),
         }
     }
 
@@ -1390,7 +1411,7 @@ mod tests {
         // A new card; the user approves it.
         let approve = Arc::clone(&actions);
         let answered = tauri::async_runtime::block_on(second.ask_again(id, move |event| {
-            if let TurnEvent::Approval { request } = event {
+            if let TurnEvent::Approval { request, .. } = event {
                 approve.answer(&request.request, true).unwrap();
             }
         }));
@@ -1557,6 +1578,7 @@ mod tests {
                 description: "Always crashes.".to_string(),
                 parameters: r#"{"type":"object","properties":{}}"#.to_string(),
                 requires_confirmation: false,
+                untrusted_output: false,
                 required_capabilities: Vec::new(),
             }
         }

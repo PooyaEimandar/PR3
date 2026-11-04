@@ -233,6 +233,13 @@ impl ToolRegistry {
             .is_some_and(|e| e.spec.requires_confirmation)
     }
 
+    /// Whether results of `name` carry text from outside the user's control.
+    pub(crate) fn untrusted_output(&self, name: &str) -> bool {
+        self.tools
+            .get(name)
+            .is_some_and(|e| e.spec.untrusted_output)
+    }
+
     /// Turns a proposed call into a validated one, or explains — in words the model can
     /// act on — why it was refused.
     pub(crate) fn validate(
@@ -275,6 +282,7 @@ mod tests {
             description: "Evaluate arithmetic".to_string(),
             parameters: r#"{"type":"object","properties":{"expression":{"type":"string"}},"required":["expression"]}"#.to_string(),
             requires_confirmation: false,
+            untrusted_output: false,
             required_capabilities: Vec::new(),
         }
     }
@@ -335,6 +343,7 @@ mod tests {
         r.register(ToolSpec {
             name: "send_mail".to_string(),
             requires_confirmation: true,
+            untrusted_output: false,
             ..calculator()
         })
         .unwrap();

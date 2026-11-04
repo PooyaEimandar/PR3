@@ -35,7 +35,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--model", type=Path, help="GGUF model file")
     parser.add_argument("--suite", default="banking", choices=["banking", "workspace", "slack", "travel"])
-    parser.add_argument("--modes", nargs="+", default=["pr3", "plain"], choices=["pr3", "plain", "confirm_all"])
+    parser.add_argument("--modes", nargs="+", default=["pr3", "plain"], choices=["pr3", "plain", "confirm_all", "pr3_web"])
     parser.add_argument("--user-tasks", nargs="*", help="only these user tasks")
     parser.add_argument("--injection-tasks", nargs="*", help="only these injection tasks")
     parser.add_argument("--benign-only", action="store_true", help="run each user task without an attack only")

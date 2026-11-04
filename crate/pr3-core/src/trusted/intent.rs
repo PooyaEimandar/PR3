@@ -288,8 +288,9 @@ fn resolve<'a>(reference: &str, contacts: &'a [Contact]) -> Result<&'a Contact, 
 
 /// Bounded text the user will read on the confirmation screen. Control characters
 /// are refused (a subject may not even break a line, so it cannot add mail headers),
-/// and so are the invisible characters that reorder text, so the screen shows the
-/// text exactly as it will be sent.
+/// and so are characters a reader cannot see, so the screen shows the text exactly as
+/// it will be sent: nothing hidden in it can carry data past the user (docs Sec. 7.1,
+/// exfiltration through tool arguments).
 fn text(
     value: Option<&Value>,
     field: &'static str,
@@ -313,18 +314,101 @@ fn text(
     {
         return Err(bad("contains control characters"));
     }
-    if text.chars().any(reorders_text) {
-        return Err(bad("contains invisible direction marks"));
+    if has_hidden(text) {
+        return Err(bad("contains invisible characters"));
     }
     Ok(text.to_string())
 }
 
-/// Unicode's bidirectional controls: they make text display in a different order
-/// than it is stored.
-fn reorders_text(c: char) -> bool {
+/// Whether `text` holds a character that shows nothing of its own. The zero-width
+/// joiners pass only where they visibly shape their neighbours, inside Arabic-script
+/// and Indic words (Persian needs the non-joiner in everyday words) and emoji, and the
+/// emoji variation selector only after a symbol it can turn into an emoji.
+fn has_hidden(text: &str) -> bool {
+    let mut before: Option<char> = None;
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        let after = chars.peek().copied();
+        let shown = match c {
+            '\u{200C}' | '\u{200D}' => {
+                before.is_some_and(|b| joins(b) || b == '\u{FE0F}') && after.is_some_and(joins)
+            }
+            '\u{FE0F}' => before.is_some_and(pictographic),
+            c => !invisible(c),
+        };
+        if !shown {
+            return true;
+        }
+        before = Some(c);
+    }
+    false
+}
+
+/// Characters with no glyph, or that change how other text displays: Unicode's format
+/// characters (bidirectional controls among them), line and paragraph separators,
+/// variation selectors, tag characters, fillers that draw as blanks, and private-use
+/// characters. The joiners and the emoji selector are judged by [`has_hidden`].
+fn invisible(c: char) -> bool {
     matches!(
         c,
-        '\u{061C}' | '\u{200E}' | '\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}'
+        '\u{00AD}'
+            | '\u{034F}'
+            | '\u{0600}'..='\u{0605}'
+            | '\u{061C}'
+            | '\u{06DD}'
+            | '\u{070F}'
+            | '\u{0890}'..='\u{0891}'
+            | '\u{08E2}'
+            | '\u{115F}'..='\u{1160}'
+            | '\u{17B4}'..='\u{17B5}'
+            | '\u{180B}'..='\u{180F}'
+            | '\u{200B}'..='\u{200F}'
+            | '\u{2028}'..='\u{202E}'
+            | '\u{2060}'..='\u{206F}'
+            | '\u{3164}'
+            | '\u{FE00}'..='\u{FE0F}'
+            | '\u{FEFF}'
+            | '\u{FFA0}'
+            | '\u{FFF0}'..='\u{FFFB}'
+            | '\u{110BD}'
+            | '\u{110CD}'
+            | '\u{13430}'..='\u{1343F}'
+            | '\u{1BCA0}'..='\u{1BCA3}'
+            | '\u{1D173}'..='\u{1D17A}'
+            | '\u{E0000}'..='\u{E0FFF}'
+            | '\u{E000}'..='\u{F8FF}'
+            | '\u{F0000}'..='\u{10FFFF}'
+    )
+}
+
+/// Letters the joiners shape: Arabic script and the Indic scripts, and emoji.
+fn joins(c: char) -> bool {
+    !invisible(c)
+        && (matches!(
+            c,
+            '\u{0600}'..='\u{08FF}'
+                | '\u{0900}'..='\u{0DFF}'
+                | '\u{FB50}'..='\u{FDFF}'
+                | '\u{FE70}'..='\u{FEFC}'
+        ) || pictographic(c))
+}
+
+/// Symbols that have an emoji form.
+fn pictographic(c: char) -> bool {
+    matches!(
+        c,
+        '\u{00A9}'
+            | '\u{00AE}'
+            | '\u{203C}'
+            | '\u{2049}'
+            | '\u{2122}'
+            | '\u{2139}'
+            | '\u{2190}'..='\u{2BFF}'
+            | '\u{3030}'
+            | '\u{303D}'
+            | '\u{3297}'
+            | '\u{3299}'
+            | '\u{1F000}'..='\u{1FAFF}'
     )
 }
 
@@ -424,6 +508,41 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn nothing_hidden_reaches_the_confirmation_screen() {
+        let shown = |text: &str| !has_hidden(text);
+        for hidden in [
+            "Noon\u{200B}works",
+            "Noon works.\u{E0049}\u{E006E}",
+            "Noon\u{FE01} works",
+            "a\u{200D}b",
+            "a\u{200C}b",
+            "x\u{FE0F}",
+            "Lunch\u{2028}to Eve",
+            "Lunch\u{2029}",
+            "\u{FEFF}Hi",
+            "soft\u{00AD}hyphen",
+            "word\u{2060}joiner",
+            "fill\u{3164}er",
+            "private \u{E000} use",
+            "\u{200D}\u{1F600}",
+            "\u{1F600}\u{200D}",
+            "\u{1F600}\u{200D}\u{200D}\u{1F600}",
+        ] {
+            assert!(!shown(hidden), "{hidden:?}");
+        }
+        for visible in [
+            "Noon works. Café, naïve, 東京, \u{1F600}",
+            // Persian: the non-joiner inside "می‌خواهم" and "کتاب‌ها".
+            "می\u{200C}خواهم کتاب\u{200C}ها را",
+            "क्\u{200D}ष",
+            "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467} and \u{2764}\u{FE0F}",
+            "\u{2764}\u{FE0F}\u{200D}\u{1F525}",
+        ] {
+            assert!(shown(visible), "{visible:?}");
+        }
+    }
+
+    #[test]
     fn text_is_bounded_single_line_where_needed_and_never_reordered() {
         let refused = |subject: &str, body: &str| {
             let args = serde_json::json!({"to": "Alex", "subject": subject, "body": body});
@@ -437,7 +556,7 @@ pub(crate) mod tests {
         assert!(
             refused("Invoice \u{202E}fdp.exe", "b")
                 .to_string()
-                .contains("direction")
+                .contains("invisible")
         );
         assert!(refused("", "b").to_string().contains("empty"));
         assert!(

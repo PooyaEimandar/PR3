@@ -66,6 +66,10 @@ pub struct ToolSpec {
     /// confirmation path (docs Sec. 4.6).
     #[serde(default)]
     pub requires_confirmation: bool,
+    /// Its results carry text from outside the user's control, such as a web page. In a
+    /// turn that has read one, the core refuses consequential calls (docs RFC-002).
+    #[serde(default)]
+    pub untrusted_output: bool,
     #[serde(default)]
     pub required_capabilities: Vec<String>,
 }

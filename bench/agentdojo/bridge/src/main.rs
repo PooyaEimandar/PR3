@@ -11,20 +11,26 @@
 //! - `plain`: a plain tool-calling loop. Every call the model makes runs.
 //! - `confirm_all`: the plain loop, asking the same approver before every consequential
 //!   call. A control: it separates PR3's runtime from simply asking the user.
+//! - `pr3_web`: `pr3`, with the suite's page reader treated as `read_web_page` is
+//!   (RFC-002): it needs no approval but reads only a link the prompt names, and what it
+//!   returns is untrusted, so the turn runs nothing consequential after it.
 //!
 //! The two processes talk JSON Lines over stdin and stdout; this side logs to stderr.
+
+#![cfg_attr(test, allow(clippy::disallowed_macros))] // tests may assert (clippy.toml)
 
 use std::io::{self, BufRead as _, Write as _};
 use std::path::PathBuf;
 use std::time::Instant;
 
 use pr3_core::{
-    Action, Config, Core, GenerationInfo, InferenceRequest, Input, ProposedToolCall, Role,
-    SessionId, Timestamp, ToolSpec,
+    AFTER_UNTRUSTED, Action, Config, Core, GenerationInfo, InferenceRequest, Input,
+    ProposedToolCall, Role, SessionId, StepType, Timestamp, ToolSpec, Trace,
 };
 use pr3_llamacpp::{
     ChatMessage, ChatOutput, ChatRole, Engine, EngineConfig, ToolCallText, ToolDef,
 };
+use pr3_tool::web;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -34,6 +40,7 @@ enum Mode {
     Pr3,
     Plain,
     ConfirmAll,
+    Pr3Web,
 }
 
 #[derive(Debug, Deserialize)]
@@ -55,6 +62,9 @@ enum FromDriver {
         /// Tools that change something or send data out: they need approval in `pr3`
         /// and `confirm_all`.
         consequential: Vec<String>,
+        /// Tools that read a page by its `url`, read as `read_web_page` reads in `pr3_web`.
+        #[serde(default)]
+        reads: Vec<String>,
         max_rounds: u32,
     },
     ToolResult {
@@ -85,6 +95,14 @@ enum ToDriver {
         id: String,
         name: String,
         arguments: Value,
+    },
+    /// A call refused without asking anyone, for a rule the approver would otherwise have
+    /// judged: a page the prompt does not name, or an action after one was read. Only for
+    /// the record: no answer comes back.
+    Refused {
+        name: String,
+        arguments: Value,
+        reason: String,
     },
     Done {
         reply: String,
@@ -203,6 +221,7 @@ fn main() -> io::Result<()> {
             prompt,
             tools,
             consequential,
+            reads,
             max_rounds,
         } = message
         else {
@@ -211,13 +230,14 @@ fn main() -> io::Result<()> {
         let started = Instant::now();
         let mut stats = Stats::default();
         let result = match mode {
-            Mode::Pr3 => run_pr3(
+            Mode::Pr3 | Mode::Pr3Web => run_pr3(
                 &engine,
                 &mut driver,
                 &system,
                 &prompt,
                 &tools,
                 &consequential,
+                if mode == Mode::Pr3Web { &reads } else { &[] },
                 max_rounds,
                 &mut stats,
             ),
@@ -272,7 +292,8 @@ fn generate(
     Ok(out)
 }
 
-/// PR3's core drives the turn; this host performs its actions.
+/// PR3's core drives the turn; this host performs its actions. `reads` are read as
+/// `read_web_page` reads.
 #[allow(clippy::too_many_arguments)]
 fn run_pr3(
     engine: &Engine,
@@ -281,6 +302,7 @@ fn run_pr3(
     prompt: &str,
     tools: &[Tool],
     consequential: &[String],
+    reads: &[String],
     max_rounds: u32,
     stats: &mut Stats,
 ) -> io::Result<Result<String, String>> {
@@ -302,7 +324,9 @@ fn run_pr3(
             name: tool.name.clone(),
             description: tool.description.clone(),
             parameters: tool.parameters.to_string(),
-            requires_confirmation: consequential.contains(&tool.name),
+            requires_confirmation: consequential.contains(&tool.name)
+                && !reads.contains(&tool.name),
+            untrusted_output: reads.contains(&tool.name),
             required_capabilities: Vec::new(),
         };
         if let Err(e) = core.register_tool(spec) {
@@ -362,8 +386,22 @@ fn run_pr3(
             }
             Action::CallTool(call) => {
                 let arguments: Value = serde_json::from_str(&call.arguments).unwrap_or(Value::Null);
-                let (success, output) = driver.execute(&call.id, &call.name, arguments)?;
-                stats.executed += 1;
+                let url = arguments
+                    .get("url")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                let (success, output) =
+                    if reads.contains(&call.name) && web::named(url, [prompt]).is_none() {
+                        driver.send(&ToDriver::Refused {
+                            name: call.name.clone(),
+                            arguments,
+                            reason: web::NOT_GIVEN.to_string(),
+                        })?;
+                        (false, web::NOT_GIVEN.to_string())
+                    } else {
+                        stats.executed += 1;
+                        driver.execute(&call.id, &call.name, arguments)?
+                    };
                 step(
                     &mut core,
                     Input::ToolOutcome {
@@ -401,12 +439,14 @@ fn run_pr3(
                 stats.refused = stats
                     .proposed
                     .saturating_sub(stats.executed + stats.declined);
+                report_untrusted(driver, &queue)?;
                 return Ok(Ok(content));
             }
             Action::Failed { reason, .. } => {
                 stats.refused = stats
                     .proposed
                     .saturating_sub(stats.executed + stats.declined);
+                report_untrusted(driver, &queue)?;
                 return Ok(Err(reason));
             }
             Action::Trace(_) => Ok(Vec::new()),
@@ -417,6 +457,43 @@ fn run_pr3(
         }
     }
     Ok(Err("the turn ended without an answer".to_string()))
+}
+
+/// Tells the driver of the calls the core refused because the turn had read a page, from
+/// the turn's trace, which follows its answer. Only these: in `pr3` the approver would
+/// have judged them, while calls refused for their schema or a limit never reach it.
+fn report_untrusted(driver: &mut Driver, queue: &[Action]) -> io::Result<()> {
+    let refusal = format!("error: {AFTER_UNTRUSTED}");
+    for trace in queue.iter().filter_map(|a| match a {
+        Action::Trace(trace) => Some(trace),
+        _ => None,
+    }) {
+        for (name, arguments) in refused(trace, &refusal) {
+            driver.send(&ToDriver::Refused {
+                name,
+                arguments,
+                reason: AFTER_UNTRUSTED.to_string(),
+            })?;
+        }
+    }
+    Ok(())
+}
+
+/// The calls in `trace` whose result is `refusal`.
+fn refused(trace: &Trace, refusal: &str) -> Vec<(String, Value)> {
+    trace
+        .steps
+        .iter()
+        .filter(|s| s.step_type == StepType::ToolCall && s.output["result"] == refusal)
+        .map(|s| {
+            let name = s.input["tool"].as_str().unwrap_or_default().to_string();
+            let arguments = s.input["arguments"]
+                .as_str()
+                .and_then(|a| serde_json::from_str(a).ok())
+                .unwrap_or(Value::Null);
+            (name, arguments)
+        })
+        .collect()
 }
 
 /// The conversation the core asks about, as the engine takes it.
@@ -507,4 +584,54 @@ fn run_plain(
     Ok(Err(format!(
         "stopped after {max_rounds} rounds of tool calls"
     )))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pr3_core::{Outcome, TraceStep};
+    use serde_json::json;
+
+    fn step(tool: &str, arguments: &str, result: &str) -> TraceStep {
+        TraceStep {
+            step_type: StepType::ToolCall,
+            at: Timestamp(1),
+            duration_ms: 0,
+            input: json!({ "tool": tool, "arguments": arguments }),
+            output: json!({ "success": false, "result": result }),
+        }
+    }
+
+    #[test]
+    fn only_calls_refused_after_a_page_are_reported() {
+        let refusal = format!("error: {AFTER_UNTRUSTED}");
+        let trace = Trace {
+            trace_id: String::new(),
+            query: String::new(),
+            agent: String::new(),
+            model: String::new(),
+            engine: String::new(),
+            steps: vec![
+                step("get_webpage", r#"{"url":"www.informations.com"}"#, "a page"),
+                step("send_direct_message", r#"{"recipient":"Alice"}"#, &refusal),
+                step(
+                    "send_direct_message",
+                    "{",
+                    "error: arguments are not valid JSON",
+                ),
+            ],
+            result: String::new(),
+            outcome: Outcome::Success,
+            started_at: Timestamp(0),
+            ended_at: Timestamp(1),
+            total_tokens: 0,
+        };
+        assert_eq!(
+            refused(&trace, &refusal),
+            vec![(
+                "send_direct_message".to_string(),
+                json!({ "recipient": "Alice" })
+            )]
+        );
+    }
 }

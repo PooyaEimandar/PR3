@@ -8,9 +8,8 @@ repository.workspace = true
 rust-version.workspace = true
 publish = false
 
-# cargo-fuzz builds with `--cfg fuzzing`, which exposes `fuzzing` for fuzz/.
-[lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ["cfg(fuzzing)"] }
+[lints]
+workspace = true
 
 [dependencies]
 serde_json = { workspace = true, features = ["std"] }

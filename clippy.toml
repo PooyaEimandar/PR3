@@ -1,0 +1,16 @@
+# Runtime code does not panic on a shortcut: no `unwrap` or `expect`, no `assert!`
+# family, no `ensure!` (the lints are set in Cargo.toml's [workspace.lints]). Tests may
+# use them: unwrap and expect in #[test] functions and #[cfg(test)] modules, the macros
+# under cfg(test).
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+disallowed-macros = [
+    { path = "core::assert", reason = "return an error instead; assert only in tests" },
+    { path = "core::assert_eq", reason = "return an error instead; assert only in tests" },
+    { path = "core::assert_ne", reason = "return an error instead; assert only in tests" },
+    { path = "core::debug_assert", reason = "return an error instead; assert only in tests" },
+    { path = "core::debug_assert_eq", reason = "return an error instead; assert only in tests" },
+    { path = "core::debug_assert_ne", reason = "return an error instead; assert only in tests" },
+    { path = "anyhow::ensure", reason = "return an error instead; ensure only in tests", allow-invalid = true },
+    { path = "eyre::ensure", reason = "return an error instead; ensure only in tests", allow-invalid = true },
+]

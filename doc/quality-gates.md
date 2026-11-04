@@ -4,7 +4,7 @@ Part of the [PR3 documentation](README.md). Section numbers are stable; code com
 
 ## 12. Build, CI/CD & Quality Gates
 
-**Toolchain:** Rust stable + Cargo workspaces, `rust-toolchain.toml`, `cargo fmt`, Clippy (with the `pr3-core` deny-list), `cargo test`, `cargo deny`/`cargo audit`, reproducible dependency locks. A second, separately pinned nightly runs only Miri, cargo-fuzz and `-Zsanitizer` jobs, all of which require it; product builds never use it. CMake/Clang/Android NDK/Xcode apply only to building the vendored llama.cpp prebuilts, `pr3-client-c` and platform packaging - never to a downstream `cargo build`.
+**Toolchain:** Rust stable + Cargo workspaces, `rust-toolchain.toml`, `cargo fmt`, Clippy (with the `pr3-core` deny-list, and across the workspace no `unwrap`, `expect`, `assert!` family or `ensure!` outside tests: `[workspace.lints]` and `clippy.toml`), `cargo test`, `cargo deny`/`cargo audit`, reproducible dependency locks. A second, separately pinned nightly runs only Miri, cargo-fuzz and `-Zsanitizer` jobs, all of which require it; product builds never use it. CMake/Clang/Android NDK/Xcode apply only to building the vendored llama.cpp prebuilts, `pr3-client-c` and platform packaging - never to a downstream `cargo build`.
 
 **CI matrix:**
 

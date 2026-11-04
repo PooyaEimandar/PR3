@@ -8,6 +8,7 @@
 //! at rest (the M3 personal-memory work) closes that gap.
 
 #![forbid(unsafe_code)]
+#![cfg_attr(test, allow(clippy::disallowed_macros))] // tests may assert (clippy.toml)
 
 mod task;
 

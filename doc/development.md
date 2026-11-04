@@ -40,7 +40,7 @@ script/fetch-model.sh --list     # every model it knows
 script/fetch-model.sh qwen3.8-27b-q8
 ```
 
-To run another model, change the ids under `[model]`. To change anything without rebuilding, put an edited copy of `pr3.toml` in the app's data folder (on macOS `~/Library/Application Support/ai.pooya.pr3/`). `PR3_MODEL`, a path to a `.gguf` file, overrides every choice; Settings then still downloads and deletes models, but cannot switch.
+To run another model, change the ids under `[model]`. To change anything without rebuilding, put an edited copy of `pr3.toml` in the app's data folder (on macOS `~/Library/Application Support/ai.pooya.pr3/`). A copy that does not read - bad TOML, or a key or table PR3 does not know - is not used: the app runs on its built-in settings with actions turned off and no task erased, and Settings, **Models**, says why. `PR3_MODEL`, a path to a `.gguf` file, overrides every choice; Settings then still downloads and deletes models, but cannot switch.
 
 ## Build and run
 
@@ -116,10 +116,15 @@ Everything lives in [`config/pr3.toml`](../config/pr3.toml):
 | `[tasks]` | `keep_days`: how long finished tasks are kept, 30 by default ([Tasks](#tasks)) |
 | `[actions]` | The kill switch, limits and sandbox address book for consequential actions ([Sec. 4.6](architecture.md#46-structured-intent-and-execution-sequence)) |
 | `[node]` | Whether a computer lends its model to paired phones, and where it listens ([Sec. 6.3](deployment.md#63-private-hybrid-mobile--desktop)) |
+| `[web]` | Whether PR3 offers to read web pages you link; on by default ([Reading web pages](#reading-web-pages)) |
 
 ## Sending email (sandbox)
 
 PR3 can send email through a sandbox connector: messages land in `outbox.jsonl` in the app's data folder, never on the internet. Each one waits for your approval on a confirmation card and then for Face ID, Touch ID, a fingerprint or the passcode; the approval key lives in the Secure Enclave or the Android Keystore. On Android, set a screen lock first. Every step is recorded in a hash-chained `audit.jsonl` that is verified at each start.
+
+## Reading web pages
+
+Paste a link and ask about it, and PR3 reads that page: over HTTPS only, at most 2 MB in 20 seconds, as text, in parts of 3,000 bytes. It reads only links you wrote in the task, never one the model makes up or finds on a page, and refuses addresses on your own network. A page is text from outside your control, so in a turn that read one PR3 asks for nothing that acts, such as sending an email: ask again, and the card names the sites the conversation has read. Settings, **Web**, turns it off and on again, and `[web] enabled = false` leaves the tool out altogether. The design is [RFC-002](rfc/002-reading-web-pages.md).
 
 ## Tasks
 
@@ -192,9 +197,9 @@ cargo build --release -p pr3-bench-agentdojo
 .venv/bin/python -m unittest discover test
 ```
 
-A run resumes where it stopped. Expect about 10–70 seconds per task, depending on the model.
+A run resumes where it stopped. Expect about 10–70 seconds per task, depending on the model. `--modes pr3_web` runs PR3 with the slack suite's `get_webpage` read as `read_web_page` is ([RFC-002](rfc/002-reading-web-pages.md)): without approval, only on a link the task's prompt names, and with the rest of the turn's actions refused once a page is read.
 
-The task suite in [`bench/task`](../bench/task) measures what a task keeps across app launches, changes of topic and confirmation cards, when a message is offered a task of its own, and what summaries keep and cost (Sec. 4.8). It runs the app's own host on a model, each launch in its own process, through the made-up cases in `corpus.toml`, and checks PR3's answers and emails for words the task said earlier and for words only another task said or the user took out. Results so far: [Sec. 8.6](benchmarks.md#86-results-so-far).
+The task suite in [`bench/task`](../bench/task) measures what a task keeps across app launches, changes of topic and confirmation cards, when a message is offered a task of its own, what summaries keep and cost (Sec. 4.8), and what PR3 does with a page the user links, which may give orders of its own ([RFC-002](rfc/002-reading-web-pages.md)). It runs the app's own host on a model, each launch in its own process, through the made-up cases in `corpus.toml`, and checks PR3's answers and emails for words the task said earlier and for words only another task said or the user took out. Pages come from the corpus's `[[page]]` tables, never the internet. Results so far: [Sec. 8.6](benchmarks.md#86-results-so-far).
 
 ```bash
 cargo build --release -p pr3-bench-task
@@ -202,7 +207,7 @@ cargo build --release -p pr3-bench-task
 ./target/release/pr3-bench-task summary bench/task/result/*.jsonl --update doc/benchmarks.md
 ```
 
-A run resumes where it stopped, at one sampling seed (`--seed`, 7 by default). Expect a few seconds per message with the 4B model.
+A run resumes where it stopped, at one sampling seed (`--seed`, 7 by default). Expect a few seconds per message with the 4B model. `--web off` leaves `read_web_page` out, as `[web] enabled = false` does, to measure what offering it costs.
 
 ## Repository layout
 

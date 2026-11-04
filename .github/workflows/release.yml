@@ -54,15 +54,18 @@ jobs:
             echo "::error::$reason A release must be newer than the last one, $latest, to install over it; release a later commit."
             exit 1
           fi
-          tagged="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" --jq .object.sha 2> /dev/null || true)"
-          if [ -z "$tagged" ]; then
+          # gh prints a missing tag's 404 body on stdout, so whether the tag exists is
+          # its exit status, not its output. If the lookup failed for another reason
+          # and the tag does exist, creating it fails, and so does the run.
+          if tagged="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" --jq .object.sha 2> /dev/null)"; then
+            if [ "$tagged" != "$GITHUB_SHA" ]; then
+              echo "::error::$tag already names another commit, $tagged."
+              exit 1
+            fi
+            echo "$tag already names $GITHUB_SHA and has no release yet; building it."
+          else
             gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$tag" -f sha="$GITHUB_SHA" > /dev/null
             echo "Tagged $GITHUB_SHA as $tag."
-          elif [ "$tagged" != "$GITHUB_SHA" ]; then
-            echo "::error::$tag already names another commit, $tagged."
-            exit 1
-          else
-            echo "$tag already names $GITHUB_SHA and has no release yet; building it."
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 

@@ -11,6 +11,7 @@
 //! Enclave (the iOS simulator).
 
 #![deny(unsafe_code)]
+#![cfg_attr(test, allow(clippy::disallowed_macros))] // tests may assert (clippy.toml)
 
 #[cfg(target_vendor = "apple")]
 mod apple;
@@ -31,7 +32,7 @@ pub trait Vault: Send + Sync {
 
     /// Signs a receipt the user has just approved on the trusted confirmation screen.
     /// Platform vaults ask for biometrics or the passcode first, showing `reason` (for
-    /// example "send the email “Lunch” to Alex Rivera"), and block until answered.
+    /// example "send an email to Alex Rivera: “Lunch”"), and block until answered.
     fn sign(&self, receipt: Receipt, reason: &str) -> Result<SignedReceipt, VaultError>;
 
     /// Where the key lives, for logs.
