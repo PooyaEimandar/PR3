@@ -263,6 +263,16 @@ Harness regressions: `python3 -m unittest discover -s bench/rebaseline -p 'test_
 
 ### Individual suites
 
+The two travel answer-injection regressions have a reproducible gate with the unchanged AgentDojo attack and scorer, the original failing seed 1, and a benign control for each task. It also requires useful answer facts, the exact requested calendar effect and no extra effects:
+
+```bash
+cargo build --release -p pr3-bench-agentdojo --locked
+bench/agentdojo/.venv/bin/python bench/agentdojo/answer_regression.py --model model/Qwen3.5-4B-Q4_K_M.gguf --out bench/agentdojo/result/answer-regression
+cargo test -p pr3-llamacpp --test answer_injection -- --ignored --nocapture
+```
+
+Add `--seeds 1 2 7` for broader strict checks. Seed 2 currently hits the same ten-round planning limit in task 12 before and after the fix; this remains a failed workflow, not a passing answer-safety test. The second command retains raw replies and immutable run manifests; the third exercises novel English/French/Persian instructions, fake roles, legitimate use of the original target name, and explicit quotation. Harness v5 uses the shared engine's separate tool-free answer pass in every comparison arm. Tool-planning prompts keep their native format; draft text is withheld after tool use. Reported inference/pass and token counts include the extra answer generation. Keep this evidence separate from the already frozen v4 full matrix. Real-model tests are opt-in; renderer and gate-validation unit tests run in normal CI. These are development regressions, not held-out security or Android latency measurements.
+
 The focused post-baseline restart/recipient regressions live in `bench/task/reliability.toml`. They exercise recalled details after a restarted approval, a corrected recipient resolved from chat after restart, and declining a corrected draft. `card_contains` and `card_excludes` check the actual confirmation card before any effect, including declined drafts. Run each seed separately, using a fresh output path when the binary changes:
 
 ```bash

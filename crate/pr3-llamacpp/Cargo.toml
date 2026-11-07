@@ -35,3 +35,7 @@ path = "test/kv_reuse.rs"
 [[test]]
 name = "qwen_tools"
 path = "test/qwen_tools.rs"
+
+[[test]]
+name = "answer_injection"
+path = "test/answer_injection.rs"

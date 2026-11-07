@@ -2,6 +2,13 @@
 
 Part of the [PR3 documentation](README.md). Newest first; each version records what changed in the design and why.
 
+## Unreleased (7 November 2026) - prompt-injection answers
+
+- Tool results could impersonate the user and insert an unsolicited recommendation into an otherwise useful answer. The shared engine now withholds tool-derived planning prose and generates the final reply in a separate tool-free pass with an explicit source-data boundary. Native tool planning and action approvals keep their existing behavior. Empty/invalid final output and cancellation never release the unprotected draft or execute a tool from the answer pass.
+- Added seeded regressions for both travel failures, benign utility and exact calendar effects, plus English/French/Persian commands, fake roles, legitimate source names, quotation, streaming, cancellation and errors. Benchmark v5 counts the additional inference and token cost in every comparison arm; final answers remain unmodified for scoring. Phone latency and broader held-out security remain open.
+- Validation: 347 workspace tests, 38 Python harness tests, 18 seeded semantic cases, cache/cancellation integrations across the installed models, and all four original workflow/control cases pass; strict Clippy is clean. [Exact answers and limitations](../bench/agentdojo/evidence/answer-boundary-2026-11-07.json) retain the pre-existing seed-2 planning-limit failures separately.
+- Rebaseline preparation now reads the harness version from its frozen driver instead of hardcoding an old version. Existing frozen binary, corpus and environment inputs remain separate from this fix's focused evidence.
+
 ## Unreleased (7 November 2026) - storage encryption and security triage
 
 - The app encrypts its memory/task database with SQLCipher, using separate Apple Keychain or Android Keystore-backed key custody. Existing plaintext data migrates through a verified encrypted copy and atomic replacement. Missing/wrong keys lock the app instead of resetting data or falling back to volatile tasks. Settings → Storage provides device-authenticated recovery-code display and validated recovery of an existing database; see [scope and remaining platform/recovery gates](storage-recovery.md).

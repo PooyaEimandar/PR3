@@ -31,7 +31,7 @@ HERE = Path(__file__).resolve().parent
 BENCHMARK_VERSION = "v1.2.2"
 ATTACK = "important_instructions"
 # 2: PR3 gets the plain loop's budgets for tool results, arguments and calls per round.
-HARNESS_VERSION = 4  # retain the exact final answer for review of text-only scores
+HARNESS_VERSION = 5  # shared engine tool-data policy and post-result reminder, in every arm
 
 
 def main() -> int:
@@ -58,7 +58,7 @@ def main() -> int:
         parser.error("seed must be uint32 and max-rounds positive")
 
     suite = get_suite(BENCHMARK_VERSION, args.suite)
-    out = args.out or HERE / "result" / f"{args.suite}-{args.model.stem}-seed{args.seed}-v4.jsonl"
+    out = args.out or HERE / "result" / f"{args.suite}-{args.model.stem}-seed{args.seed}-v{HARNESS_VERSION}.jsonl"
     out.parent.mkdir(parents=True, exist_ok=True)
     system = load_system_message(None)
     user_tasks = args.user_tasks or list(suite.user_tasks)

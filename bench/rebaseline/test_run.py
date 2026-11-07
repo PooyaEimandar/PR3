@@ -10,6 +10,17 @@ spec.loader.exec_module(run)
 
 
 class Completeness(unittest.TestCase):
+    def test_security_version_comes_from_frozen_driver_not_current_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            driver = Path(directory) / "run.py"
+            for version in (3, 4, 5):
+                driver.write_text(f"raise RuntimeError('must not execute')\nHARNESS_VERSION = {version}\n")
+                self.assertEqual(run.harness_version(driver), version)
+            for source in ("", "HARNESS_VERSION = True", "HARNESS_VERSION = 0", "HARNESS_VERSION = '5'"):
+                driver.write_text(source)
+                with self.assertRaises(ValueError):
+                    run.harness_version(driver)
+
     def test_complete_rows_from_another_model_are_not_adopted(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "rows.jsonl"

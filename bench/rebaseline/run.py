@@ -7,6 +7,7 @@ One inference process at a time. This is a desktop measurement, never Android da
 No real email, contacts, credentials, web fetches or user databases are used.
 """
 import argparse
+import ast
 import fcntl
 import hashlib
 import importlib.metadata
@@ -32,6 +33,16 @@ PHONE = "Qwen3.5-2B-Q4_K_M"
 def digest(path):
     with Path(path).open("rb") as f:
         return hashlib.file_digest(f, "sha256").hexdigest()
+
+
+def harness_version(driver):
+    """Read the frozen driver's version without importing/executing it."""
+    for node in ast.parse(Path(driver).read_text()).body:
+        if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "HARNESS_VERSION" for t in node.targets):
+            value = ast.literal_eval(node.value)
+            if type(value) is int and value > 0:
+                return value
+    raise ValueError(f"Missing/invalid HARNESS_VERSION in {driver}")
 
 
 def dataset_digest():
@@ -117,7 +128,7 @@ def prepare(out):
     for job in jobs:
         job["inputs"] = {"model_sha256": model_info[job["model"]]["sha256"], "seed": job["seed"]}
         if job["kind"] == "security":
-            job["inputs"].update({"bridge_sha256": digest(out / "bin/pr3-bench-agentdojo"), "suite": job["suite"], "harness": 3, "expected": sorted(job["expected"], key=lambda x: (x[0], x[1], x[2] or ""))})
+            job["inputs"].update({"bridge_sha256": digest(out / "bin/pr3-bench-agentdojo"), "suite": job["suite"], "harness": harness_version(driver / "run.py"), "expected": sorted(job["expected"], key=lambda x: (x[0], x[1], x[2] or ""))})
         else:
             job["inputs"].update({"binary_sha256": digest(out / "bin/pr3-bench-task"), "corpus_sha256": digest(out / ("memory.json" if job["kind"] == "memory" else "corpus.toml")), "harness": 2, "cases": job["expected"], "web": job["kind"] == "workflow"})
     manifest = {

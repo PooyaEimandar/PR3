@@ -286,7 +286,7 @@ fn generate(
     let out = engine
         .chat_with_tools(messages, tools, &mut |_| {})
         .map_err(|e| e.to_string())?;
-    stats.model_calls += 1;
+    stats.model_calls += out.inference_passes;
     stats.prompt_tokens += u64::from(out.prompt_tokens);
     stats.completion_tokens += u64::from(out.completion_tokens);
     Ok(out)

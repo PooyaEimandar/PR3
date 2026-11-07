@@ -421,6 +421,9 @@ impl<'m> Session<'m> {
         let _ = emit(calls.finish(), &mut answer);
 
         Ok(ChatOutput {
+            inference_passes: 1,
+            first_pass_prompt_tokens: count(prompt.len()),
+            first_pass_reused_tokens: count(reused),
             text: answer.trim().to_string(),
             tool_calls: calls
                 .blocks()
@@ -543,11 +546,18 @@ impl<'m> Session<'m> {
             ends.push(tokens.len());
         }
         let mut checkpoints: Vec<usize> = if self.needs_checkpoints {
-            [rendered.system_end, rendered.query_end]
-                .into_iter()
-                .flatten()
-                .filter_map(|n| ends.get(n).copied())
-                .collect()
+            // The temporary user continuation and answer prelude are not replayed as
+            // history. Save the shared prefix before them so the next tool round does
+            // not have to re-read all previous results. Cache retention stays bounded.
+            [
+                rendered.system_end,
+                rendered.query_end,
+                rendered.continuation_start,
+            ]
+            .into_iter()
+            .flatten()
+            .filter_map(|n| ends.get(n).copied())
+            .collect()
         } else {
             Vec::new()
         };

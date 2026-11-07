@@ -107,7 +107,7 @@ fn conversation_stays_correct_while_reusing_the_cache() {
         // result was processed by call 1.
         let out = call(&engine, &messages, "answer");
         assert!(
-            out.reused_tokens > out.prompt_tokens / 2,
+            out.first_pass_reused_tokens > out.first_pass_prompt_tokens / 2,
             "{}: {out:?}",
             engine.label()
         );
@@ -133,17 +133,18 @@ fn conversation_stays_correct_while_reusing_the_cache() {
             engine.label()
         );
 
-        // Turn 2: needs the start of the conversation, and reads only its question.
+        // Turn 2: planning reuses read-ahead and reads only the new question. The
+        // separate protected answer pass has its own prompt cost.
         messages.push(ChatMessage::new(ChatRole::User, "What is my name?"));
         let out = call(&engine, &messages, "next turn");
         assert_eq!(
-            out.reused_tokens,
+            out.first_pass_reused_tokens,
             read.tokens,
             "{}: {out:?}",
             engine.label()
         );
         assert!(
-            out.prompt_tokens - out.reused_tokens < 32,
+            out.first_pass_prompt_tokens - out.first_pass_reused_tokens < 32,
             "{}: {out:?}",
             engine.label()
         );
@@ -173,7 +174,7 @@ fn conversation_stays_correct_while_reusing_the_cache() {
         let out = call(&engine, &messages, "after the aside");
         // The system turn, with the tools, at least: without it nothing is reused.
         assert!(
-            out.reused_tokens > out.prompt_tokens / 3,
+            out.first_pass_reused_tokens > out.first_pass_prompt_tokens / 3,
             "{}: {out:?}",
             engine.label()
         );
@@ -223,13 +224,13 @@ fn conversation_stays_correct_while_reusing_the_cache() {
             ];
             let out = call(&engine, &first, "after the opening");
             assert_eq!(
-                out.reused_tokens,
+                out.first_pass_reused_tokens,
                 read.tokens,
                 "{}: {question}: {out:?}",
                 engine.label()
             );
             assert!(
-                out.prompt_tokens - out.reused_tokens < 32,
+                out.first_pass_prompt_tokens - out.first_pass_reused_tokens < 32,
                 "{}: {out:?}",
                 engine.label()
             );

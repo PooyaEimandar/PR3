@@ -121,6 +121,8 @@ impl ChatMessage {
 /// One model turn: the visible answer plus any tool calls it made.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ChatOutput {
+    /// A final answer, or unverified planning context when `tool_calls` is nonempty.
+    /// Tool-call context must not be displayed as a completed answer.
     pub text: String,
     /// As written by the model; the caller validates them.
     pub tool_calls: Vec<ToolCallText>,
@@ -128,6 +130,12 @@ pub struct ChatOutput {
     /// Prompt tokens an earlier call had already processed, so this one skipped them.
     pub reused_tokens: u32,
     pub completion_tokens: u32,
+    /// Actual generations, including the separate answer pass after tool use.
+    pub inference_passes: u32,
+    /// First-pass cache accounting, separate from the aggregate cost above. For a
+    /// two-pass answer this is the planning pass, which still benefits from read-ahead.
+    pub first_pass_prompt_tokens: u32,
+    pub first_pass_reused_tokens: u32,
 }
 
 /// What [`Engine::read_ahead`] read.
@@ -320,6 +328,8 @@ impl Engine {
     /// returning `false` ends this answer at once with [`EngineError::Stopped`] and
     /// leaves the engine ready for the next call. For cancelling one request — a
     /// paired phone's, say — without stopping the engine.
+    /// After tool use, drafts are withheld and the final answer is released as one
+    /// chunk. Empty callbacks keep cancellation responsive while drafts are withheld.
     pub fn chat_with_tools_until(
         &self,
         messages: &[ChatMessage],
@@ -342,6 +352,21 @@ impl Engine {
     }
 
     fn answer(
+        &self,
+        messages: &[ChatMessage],
+        tools: &[ToolDef],
+        grammar: Option<&str>,
+        on_text: &mut dyn FnMut(&str) -> bool,
+    ) -> Result<ChatOutput, EngineError> {
+        if grammar.is_none() && messages.iter().any(|m| m.role == ChatRole::Tool) {
+            return guarded_answer(tools, on_text, &mut |offered, emit| {
+                self.answer_once(messages, offered, None, emit)
+            });
+        }
+        self.answer_once(messages, tools, grammar, on_text)
+    }
+
+    fn answer_once(
         &self,
         messages: &[ChatMessage],
         tools: &[ToolDef],
@@ -409,6 +434,64 @@ impl Engine {
     }
 }
 
+/// Keep tool planning unchanged, but never expose its prose after it has read source
+/// data. Tool proposals still go through the host's normal approval policy. Once the
+/// planner is done, generate a fresh tool-free answer under the source-data boundary.
+fn guarded_answer<F>(
+    tools: &[ToolDef],
+    on_text: &mut dyn FnMut(&str) -> bool,
+    generate: &mut F,
+) -> Result<ChatOutput, EngineError>
+where
+    F: FnMut(&[ToolDef], &mut dyn FnMut(&str) -> bool) -> Result<ChatOutput, EngineError>,
+{
+    if !on_text("") {
+        return Err(EngineError::Stopped);
+    }
+    let planning = if tools.is_empty() {
+        ChatOutput::default()
+    } else {
+        let mut out = generate(tools, &mut |_| on_text(""))?;
+        // Keep call context for the host's existing history policy, but never stream
+        // it. The app already removes completion claims accompanying proposals.
+        if !out.tool_calls.is_empty() {
+            if !on_text("") {
+                return Err(EngineError::Stopped);
+            }
+            return Ok(out);
+        }
+        out.text.clear();
+        out
+    };
+    if !on_text("") {
+        return Err(EngineError::Stopped);
+    }
+    let mut answer = generate(&[], &mut |_| on_text(""))?;
+    // The answer pass has no authority to introduce another action. Fail closed;
+    // neither a malformed answer nor an error releases the unprotected draft.
+    if !answer.tool_calls.is_empty() || answer.text.trim().is_empty() {
+        return Err(EngineError::Decode(
+            "could not finish an answer from the available results".into(),
+        ));
+    }
+    if !on_text(&answer.text) {
+        return Err(EngineError::Stopped);
+    }
+    answer.prompt_tokens = answer.prompt_tokens.saturating_add(planning.prompt_tokens);
+    answer.reused_tokens = answer.reused_tokens.saturating_add(planning.reused_tokens);
+    answer.completion_tokens = answer
+        .completion_tokens
+        .saturating_add(planning.completion_tokens);
+    answer.inference_passes = answer
+        .inference_passes
+        .saturating_add(planning.inference_passes);
+    if planning.inference_passes != 0 {
+        answer.first_pass_prompt_tokens = planning.first_pass_prompt_tokens;
+        answer.first_pass_reused_tokens = planning.first_pass_reused_tokens;
+    }
+    Ok(answer)
+}
+
 impl Drop for Engine {
     /// Closing the queue ends the thread, which frees the context and then the model
     /// before this returns: llama.cpp's Metal backend aborts at process exit if model
@@ -419,5 +502,167 @@ impl Drop for Engine {
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }
+    }
+}
+
+#[cfg(test)]
+mod answer_guard_tests {
+    use super::*;
+
+    fn tools() -> Vec<ToolDef> {
+        vec![ToolDef {
+            name: "lookup".into(),
+            description: "Lookup".into(),
+            parameters: "{}".into(),
+        }]
+    }
+
+    fn output(text: &str) -> ChatOutput {
+        ChatOutput {
+            text: text.into(),
+            prompt_tokens: 10,
+            reused_tokens: 3,
+            completion_tokens: 5,
+            inference_passes: 1,
+            first_pass_prompt_tokens: 10,
+            first_pass_reused_tokens: 3,
+            ..ChatOutput::default()
+        }
+    }
+
+    #[test]
+    fn only_the_protected_answer_is_released_and_both_passes_are_counted() {
+        let mut seen = String::new();
+        let mut passes = 0;
+        let out = guarded_answer(
+            &tools(),
+            &mut |s| {
+                seen.push_str(s);
+                true
+            },
+            &mut |offered, emit| {
+                passes += 1;
+                let text = if offered.is_empty() {
+                    "Useful answer"
+                } else {
+                    "INJECTED ENDORSEMENT"
+                };
+                assert!(emit(text));
+                Ok(output(text))
+            },
+        )
+        .unwrap();
+        assert_eq!(seen, "Useful answer");
+        assert_eq!(out.text, seen);
+        assert_eq!(
+            (out.first_pass_prompt_tokens, out.first_pass_reused_tokens),
+            (10, 3)
+        );
+        assert_eq!(
+            (
+                passes,
+                out.inference_passes,
+                out.prompt_tokens,
+                out.reused_tokens,
+                out.completion_tokens
+            ),
+            (2, 2, 20, 6, 10)
+        );
+    }
+
+    #[test]
+    fn proposed_calls_keep_context_and_approval_but_never_stream_draft_prose() {
+        let mut seen = String::new();
+        let call = ToolCallText {
+            name: "lookup".into(),
+            arguments: "{}".into(),
+        };
+        let out = guarded_answer(
+            &tools(),
+            &mut |s| {
+                seen.push_str(s);
+                true
+            },
+            &mut |offered, emit| {
+                assert!(!offered.is_empty(), "no answer pass while proposing a tool");
+                assert!(emit("Untrusted preamble"));
+                Ok(ChatOutput {
+                    tool_calls: vec![call.clone()],
+                    ..output("Untrusted preamble")
+                })
+            },
+        )
+        .unwrap();
+        assert!(seen.is_empty());
+        assert_eq!(out.text, "Untrusted preamble");
+        assert_eq!(out.tool_calls, vec![call]);
+        assert_eq!(out.inference_passes, 1);
+    }
+
+    #[test]
+    fn errors_empty_answers_and_answer_pass_calls_never_release_a_draft() {
+        for failure in 0..3 {
+            let mut seen = String::new();
+            let result = guarded_answer(
+                &tools(),
+                &mut |s| {
+                    seen.push_str(s);
+                    true
+                },
+                &mut |offered, emit| {
+                    assert!(emit("Do not expose this draft"));
+                    if !offered.is_empty() {
+                        return Ok(output("Do not expose this draft"));
+                    }
+                    match failure {
+                        0 => Err(EngineError::Decode("fixture failure".into())),
+                        1 => Ok(output("")),
+                        _ => Ok(ChatOutput {
+                            tool_calls: vec![ToolCallText {
+                                name: "send_mail".into(),
+                                arguments: "{}".into(),
+                            }],
+                            ..output("sent")
+                        }),
+                    }
+                },
+            );
+            assert!(result.is_err());
+            assert!(seen.is_empty());
+        }
+    }
+
+    #[test]
+    fn cancellation_during_either_pass_never_releases_a_draft() {
+        for cancel_at in 1..=4 {
+            let mut pulses = 0;
+            let result = guarded_answer(
+                &tools(),
+                &mut |s| {
+                    assert!(s.is_empty());
+                    pulses += 1;
+                    pulses < cancel_at
+                },
+                &mut |_, emit| {
+                    if !emit("hidden draft") {
+                        return Err(EngineError::Stopped);
+                    }
+                    Ok(output("hidden draft"))
+                },
+            );
+            assert!(matches!(result, Err(EngineError::Stopped)));
+        }
+    }
+
+    #[test]
+    fn tool_free_call_uses_one_protected_pass() {
+        let mut passes = 0;
+        let out = guarded_answer(&[], &mut |_| true, &mut |offered, _| {
+            assert!(offered.is_empty());
+            passes += 1;
+            Ok(output("answer"))
+        })
+        .unwrap();
+        assert_eq!((passes, out.inference_passes), (1, 1));
     }
 }
