@@ -22,6 +22,19 @@ export ANDROID_HOME NDK_HOME JAVA_HOME
 export ANDROID_NDK="$NDK_HOME" ANDROID_API_LEVEL="${ANDROID_API_LEVEL:-24}"
 export GGML_CPU_ARM_ARCH=armv8.2-a+dotprod
 
+# SQLCipher's vendored OpenSSL uses cc-rs to select ranlib. Modern NDKs ship only
+# llvm-ranlib, not the old target-prefixed GNU names OpenSSL otherwise guesses.
+case "$(uname -s)" in
+  Darwin) pr3_ndk_host=darwin-x86_64 ;;
+  Linux) pr3_ndk_host=linux-x86_64 ;;
+  *) pr3_ndk_host=windows-x86_64 ;;
+esac
+pr3_ndk_ranlib="$NDK_HOME/toolchains/llvm/prebuilt/$pr3_ndk_host/bin/llvm-ranlib"
+export RANLIB_aarch64_linux_android="$pr3_ndk_ranlib"
+export RANLIB_armv7_linux_androideabi="$pr3_ndk_ranlib"
+export RANLIB_x86_64_linux_android="$pr3_ndk_ranlib"
+export RANLIB_i686_linux_android="$pr3_ndk_ranlib"
+
 if [ $# -eq 0 ]; then
   set -- --debug --apk --target aarch64
 fi

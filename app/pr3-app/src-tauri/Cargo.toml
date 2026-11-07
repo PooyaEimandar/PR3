@@ -48,6 +48,7 @@ toml = { version = "1", default-features = false, features = ["std", "serde", "p
 # which pairing already builds, and Mozilla's root certificates on every platform.
 ureq = { version = "3", default-features = false, features = ["rustls"] }
 sha2 = "0.10"
+zeroize = "1"
 tauri-plugin-wdio-webdriver = { version = "=1.5.1", optional = true }
 
 # The computer's name, shown on paired phones.

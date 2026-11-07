@@ -14,6 +14,10 @@
     <header>
       <h1>PR3</h1>
     </header>
+    <aside id="storage-warning" role="alert" hidden>
+      <span>Storage is locked. Your saved data has not been reset.</span>
+      <button type="button" id="storage-open" class="secondary small">Recover access</button>
+    </aside>
     <section id="settings" aria-label="Settings" hidden>
       <div class="top">
         <button id="settings-close" type="button" class="icon" aria-label="Close settings" title="Close">
@@ -28,6 +32,7 @@
         <button type="button" role="tab" data-tab="devices" class="secondary small">Devices</button>
         <button type="button" role="tab" data-tab="email" class="secondary small">Contacts</button>
         <button type="button" role="tab" data-tab="web" class="secondary small">Web</button>
+        <button type="button" role="tab" data-tab="storage" class="secondary small">Storage</button>
       </div>
       <div id="models" class="pane" role="tabpanel" hidden></div>
       <div id="voice" class="pane" role="tabpanel" hidden>
@@ -46,7 +51,17 @@
       <div id="devices" class="pane" role="tabpanel" hidden></div>
       <div id="email" class="pane" role="tabpanel" hidden></div>
       <div id="web" class="pane" role="tabpanel" hidden></div>
+      <div id="storage" class="pane" role="tabpanel" hidden></div>
     </section>
+    <dialog id="recovery-code-dialog" class="confirm-dialog" aria-labelledby="recovery-code-title">
+      <form method="dialog">
+        <h2 id="recovery-code-title">Your recovery code</h2>
+        <p>Keep this code in a password manager or another safe place. Anyone with this code and your database can read your saved memories and tasks.</p>
+        <textarea id="recovery-code" aria-label="Recovery code" readonly spellcheck="false" rows="4"></textarea>
+        <p class="meta">The code restores access to an existing database. It cannot bring back deleted data or a lost device's files.</p>
+        <div class="choices"><button type="submit" autofocus>Done</button></div>
+      </form>
+    </dialog>
     <!-- Tasks: To Do, Doing and Done, swiped left and right; a task opens to its chat
          (docs Sec. 4.8). Shown in place of the conversation. -->
     <section id="tasks" aria-label="Tasks" hidden>

@@ -27,6 +27,14 @@ import java.security.PrivateKey
 import java.security.Signature
 import java.security.interfaces.ECPublicKey
 import java.security.spec.ECGenParameterSpec
+import android.util.AtomicFile
+import java.io.File
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
+import org.json.JSONObject
+import java.util.UUID
 
 @InvokeArg
 class SignArgs {
@@ -34,6 +42,11 @@ class SignArgs {
   lateinit var message: String
   /** What is being approved, shown on the prompt. */
   lateinit var reason: String
+}
+
+@InvokeArg
+class StorageKeyArgs {
+  lateinit var key: String
 }
 
 /**
@@ -45,6 +58,101 @@ class SignArgs {
 @TauriPlugin
 class VaultPlugin(private val activity: Activity) : Plugin(activity) {
   private val alias = "pr3-approval"
+  private val storageAlias = "pr3-memory-wrap-v1"
+  private fun storageFile() = AtomicFile(File(activity.noBackupFilesDir, "memory-key-v1"))
+  private val storageAad = "PR3 database key v1".toByteArray(Charsets.UTF_8)
+
+  private fun storageAliasOf(record: JSONObject): String {
+    require(record.getInt("version") == 1) { "Invalid storage key version" }
+    return record.getString("alias").also {
+      require(it.matches(Regex("pr3-memory-wrap-v1-[0-9a-f-]{36}"))) { "Invalid storage key alias" }
+    }
+  }
+
+  /** The Keystore AES key never leaves the system. Only the wrapped SQLCipher key
+   * is persisted; it is deliberately independent of biometric approval keys. */
+  @Command
+  fun storageKey(invoke: Invoke) {
+    try {
+      val file = storageFile()
+      if (!file.baseFile.exists() && !File(file.baseFile.path + ".bak").exists()) {
+        invoke.resolve(JSObject().put("key", "")); return
+      }
+      val record = JSONObject(String(file.readFully(), Charsets.UTF_8))
+      val keyAlias = storageAliasOf(record)
+      val encoded = record.getString("wrapped")
+      require(encoded.length == 122 && encoded.all { it in "0123456789abcdef" }) { "Invalid wrapped key" }
+      val wrapped = unhex(encoded)
+      require(wrapped.size == 61 && wrapped[0] == 1.toByte()) { "Invalid wrapped storage key" }
+      val key = keyStore().getKey(keyAlias, null) as? SecretKey
+        ?: throw IllegalStateException("Storage key missing; use the recovery code")
+      val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+      cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, wrapped.copyOfRange(1, 13)))
+      cipher.updateAAD(storageAad)
+      val plain = cipher.doFinal(wrapped.copyOfRange(13, wrapped.size))
+      try { invoke.resolve(JSObject().put("key", hex(plain))) } finally { plain.fill(0) }
+    } catch (e: Exception) {
+      invoke.reject("The storage key is unavailable. Unlock the phone and retry, or use the recovery code.")
+    }
+  }
+
+  @Command
+  fun saveStorageKey(invoke: Invoke) {
+    try {
+      val text = invoke.parseArgs(StorageKeyArgs::class.java).key
+      require(text.length == 64 && text.all { it in "0123456789abcdefABCDEF" }) { "Invalid storage key" }
+      val file = storageFile()
+      val previousAlias = try { storageAliasOf(JSONObject(String(file.readFully(), Charsets.UTF_8))) } catch (_: Exception) { null }
+      // Save is called only for first setup or after Rust verifies a recovery code.
+      // Use a fresh wrapping key so recovery also works after Keystore invalidation.
+      // Retain the old key until the replacement wrapper has been durably read back.
+      val keyAlias = "$storageAlias-${UUID.randomUUID()}"
+      val key = run {
+        val spec = KeyGenParameterSpec.Builder(keyAlias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+          .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+          .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+          .setKeySize(256)
+          .setRandomizedEncryptionRequired(true)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) spec.setUnlockedDeviceRequired(true)
+        KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore").apply {
+          init(spec.build())
+        }.generateKey()
+      }
+      val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+      cipher.init(Cipher.ENCRYPT_MODE, key)
+      cipher.updateAAD(storageAad)
+      val plain = unhex(text)
+      val wrapped = try { byteArrayOf(1) + cipher.iv + cipher.doFinal(plain) } finally { plain.fill(0) }
+      val record = JSONObject().put("version", 1).put("alias", keyAlias).put("wrapped", hex(wrapped))
+        .toString().toByteArray(Charsets.UTF_8)
+      val output = file.startWrite()
+      try { output.write(record); file.finishWrite(output) }
+      catch (e: Exception) { file.failWrite(output); throw e }
+      check(file.readFully().contentEquals(record)) { "Storage key write did not persist" }
+      if (previousAlias != null) {
+        try { keyStore().deleteEntry(previousAlias) } catch (_: Exception) { /* Safe orphan; retry is not needed. */ }
+      }
+      invoke.resolve()
+    } catch (e: Exception) {
+      invoke.reject("Cannot save the storage key securely; the database has not been replaced.")
+    }
+  }
+
+  @Command
+  fun authorizeStorageRecovery(invoke: Invoke) {
+    activity.runOnUiThread {
+      val callback = object : BiometricPrompt.AuthenticationCallback() {
+        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) { invoke.resolve() }
+        override fun onAuthenticationError(code: Int, text: CharSequence) { invoke.reject(text.toString()) }
+      }
+      val info = BiometricPrompt.PromptInfo.Builder()
+        .setTitle("Show PR3 recovery code")
+        .setDescription("This code unlocks your saved memories and tasks. Keep it private.")
+        .setAllowedAuthenticators(androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK or DEVICE_CREDENTIAL)
+      BiometricPrompt(activity as FragmentActivity, ContextCompat.getMainExecutor(activity), callback)
+        .authenticate(info.build())
+    }
+  }
 
   @Command
   fun publicKey(invoke: Invoke) {

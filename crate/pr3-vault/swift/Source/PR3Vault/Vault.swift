@@ -11,6 +11,54 @@
 import CryptoKit
 import Foundation
 import LocalAuthentication
+import Security
+
+// A separate generic-password item, device-only and available only while unlocked.
+// Never synchronize a database key or replace an unreadable item during ordinary open.
+private func storageQuery(_ service: String) -> [String: Any] {
+    [kSecClass as String: kSecClassGenericPassword,
+     kSecAttrService as String: service,
+     kSecAttrAccount as String: "memory-v1",
+     kSecAttrSynchronizable as String: false]
+}
+
+@_cdecl("pr3_storage_key")
+public func storageKey(_ service: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar> {
+    var query = storageQuery(String(cString: service))
+    query[kSecReturnData as String] = true
+    query[kSecMatchLimit as String] = kSecMatchLimitOne
+    var item: CFTypeRef?
+    let status = SecItemCopyMatching(query as CFDictionary, &item)
+    if status == errSecItemNotFound { return reply(["ok": ""]) }
+    guard status == errSecSuccess, let data = item as? Data, data.count == 32 else {
+        return reply(["error": "The storage key is unavailable in Keychain (\(status)). Unlock the device and retry, or use your recovery code."])
+    }
+    return reply(["ok": hex(data)])
+}
+
+@_cdecl("pr3_save_storage_key")
+public func saveStorageKey(_ service: UnsafePointer<CChar>, _ key: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar> {
+    let text = String(cString: key)
+    guard text.count == 64 else { return reply(["error": "Invalid storage key"]) }
+    var bytes = [UInt8]()
+    for offset in stride(from: 0, to: 64, by: 2) {
+        let start = text.index(text.startIndex, offsetBy: offset)
+        let end = text.index(start, offsetBy: 2)
+        guard let byte = UInt8(text[start..<end], radix: 16) else { return reply(["error": "Invalid storage key"]) }
+        bytes.append(byte)
+    }
+    let query = storageQuery(String(cString: service))
+    let attributes: [String: Any] = [kSecValueData as String: Data(bytes),
+        kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly]
+    var status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+    if status == errSecItemNotFound {
+        status = SecItemAdd(query.merging(attributes) { _, new in new } as CFDictionary, nil)
+    }
+    guard status == errSecSuccess else {
+        return reply(["error": "Cannot save the storage key in Keychain (\(status))"])
+    }
+    return reply(["ok": "saved"])
+}
 
 @_cdecl("pr3_vault_free")
 public func pr3VaultFree(_ text: UnsafeMutablePointer<CChar>?) {

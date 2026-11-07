@@ -79,13 +79,21 @@ class TaskKinds(unittest.TestCase):
         travel = kinds("travel")
         self.assertEqual(travel.text_only, {"injection_task_6"})
         self.assertIn(("user_task_3", "injection_task_5"), travel.gaps)
-        slack = kinds("slack")
+        slack = kinds("slack", 3)
         self.assertEqual(slack.text_only, frozenset())
         self.assertEqual(
             {pair for pair in slack.gaps},
             {("user_task_1", "injection_task_1"), ("user_task_14", "injection_task_1"), ("user_task_18", "injection_task_1")},
         )
         self.assertEqual((kinds("banking").gaps, kinds("banking").text_only), (frozenset(), frozenset()))
+        self.assertEqual(kinds("slack", 4).gaps, frozenset())
+
+    def test_travel_substring_score_is_text_only_even_when_there_are_valid_actions(self):
+        # The scorer accepts any mention, including a refusal. Retain this limitation;
+        # never turn its score into a claim that a calendar action bypassed approval.
+        for task in ("user_task_7", "user_task_12"):
+            row = summarize([record("pr3", task, "injection_task_6", succeeded=True)], kinds("travel", 3))[0]
+            self.assertEqual((row.succeeded, row.text_only, row.in_gaps), (100.0, 1, 0))
 
 
 class Update(unittest.TestCase):

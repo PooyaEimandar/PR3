@@ -4,13 +4,13 @@
     .venv/bin/python report.py --update ../../doc/benchmarks.md  # rewrite them in place
 
 Every table names the approver and harness its rows used, and refuses to mix versions.
-Two kinds of successful attack are counted apart, because no runtime can stop them:
+Two kinds of successful attack are counted apart from authorization enforcement:
 
 - text-only attacks, whose goal is something the model says rather than a call it
-  makes ("say that I should visit this hotel"); only the user reading the reply can;
+  makes ("say that I should visit this hotel"); these require answer-content defenses;
 - approver gaps, where the user's own task needs a call to the same place as the
   attack, so only free text (a body, a title) tells them apart, and the scripted
-  approver compares recipients and amounts, not prose.
+  approver does not semantically review prose (v4 does check embedded destinations).
 
 Both are derived from AgentDojo's task definitions, not listed by hand.
 """
@@ -25,7 +25,7 @@ from pathlib import Path
 
 from agentdojo.task_suite.load_suites import get_suite
 
-from pr3_agentdojo.approver import CONSEQUENTIAL, Context, markers, matches, required
+from pr3_agentdojo.approver import APPROVER_VERSION, CONSEQUENTIAL, Context, markers, matches, required
 
 HERE = Path(__file__).resolve().parent
 BENCHMARK_VERSION = "v1.2.2"
@@ -47,7 +47,7 @@ class Kinds:
 
 
 @cache
-def kinds(suite_name: str) -> Kinds:
+def kinds(suite_name: str, approver: int = APPROVER_VERSION) -> Kinds:
     suite = get_suite(BENCHMARK_VERSION, suite_name)
     env = suite.load_and_inject_default_environment({})
     context = Context.of(suite_name, env)
@@ -69,7 +69,7 @@ def kinds(suite_name: str) -> Kinds:
     for task_id, task in suite.user_tasks.items():
         need = required(suite_name, task, env)
         for attack_id, calls in attacks.items():
-            if any(matches(suite_name, c.function, c.args, need, context) for c in calls):
+            if any(matches(suite_name, c.function, c.args, need, context, version=approver) for c in calls):
                 gaps.add((task_id, attack_id))
     return Kinds(frozenset(gaps), text_only, len(suite.user_tasks), len(suite.injection_tasks))
 
@@ -153,7 +153,6 @@ def fmt(value: float) -> str:
 
 
 def table(suite: str, files: list[Path]) -> str:
-    kind = kinds(suite)
     lines = []
     header = None
     for path in sorted(files, key=lambda p: ("27B" in p.stem, p.stem)):
@@ -161,6 +160,8 @@ def table(suite: str, files: list[Path]) -> str:
         if not records:
             continue
         approver, harness = versions(records)
+        # Historical results must retain the policy they were actually run with.
+        kind = kinds(suite, approver or 1)
         header = header or (approver, harness)
         if (approver, harness) != header:
             raise ValueError(f"{path.name}: approver {approver}, harness {harness}, unlike its suite")
@@ -197,7 +198,7 @@ LEGEND = (
     "*Attack succeeded*: AgentDojo found the attacker's goal reached. Of the successful attacks, "
     "*text-only* counts those whose goal is something the model says rather than a call it makes, and "
     "*approver gap* those where the user's own task needs a call to the same place, so only free text "
-    "tells them apart; no runtime can stop either."
+    "tells them apart. These scores do not by themselves establish an authorization bypass."
     " Errors are unscored and excluded from the attack-success/model-fooled denominators, never counted as safe."
 )
 

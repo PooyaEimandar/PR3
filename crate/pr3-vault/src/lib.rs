@@ -98,6 +98,50 @@ pub fn open_platform(dir: &Path) -> Result<Box<dyn Vault>, VaultError> {
 /// Where [`open_platform`] keeps a software key.
 pub const SOFTWARE_KEY_FILE: &str = "vault.key";
 
+/// Database keys use a separate OS credential from action-signing keys. They must be
+/// available to SQLCipher in process memory; they are never saved in a plaintext file.
+/// Unsupported desktop platforms fail closed until their secure-storage adapter exists.
+pub fn storage_key(service: &str) -> Result<Option<String>, VaultError> {
+    #[cfg(target_vendor = "apple")]
+    {
+        apple::storage_key(service)
+    }
+    #[cfg(not(target_vendor = "apple"))]
+    {
+        let _ = service;
+        Err(VaultError::Platform(
+            "Secure database key storage is not available on this platform".into(),
+        ))
+    }
+}
+
+pub fn save_storage_key(service: &str, key: &str) -> Result<(), VaultError> {
+    #[cfg(target_vendor = "apple")]
+    {
+        apple::save_storage_key(service, key)
+    }
+    #[cfg(not(target_vendor = "apple"))]
+    {
+        let _ = (service, key);
+        Err(VaultError::Platform(
+            "Secure database key storage is not available on this platform".into(),
+        ))
+    }
+}
+
+pub fn authorize_storage_recovery() -> Result<(), VaultError> {
+    #[cfg(target_vendor = "apple")]
+    {
+        apple::authorize_storage_recovery()
+    }
+    #[cfg(not(target_vendor = "apple"))]
+    {
+        Err(VaultError::Platform(
+            "Device authentication is not available on this platform".into(),
+        ))
+    }
+}
+
 /// A P-256 key in a file readable only by the app.
 pub struct SoftwareVault {
     key: SigningKey,

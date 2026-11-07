@@ -118,6 +118,12 @@ Everything lives in [`config/pr3.toml`](../config/pr3.toml):
 | `[node]` | Whether a computer lends its model to paired phones, and where it listens ([Sec. 6.3](deployment.md#63-private-hybrid-mobile--desktop)) |
 | `[web]` | Whether PR3 offers to read web pages you link; on by default ([Reading web pages](#reading-web-pages)) |
 
+## Encrypted local storage
+
+The production app uses SQLCipher for `memory.sqlite` and stores its key separately in Apple Keychain or wrapped by Android Keystore. Existing plaintext databases migrate on first launch. Settings → **Storage** shows encryption/lock status and offers an authenticated recovery code; losing a key blocks work until the original database is successfully unlocked. See [storage/recovery design and Android checks](storage-recovery.md). Windows/Linux secure database-key adapters remain a release blocker; there is no plaintext fallback. Synthetic unit/benchmark databases can still use the explicitly unkeyed `SqliteMemory::open` API.
+
+The native suite also exercises encryption, missing-key lockout, wrong-code rejection and recovery through the production UI/IPC. Only that scenario uses a debug-only temporary key-store fixture; it never opens the real platform vault. Other fault-injection scenarios retain synthetic unkeyed databases so the runner can inject SQLite write failures.
+
 ## Preparing email
 
 PR3 prepares drafts for your device's email app using opt-in device contacts. Each draft waits for your approval and then Face ID, Touch ID, a fingerprint or the passcode before handoff. The approval key lives in the Secure Enclave or Android Keystore; set a screen lock on Android first. Review and press Send in the email app. PR3 records the handoff in its verified hash-chained `audit.jsonl`, but cannot verify delivery. See [Device contacts and email](#device-contacts-and-email). Benchmark hosts still use the sandbox connector and `outbox.jsonl`, with no external delivery.
@@ -248,6 +254,8 @@ bench/agentdojo/.venv/bin/python bench/rebaseline/run.py --out bench/rebaseline/
 The selected security matrix is Qwen3.5 4B and Qwen3.8 27B, banking/workspace/slack/travel, PR3/plain/confirm-all, seeds 1/2/7: 18,828 runs. The workflow suite runs all 40 cases at those seeds on 2B, 4B and 27B, plus the 10-case multilingual memory-review development corpus on each model/seed. No real contacts, email or internet pages are used. The 27B comparison can take days on a development Mac.
 
 The runner copies the binaries, corpus and Python driver, archives the source (including uncommitted files), and records hashes, hardware, sampling budgets and dependencies in `manifest.json`. It runs one inference process at a time. `progress.json` and `report.md` update every 30 seconds; raw rows and per-job logs are retained. Repeating the same command resumes only missing cases, after checking the frozen inputs and runtime environment. A changed model, seed, binary or corpus requires a new output directory. Duplicate/foreign rows and malformed JSONL stop the run for inspection. Evaluation errors remain unscored, never counted as safe attacks. The process exits nonzero if jobs stop early or evaluation errors remain.
+
+The runner deliberately rejects an OS/Python/dependency change during resume. Do not edit the old manifest to bypass this. On 7 November, macOS had changed from 27.0.1 to 27.2; retain the partial `2026-11-04` directory and start the full matrix from current rebuilt binaries in the separate `2026-11-07` directory. Results from those two environments/policy versions must remain distinguishable.
 
 To refresh a stopped run's report without inference, add `--report-only`. Stop the foreground runner with Ctrl-C; resume with the same command. Preserve the result directory and the installed model files. On macOS `caffeinate -i` can prefix the command to prevent idle sleep. Workflow timing reports whole turns and first visible response after model load; summary preparation/model loading are separate from turn latency. These are desktop measurements, not Android measurements. Existing cases and the new correction cases are development evidence, not a held-out accuracy study.
 

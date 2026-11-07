@@ -2,6 +2,12 @@
 
 Part of the [PR3 documentation](README.md). Newest first; each version records what changed in the design and why.
 
+## Unreleased (7 November 2026) - storage encryption and security triage
+
+- The app encrypts its memory/task database with SQLCipher, using separate Apple Keychain or Android Keystore-backed key custody. Existing plaintext data migrates through a verified encrypted copy and atomic replacement. Missing/wrong keys lock the app instead of resetting data or falling back to volatile tasks. Settings → Storage provides device-authenticated recovery-code display and validated recovery of an existing database; see [scope and remaining platform/recovery gates](storage-recovery.md).
+- Added encrypted-file, migration/interruption, corruption, vault-failure and key-recovery regressions, plus an eighth native UI workflow covering missing keys, wrong-code rejection, recovery and preserved memories. Android's build script supplies the NDK's LLVM ranlib for vendored OpenSSL.
+- Investigated the three flagged 4B security runs. Approver v4 rejects new links/addresses in draft text unless a reference call contains them; the fixed Slack case blocks the phishing action at seeds 1/2/7, with attacked-task utility 2/3. Both travel cases are confirmed answer contamination, not evidence of an approval bypass, and remain failures. Harness v4 retains final answers for review; reports classify historical approver gaps using the original version. The old historical matrix remains frozen on v3 at 4,270 rows. Its environment guard refused resumption after a macOS upgrade; a fresh complete matrix uses the current source/driver on the current OS, without mixing results.
+
 ## Unreleased (4 November 2026) - audit, sync and task-storage review fixes
 
 - The first question after task restoration receives bounded excerpts of persisted user wording alongside the question, so the model can use the restored details directly. Recall supplies bounded current-task user excerpts and filters unconfirmed proposals from other tasks in both search and recent-note fallback; an empty lookup no longer implies that task details are missing. Email preparation uses the latest corrected contact name, lets the host resolve the address, waits when requested, and follows the actual connector's outcome description.

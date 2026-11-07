@@ -24,6 +24,7 @@ mod models;
 mod network;
 mod share;
 mod speech;
+mod storage;
 mod task;
 mod trace_export;
 mod web;
@@ -73,6 +74,7 @@ async fn send_message(
     app: tauri::AppHandle,
     host: tauri::State<'_, Host>,
 ) -> Result<Vec<pr3_core::Action>, String> {
+    storage::require_ready(&app)?;
     let result = host
         .send(text, utc_offset_minutes, move |event| {
             // A closed channel only means the window went away; the turn still completes.
@@ -191,6 +193,9 @@ fn unpair(app: tauri::AppHandle) -> Result<(), String> {
 
 /// A phone remembers the computer it paired with; a computer lends its model.
 fn start_hybrid(app: &tauri::AppHandle, settings: &config::Node) {
+    if storage::require_ready(app).is_err() {
+        return;
+    }
     let Ok(dir) = app.path().app_data_dir() else {
         return;
     };
@@ -248,32 +253,6 @@ fn set_backend(app: &tauri::AppHandle, backend: Arc<dyn Backend>) {
     app.state::<Host>().set_backend(backend);
     // The window may not be listening yet at startup; it also asks on load.
     let _ = app.emit(MODEL_CHANGED, label);
-}
-
-/// The memory store in the app's data folder. Without it PR3 still runs; it just
-/// cannot remember.
-fn open_memory(app: &tauri::AppHandle) -> Option<Arc<Mutex<pr3_memory_sqlite::SqliteMemory>>> {
-    let opened = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| e.to_string())
-        .and_then(|dir| {
-            std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-            let path = dir.join("memory.sqlite");
-            pr3_memory_sqlite::SqliteMemory::open(&path)
-                .map(|store| (store, path))
-                .map_err(|e| e.to_string())
-        });
-    match opened {
-        Ok((store, path)) => {
-            eprintln!("PR3: memory at {}", path.display());
-            Some(Arc::new(Mutex::new(store)))
-        }
-        Err(e) => {
-            eprintln!("PR3: memory unavailable: {e}");
-            None
-        }
-    }
 }
 
 /// This device's approval key: in the Secure Enclave on Apple devices, in the Keystore
@@ -335,7 +314,7 @@ fn host(
     tasks: config::Tasks,
     web: Option<Box<dyn pr3_tool::web::Fetch>>,
 ) -> Result<Host, host::HostError> {
-    let store = open_memory(app);
+    let store = storage::open(app);
     if let Some(store) = &store {
         let memory: pr3_tool::SharedMemory = store.clone();
         // The panel where the user reviews what PR3 remembers uses the same store.
@@ -364,7 +343,11 @@ fn host(
             Err(e) => eprintln!("PR3 continuity unavailable: {e}"),
         }
     }
-    let actions = actions.and_then(|settings| open_actions(app, settings));
+    let actions = if store.is_some() {
+        actions.and_then(|settings| open_actions(app, settings))
+    } else {
+        None
+    };
     compose_host(
         Arc::new(MockBackend::default()),
         store,
@@ -537,6 +520,9 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            storage::storage_info,
+            storage::storage_recovery_code,
+            storage::recover_storage,
             continuity::continuity_info,
             continuity::sync_continuity,
             continuity::share_item,

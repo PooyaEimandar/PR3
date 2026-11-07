@@ -410,6 +410,7 @@ function showApproval(request: ApprovalRequest, before: Node, sources: string[] 
 }
 
 let answering = false;
+let storageLocked = true;
 
 function setBusy(busy: boolean): void {
   answering = busy;
@@ -417,7 +418,7 @@ function setBusy(busy: boolean): void {
     if (!b.isConnected) memoryChoices.delete(b);
     else b.disabled = busy;
   }
-  button.disabled = busy;
+  button.disabled = busy || storageLocked;
   button.hidden = busy;
   stopButton.hidden = !busy;
   stopButton.disabled = false;
@@ -425,9 +426,10 @@ function setBusy(busy: boolean): void {
   if (!busy) {
     for (const close of pendingApprovals) close("Request closed. Review the recorded result below.");
   }
-  talk.disabled = busy;
+  talk.disabled = busy || storageLocked;
+  input.disabled = storageLocked;
   languageSelect.disabled = busy || voice !== null;
-  input.placeholder = busy ? "PR3 is answering…" : "Message PR3";
+  input.placeholder = storageLocked ? "Unlock storage in Settings" : busy ? "PR3 is answering…" : "Message PR3";
 }
 
 async function stopTask(id: number): Promise<void> {
@@ -459,7 +461,7 @@ async function retryTask(id: number, status: HTMLElement): Promise<void> {
 }
 
 async function send(text: string, retryId?: number): Promise<void> {
-  if (answering) return;
+  if (answering || storageLocked) return;
   // An offer to start a new task is for the message before this one.
   for (const offer of log.querySelectorAll(".msg.offer")) offer.remove();
   // "New topic", "new task" or "new job", typed or said, sets the conversation's task
@@ -1707,7 +1709,7 @@ async function renderEmail(problem?: string, supplied?: ContactsInfo): Promise<v
 const settings = find("#settings", HTMLElement);
 const settingsButton = find("#settings-button", HTMLButtonElement);
 const tabs = [...settings.querySelectorAll<HTMLButtonElement>("[role=tab]")];
-const TABS = ["models", "voice", "memory", "devices", "email", "web"] as const;
+const TABS = ["models", "voice", "memory", "devices", "email", "web", "storage"] as const;
 type Tab = (typeof TABS)[number];
 const isTab = (name: string | null | undefined): name is Tab => TABS.some((t) => t === name);
 const panes: Record<Tab, HTMLElement> = {
@@ -1717,6 +1719,7 @@ const panes: Record<Tab, HTMLElement> = {
   devices: panel,
   web: webPane,
   email: emailPane,
+  storage: find("#storage", HTMLElement),
 };
 let tab: Tab = ((): Tab => {
   const last = recall("pr3.settingsTab");
@@ -1731,6 +1734,7 @@ function openTab(name: Tab): void {
   tab = name;
   remember("pr3.settingsTab", name);
   for (const button of tabs) button.setAttribute("aria-selected", String(button.dataset.tab === name));
+  tabs.find((button) => button.dataset.tab === name)?.scrollIntoView({ block: "nearest", inline: "nearest" });
   for (const t of TABS) panes[t].hidden = t !== name;
   clearInterval(pairingTimer);
   if (name === "models") renderModels();
@@ -1738,6 +1742,73 @@ function openTab(name: Tab): void {
   else if (name === "devices") renderDevices();
   else if (name === "web") renderWeb();
   else if (name === "email") renderEmail();
+  else if (name === "storage") void renderStorage();
+}
+
+interface StorageInfo { encrypted: boolean; locked: boolean; problem: string | null }
+const recoveryDialog = find("#recovery-code-dialog", HTMLDialogElement);
+const recoveryText = find("#recovery-code", HTMLTextAreaElement);
+recoveryDialog.addEventListener("close", () => { recoveryText.value = ""; });
+recoveryDialog.addEventListener("click", ({ target }) => { if (target === recoveryDialog) recoveryDialog.close(); });
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) { recoveryText.value = ""; recoveryDialog.close(); }
+});
+find("#storage-open", HTMLButtonElement).addEventListener("click", () => {
+  tab = "storage"; showSettings(true);
+});
+
+async function refreshStorage(): Promise<StorageInfo> {
+  let info: StorageInfo;
+  try { info = await invoke<StorageInfo>("storage_info"); }
+  catch { info = { encrypted: false, locked: true, problem: "Storage status is unavailable. Close and reopen PR3 to retry." }; }
+  storageLocked = info.locked;
+  find("#storage-warning", HTMLElement).hidden = !info.locked;
+  setBusy(answering);
+  return info;
+}
+
+let storageRender = 0;
+async function renderStorage(): Promise<void> {
+  const generation = ++storageRender;
+  const pane = panes.storage;
+  pane.replaceChildren(el("h2", "Storage"));
+  const info = await refreshStorage();
+  if (generation !== storageRender || !showing("storage")) return;
+  pane.append(el("p", info.encrypted ? "Your saved memories and tasks are encrypted on this device." :
+    info.locked ? "Your saved data is locked. It has not been reset or replaced." : "This test session uses synthetic data.", "meta"));
+  if (info.problem) pane.append(el("p", info.problem, "error-text"));
+  if (info.encrypted) {
+    const status = el("p", undefined, "meta");
+    const showCode = makeButton("Show recovery code", () => {
+      showCode.disabled = true;
+      void invoke<string>("storage_recovery_code").then((code) => {
+        if (document.hidden || !showing("storage")) return;
+        recoveryText.value = code;
+        recoveryDialog.showModal();
+      }).catch((err) => { status.textContent = String(err); })
+        .finally(() => { showCode.disabled = false; });
+    }, "secondary");
+    pane.append(showCode, status);
+  } else if (info.locked) {
+    pane.append(el("p", "Unlock your device, then close and reopen PR3 to retry. If the storage key is missing, enter the recovery code you saved earlier.", "meta"));
+    const form = el("form");
+    const label = el("label", "Recovery code", "field");
+    const code = el("input"); code.type = "password"; code.autocomplete = "off"; code.spellcheck = false;
+    code.required = true; code.maxLength = 128; code.setAttribute("aria-label", "Recovery code");
+    label.append(code);
+    const submit = el("button", "Recover access"); submit.type = "submit";
+    const status = el("p", undefined, "meta"); status.setAttribute("role", "status");
+    form.append(label, submit, status);
+    form.addEventListener("submit", (event) => {
+      event.preventDefault(); submit.disabled = true;
+      const value = code.value; code.value = "";
+      void invoke<void>("recover_storage", { code: value }).then(() => {
+        status.textContent = "Your recovery key was saved. Close and reopen PR3 to unlock your data.";
+        code.disabled = true;
+      }).catch((err) => { status.textContent = String(err); submit.disabled = false; });
+    });
+    pane.append(form);
+  }
 }
 
 document.addEventListener("visibilitychange", () => {
@@ -2234,4 +2305,4 @@ window.__TAURI__.event.listen("model-changed", () => {
 });
 markPlatform();
 setUpSpeech();
-restoreConversation();
+void refreshStorage().then(() => { if (!storageLocked) void restoreConversation(); });

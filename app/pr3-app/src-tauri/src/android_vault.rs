@@ -13,6 +13,39 @@ use tauri::{Manager, Wry};
 /// The Kotlin plugin, registered at startup.
 pub struct VaultHandle(pub PluginHandle<Wry>);
 
+#[derive(Deserialize)]
+struct StorageKeyReply {
+    key: String,
+}
+
+impl VaultHandle {
+    pub fn storage_key(&self) -> Result<Option<String>, String> {
+        let reply: StorageKeyReply = self
+            .0
+            .run_mobile_plugin("storageKey", ())
+            .map_err(|e| e.to_string())?;
+        Ok(if reply.key.is_empty() {
+            None
+        } else {
+            Some(reply.key)
+        })
+    }
+
+    pub fn save_storage_key(&self, key: &str) -> Result<(), String> {
+        self.0
+            .run_mobile_plugin::<serde_json::Value>("saveStorageKey", json!({ "key": key }))
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    }
+
+    pub fn authorize_storage_recovery(&self) -> Result<(), String> {
+        self.0
+            .run_mobile_plugin::<serde_json::Value>("authorizeStorageRecovery", ())
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    }
+}
+
 pub fn plugin() -> TauriPlugin<Wry> {
     Builder::new("pr3-vault")
         .setup(|app, api| {

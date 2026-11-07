@@ -89,6 +89,8 @@ class Run:
 
     stats: dict = field(default_factory=dict)
     failed: str | None = None
+    # Keep the exact scored final text: a substring score can also match a refusal.
+    final_answer: str | None = None
     # Every call the model got as far as making: executed, or proposed and declined, or
     # refused for a rule that stands in for the approver (`pr3_web`).
     calls: list[tuple[str, dict, str]] = field(default_factory=list)
@@ -207,6 +209,7 @@ class BridgeAgent(BasePipelineElement):
                 run.stats = message["stats"]
                 run.failed = message["failed"]
                 reply = message["reply"] or (f"(failed: {run.failed})" if run.failed else "")
+                run.final_answer = reply
                 transcript.append(
                     {
                         "role": "assistant",

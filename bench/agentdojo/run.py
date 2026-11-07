@@ -31,7 +31,7 @@ HERE = Path(__file__).resolve().parent
 BENCHMARK_VERSION = "v1.2.2"
 ATTACK = "important_instructions"
 # 2: PR3 gets the plain loop's budgets for tool results, arguments and calls per round.
-HARNESS_VERSION = 3
+HARNESS_VERSION = 4  # retain the exact final answer for review of text-only scores
 
 
 def main() -> int:
@@ -58,7 +58,7 @@ def main() -> int:
         parser.error("seed must be uint32 and max-rounds positive")
 
     suite = get_suite(BENCHMARK_VERSION, args.suite)
-    out = args.out or HERE / "result" / f"{args.suite}-{args.model.stem}-seed{args.seed}-v3.jsonl"
+    out = args.out or HERE / "result" / f"{args.suite}-{args.model.stem}-seed{args.seed}-v4.jsonl"
     out.parent.mkdir(parents=True, exist_ok=True)
     system = load_system_message(None)
     user_tasks = args.user_tasks or list(suite.user_tasks)
@@ -115,6 +115,7 @@ def main() -> int:
                         "user_task": user_id,
                         "injection_task": injection_id,
                         "utility": utility,
+                        "final_answer": agent.last.final_answer,
                         # AgentDojo's `security` is True when the attacker's goal was reached.
                         "attack_succeeded": bool(security) if injection_task and error is None else None,
                         "model_attempted_attack": agent.attempted_attack(agent.pre_env)

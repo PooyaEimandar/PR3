@@ -1,0 +1,93 @@
+{
+  "date": "2026-11-07",
+  "scope": "SQLCipher memory/task database, Apple/Android key custody, existing-database recovery; security benchmark triage is recorded separately",
+  "checks": {
+    "workspace_tests_passed": 338,
+    "final_affected_crate_tests_passed": 167,
+    "native_workflows_passed": 8,
+    "agentdojo_python_tests_passed": 27,
+    "rebaseline_python_tests_passed": 4,
+    "clippy": "passed with warnings denied, workspace and final affected crates including E2E",
+    "format_and_trusted_boundary": "passed",
+    "android_arm64_debug_apk": "built; not installed or device-tested",
+    "cargo_audit": "exit 0; two pre-existing allowed warnings"
+  },
+  "audit_warnings": [
+    {
+      "crate": "proc-macro-error 1.0.4",
+      "id": "RUSTSEC-2024-0370",
+      "kind": "unmaintained"
+    },
+    {
+      "crate": "glib 0.18.5",
+      "id": "RUSTSEC-2024-0429",
+      "kind": "unsound"
+    }
+  ],
+  "regressions": [
+    "Encrypted memories and chats are absent from raw database bytes; encrypted reopen and FTS search work.",
+    "Wrong keys, tampered ciphertext and zero-byte existing databases are rejected without replacement.",
+    "Plaintext migration preserves schema, memories and chats; an interrupted staging copy retries safely.",
+    "An active SQLite reader prevents migration without destroying the source.",
+    "Missing/unreadable OS keys and vault write failures do not create a replacement database.",
+    "Correct recovery code restores access only after read-only integrity/HMAC validation.",
+    "Native UI blocks messages on key loss, rejects a wrong code, clears displayed codes, recovers preserved data and executes no email handoff."
+  ],
+  "source_sha256": {
+    "Cargo.lock": "546c1bee7ebe7fcfb8336f5bb6e4bc56f8ecb25a54617e222cd744e801e30bda",
+    "app/pr3-app/src-tauri/Cargo.toml": "2227c05af5b66a7b684018fd5ce72ecf01d361165a9d45717b9d3d4380c2b59d",
+    "app/pr3-app/src-tauri/gen/android/app/src/main/java/ai/pooya/pr3/VaultPlugin.kt": "265308e71ea4fc26a1d6126cd578e448eb4b1bc761fa6bf67fe701c7b35e19fa",
+    "app/pr3-app/src-tauri/src/android_vault.rs": "56db7f581a6b373c8a0dbe5f0e256e01def2daa54c81694070731221d0778e24",
+    "app/pr3-app/src-tauri/src/e2e.rs": "9070edafdbd26dfef90f6f74357d06fac8422c4fb369ec619dd4e136abfea008",
+    "app/pr3-app/src-tauri/src/lib.rs": "922079340d66630ab2bdb63fa4fa6a0ed75a4e20ee871d688353074ba4eda818",
+    "app/pr3-app/src-tauri/src/storage.rs": "c34a29ad65b48a34835e5f46100d09b537bdea8c8111c808f8a632d7718462a3",
+    "app/pr3-app/src/main.ts": "215ae0845e819f701c20061d8ce241afafbfd092a9ba02be9e4fe7ed4a1f2e9b",
+    "app/pr3-app/test/workflow.test.mjs": "bb5ddda976e40d972b31618e50d6f73d10fc258422cd66b536ef8e12f1cc7a16",
+    "app/pr3-app/ui/index.html": "421fc4147d63cb4f983076a5f4af66e23c2cd54961dade552410a72646e4a022",
+    "app/pr3-app/ui/style.css": "a1ae43a9534f27772b14cc94ab7d285a2ec9029dab4bf5fd54473fd497036082",
+    "bench/agentdojo/evidence/security-triage-2026-11-07.json": "a3d92830db2ff6997dd8330e014708836299b9fd8a3663240260e04492c86ba1",
+    "bench/agentdojo/pr3_agentdojo/approver.py": "c51959d69faa4539f89dd266de4c904a6684ee8b3987ac00405f15be41cbc371",
+    "bench/agentdojo/pr3_agentdojo/bridge.py": "6b32ea8af19f7bfe2ad77622755815114dd1efcd028ffa01bb997dda21c56e23",
+    "bench/agentdojo/report.py": "593c20ba6fe21edfc883b56358a4dbcedd8745f2f6dc425e55b77ee7471742b4",
+    "bench/agentdojo/run.py": "568282d81fdfd7aab10e09770da7facc71bf52e835803e050a96053484c1672a",
+    "bench/agentdojo/test/test_approver.py": "49708845c22e1a39238834a0c559e98d5989dd49b0b8cc578be36c1633921911",
+    "bench/agentdojo/test/test_bridge.py": "837a4f9ff335f78ef946939ad513cb4ef8d9ff8a36a91056a1f4d6764ebcbd90",
+    "bench/agentdojo/test/test_report.py": "f1e4187a6140565d06e8b2bef7b67cec2a893f8647c7b15dc3cd7d42a21c918f",
+    "crate/pr3-memory-sqlite/Cargo.toml": "0fe8f61cf441fb0f11dc3c4de2a4f986c3793c311f6cbc400bcc302400eca1a5",
+    "crate/pr3-memory-sqlite/src/encryption.rs": "99a1d33189245cbb5ed3cc3f0e4862b82702dd0da99a92218843f993b4ba7e68",
+    "crate/pr3-memory-sqlite/src/lib.rs": "110f20ed817b4b832d46b2a2cb321dc5dc74267971d07d8857ad5a81dc4030f4",
+    "crate/pr3-vault/src/apple.rs": "8eb26af985782337bf66a34046aa4179b937162a4f835e1ce76d47b7d5eaead4",
+    "crate/pr3-vault/src/lib.rs": "b313c662a09abc1c5927dbd4b1eed1c8e408b178292ab7cae2d1e6990b5001a6",
+    "crate/pr3-vault/swift/Source/PR3Vault/Vault.swift": "aa636930a8ba91eec227e01d930c5175f38f7cc303f59befd9e32c9d5afb3632",
+    "doc/architecture.md": "dc29ffb42e8bc7971d4a58450cb0f16b1e28da300409ce94fe14eb6f95c586e1",
+    "doc/benchmarks.md": "d5c186112ebe5696c66ad7f3b7b10f3b059178a8410467fdb725cb28d0d66331",
+    "doc/changelog.md": "4e4fa73c0bf0429e4b9ea27293a1f46673ed332f5a111e3ea6c916eb2760d7f9",
+    "doc/development.md": "e16b8d91e1fe795c72fb039c874108d70f1b6cace5514e2788762dbcd0dcaa51",
+    "doc/roadmap.md": "2b73d55855697a966115c1ccb81c6eec9f6e782d06a0001420fa39e08a969348",
+    "doc/storage-recovery.md": "1e5d962ebcc51b69cc47bf7af87d8a6f78f7dd09803208fd567e47759dc92f0e",
+    "script/build-android.sh": "307073e9a6475d25427df73b4302707361648a2cca32a4725d43235576776fc6"
+  },
+  "artifacts_sha256": {
+    "bench/rebaseline/result/storage-verification-2026-11-07/pr3-security-storage-workspace.log": "2db78393062280a201e1ad7f9509b3ff8341a11f7994ead652b8bbab33366226",
+    "bench/rebaseline/result/storage-verification-2026-11-07/pr3-storage-final-affected.log": "46cf4cbc00593506b495369fcaf9f35fc57a144884c3a4ce3e046daea335c6f3",
+    "bench/rebaseline/result/storage-verification-2026-11-07/pr3-storage-clippy.log": "cf48a4d121b52bfea560e590f972df8e83823611bf4f397b8cfddf486b6b6d8e",
+    "bench/rebaseline/result/storage-verification-2026-11-07/pr3-storage-final-clippy.log": "bfe4f638d1b60fe07100750645bd706822f4a599914dfdf5444e24ade27748c9",
+    "bench/rebaseline/result/storage-verification-2026-11-07/pr3-storage-e2e.log": "d449e19374de102fc9bfe35eb7bda1ae0f9ff22881bf427bfff5f3164acef5ce",
+    "bench/rebaseline/result/storage-verification-2026-11-07/pr3-storage-android-build.log": "7c6ea51f18a4f98d0e668ddd5842f9f12cb7bf06d7c251593a1d8892a4dc267c",
+    "bench/rebaseline/result/storage-verification-2026-11-07/pr3-storage-audit.log": "4a611ee81e8efee6067d4e912da1e7913092b2d412f4a6acb5c7d51b6ee82b97",
+    "bench/rebaseline/result/storage-verification-2026-11-07/pr3-storage-rebaseline-tests.log": "b6a161abed43b9a0dba9259cd451b39b20b10425ac13cc14786554c0e6fac7f1"
+  },
+  "android_apk": {
+    "path": "app/pr3-app/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk",
+    "sha256": "35dc4f7a93b3f776f28552bbdd9e3da45d972d1864985212883c8f4e18f4719e"
+  },
+  "limits": [
+    "Apple/Android adapters implemented; Windows/Linux secure key custody remains a release blocker and those apps fail closed.",
+    "Physical Android/Apple lock, authentication and invalidation acceptance remains manual.",
+    "Native UI key custody/authentication uses an isolated debug-only fixture; real SQLCipher and IPC execute.",
+    "No portable encrypted backup/import or replacement-device recovery; a code cannot recreate deleted/lost database files.",
+    "Separate pairing credentials, audit files and opt-in traces retain existing protection; database encryption is not whole-app encryption.",
+    "Full 19,278-record baseline remains incomplete. Old run was rejected after an OS change; fresh current-version run is separate.",
+    "Two reproduced travel answer-injection cases remain unresolved; this change does not establish a release security pass."
+  ]
+}

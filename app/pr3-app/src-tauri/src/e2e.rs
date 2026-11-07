@@ -133,11 +133,17 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     {
         return Err("E2E requires the runner's marked temporary directory".into());
     }
-    let store = Arc::new(Mutex::new(pr3_memory_sqlite::SqliteMemory::open(
-        &dir.join("memory.sqlite"),
-    )?));
-    let memory: pr3_tool::SharedMemory = store.clone();
-    app.manage(crate::memory::MemoryHandle(memory));
+    let store = if dir.join(".encrypted-storage").exists() {
+        crate::storage::open_fixture(app.handle(), &dir)
+    } else {
+        Some(Arc::new(Mutex::new(pr3_memory_sqlite::SqliteMemory::open(
+            &dir.join("memory.sqlite"),
+        )?)))
+    };
+    if let Some(store) = &store {
+        let memory: pr3_tool::SharedMemory = store.clone();
+        app.manage(crate::memory::MemoryHandle(memory));
+    }
     let book = Arc::new(crate::contacts::Book::open(&dir, Box::new(AddressBook)));
     app.manage(crate::contacts::Handle(book.clone()));
     let mail_dir = dir.clone();
@@ -166,10 +172,11 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             .map_err(|e| e.to_string())
         }),
     )?;
+    let actions = store.as_ref().map(|_| Arc::new(actions));
     app.manage(crate::compose_host(
         Arc::new(ScriptedModel::default()),
-        Some(store),
-        Some(Arc::new(actions)),
+        store,
+        actions,
         30,
         None,
     )?);

@@ -100,6 +100,11 @@ async function settings(tab) {
   if (!(await driver.$('#settings').isDisplayed())) await click('#settings-button');
   await click(`[data-tab="${tab}"]`);
 }
+async function settingsAnimationDone() {
+  await driver.execute(async () => {
+    await Promise.all(document.querySelector('#settings').getAnimations().map(animation => animation.finished.catch(() => {})));
+  });
+}
 async function syncContacts() {
   await settings('email');
   await click('#email input[role=switch]');
@@ -127,6 +132,54 @@ async function storageFault(sql) {
   // Fault injection only in the runner's marked private database, never user data.
   await promisify(execFile)('python3', ['-c', 'import sqlite3,sys; db=sqlite3.connect(sys.argv[1]); db.executescript(sys.argv[2]); db.close()', resolve(dir, 'memory.sqlite'), sql]);
 }
+
+test('encrypted storage locks on key loss and recovers without resetting memories', { timeout: 90000 }, async () => {
+  await settings('memory');
+  await driver.$('[aria-label="New memory"]').setValue('private encrypted memory 8392');
+  await click('#memory button=Add');
+  await textIncludes('#memory', 'private encrypted memory 8392');
+  await stop();
+  await writeFile(resolve(dir, '.encrypted-storage'), 'synthetic encryption fixture\n');
+  await launch();
+  await settings('storage');
+  await textIncludes('#storage', 'encrypted on this device');
+  await settingsAnimationDone();
+  await driver.saveScreenshot(resolve(artifacts, 'storage-encrypted.png'));
+  await click('#storage button=Show recovery code');
+  const code = await driver.$('#recovery-code').getValue();
+  assert.match(code, /^PR3(?:-[0-9a-f]{4}){16}$/);
+  await click('#recovery-code-dialog button=Done');
+  await driver.waitUntil(async () => (await driver.$('#recovery-code').getValue()) === '');
+  await stop();
+  const before = await readFile(resolve(dir, 'memory.sqlite'));
+  assert.equal(before.includes(Buffer.from('private encrypted memory 8392')), false);
+  await rm(resolve(dir, 'fixture-storage.key'));
+  await launch();
+  await driver.$('#storage-warning').waitForDisplayed();
+  assert.equal(await driver.$('#text').isEnabled(), false);
+  const rejection = await driver.execute(async () => {
+    try { await window.__TAURI__.core.invoke('send_message', {
+      text: 'hello', utcOffsetMinutes: 0, onEvent: new window.__TAURI__.core.Channel(),
+    }); return 'unexpectedly allowed'; } catch (e) { return String(e); }
+  });
+  assert.match(rejection, /Storage is locked/);
+  await click('#storage-open');
+  await textIncludes('#storage', 'Your saved data is locked');
+  await settingsAnimationDone();
+  await driver.saveScreenshot(resolve(artifacts, 'storage-locked.png'));
+  await driver.$('#storage [aria-label="Recovery code"]').setValue('PR3-' + '0000-'.repeat(15) + '0000');
+  await click('#storage button=Recover access');
+  await textIncludes('#storage [role=status]', 'locked or damaged');
+  assert.deepEqual(await readFile(resolve(dir, 'memory.sqlite')), before);
+  await driver.$('#storage [aria-label="Recovery code"]').setValue(code);
+  await click('#storage button=Recover access');
+  await textIncludes('#storage [role=status]', 'Close and reopen PR3');
+  await stop(); await launch();
+  await idle();
+  await settings('memory');
+  await textIncludes('#memory', 'private encrypted memory 8392');
+  assert.deepEqual(await handoffs(), []);
+});
 async function taskDetail() {
   await click('#tasks-button');
   const cards = await invoke('list_tasks');

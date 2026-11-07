@@ -5,12 +5,14 @@
 //! leaves the database file: deleted pages are overwritten (`secure_delete`) and the
 //! search index drops a forgotten memory's words (FTS5 `secure-delete`). A rollback
 //! journal can briefly hold old pages until the file system reuses its space; encryption
-//! at rest (the M3 personal-memory work) closes that gap.
+//! at rest protects new stored pages: the app uses [`SqliteMemory::open_encrypted`] with an
+//! OS-protected key. Explicitly unkeyed opens remain available for synthetic benches.
 
 #![forbid(unsafe_code)]
 #![cfg_attr(test, allow(clippy::disallowed_macros))] // tests may assert (clippy.toml)
 
 pub mod continuity;
+pub mod encryption;
 mod task;
 
 use std::path::Path;
@@ -236,6 +238,8 @@ const MAX_TERMS: usize = 32;
 
 pub struct SqliteMemory {
     conn: Connection,
+    // Hold the interprocess storage lock for the lifetime of an encrypted store.
+    _storage_lock: Option<std::fs::File>,
 }
 
 impl SqliteMemory {
@@ -255,7 +259,10 @@ impl SqliteMemory {
         conn.pragma_update(None, "secure_delete", true)
             .map_err(error)?;
         migrate(&mut conn)?;
-        Ok(Self { conn })
+        Ok(Self {
+            conn,
+            _storage_lock: None,
+        })
     }
 
     /// How many migrations the database has run.
@@ -759,7 +766,10 @@ mod tests {
             conn.execute_batch(sql).unwrap();
         }
         conn.pragma_update(None, "user_version", 4).unwrap();
-        let mut old = SqliteMemory { conn };
+        let mut old = SqliteMemory {
+            conn,
+            _storage_lock: None,
+        };
         old.remember(proposed("The meeting is at 14:30.")).unwrap();
         let mut task = TaskRecord {
             id: 1,

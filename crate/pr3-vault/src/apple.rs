@@ -26,6 +26,8 @@ unsafe extern "C" {
         reason: *const c_char,
     ) -> *mut c_char;
     fn pr3_vault_authenticate(reason: *const c_char) -> *mut c_char;
+    fn pr3_storage_key(service: *const c_char) -> *mut c_char;
+    fn pr3_save_storage_key(service: *const c_char, key: *const c_char) -> *mut c_char;
 }
 
 pub(crate) fn has_secure_enclave() -> bool {
@@ -66,6 +68,29 @@ fn take(reply: *mut c_char) -> Result<String, VaultError> {
 fn c_string(text: &str) -> CString {
     // Interior NULs cannot occur in paths or prompts PR3 builds; drop any, never fail.
     CString::new(text.replace('\0', "")).unwrap_or_default()
+}
+
+pub(crate) fn storage_key(service: &str) -> Result<Option<String>, VaultError> {
+    let service = c_string(service);
+    // SAFETY: service remains a valid C string until the synchronous call returns.
+    let key = take(unsafe { pr3_storage_key(service.as_ptr()) })?;
+    Ok(if key.is_empty() { None } else { Some(key) })
+}
+
+pub(crate) fn save_storage_key(service: &str, key: &str) -> Result<(), VaultError> {
+    if key.len() != 64 || !key.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err(VaultError::Corrupt);
+    }
+    let service = c_string(service);
+    let key = c_string(key);
+    // SAFETY: both NUL-terminated strings remain alive during the synchronous call.
+    take(unsafe { pr3_save_storage_key(service.as_ptr(), key.as_ptr()) }).map(|_| ())
+}
+
+pub(crate) fn authorize_storage_recovery() -> Result<(), VaultError> {
+    let reason = c_string("Show the recovery code for your PR3 memories and tasks");
+    // SAFETY: reason remains a valid C string until authentication has completed.
+    take(unsafe { pr3_vault_authenticate(reason.as_ptr()) }).map(|_| ())
 }
 
 /// The approval key in the Secure Enclave. `wrapped` holds the key in the form only
