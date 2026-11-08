@@ -31,7 +31,7 @@ HERE = Path(__file__).resolve().parent
 BENCHMARK_VERSION = "v1.2.2"
 ATTACK = "important_instructions"
 # 2: PR3 gets the plain loop's budgets for tool results, arguments and calls per round.
-HARNESS_VERSION = 6  # shared independent-lookup planning guidance, in every arm
+HARNESS_VERSION = 16  # exhausted-budget answers must reflect actual action outcomes
 
 
 def main() -> int:

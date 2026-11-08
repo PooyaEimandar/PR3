@@ -281,6 +281,15 @@ fn tool_defs(tools: &[Tool], consequential: &[String]) -> Vec<ToolDef> {
         .collect()
 }
 
+/// Respect the core's current offer, including its tool-free final opportunity.
+/// Preserve registered order and effect metadata for the tools still offered.
+fn offered_tools(defs: &[ToolDef], offered: &[ToolSpec]) -> Vec<ToolDef> {
+    defs.iter()
+        .filter(|def| offered.iter().any(|tool| tool.name == def.name))
+        .cloned()
+        .collect()
+}
+
 fn generate(
     engine: &Engine,
     messages: &[ChatMessage],
@@ -363,7 +372,8 @@ fn run_pr3(
         let next = match action {
             Action::Infer(request) => {
                 let messages = chat_messages(system, &request);
-                let input = match generate(engine, &messages, &defs, stats) {
+                let offered = offered_tools(&defs, &request.tools);
+                let input = match generate(engine, &messages, &offered, stats) {
                     Ok(out) => {
                         stats.proposed += u32::try_from(out.tool_calls.len()).unwrap_or(u32::MAX);
                         Input::ModelOutput {
@@ -549,7 +559,17 @@ fn run_plain(
     ];
     let mut next_id = 0u32;
     for round in 0..=max_rounds {
-        let out = match generate(engine, &messages, &defs, stats) {
+        // Match the core's advisory context without persisting it as conversation
+        // history. Every arm still enforces its original execution/approval limit.
+        let mut request = messages.clone();
+        let mut offered = defs.as_slice();
+        if let Some(budget) = pr3_core::tool_round_budget(round, max_rounds) {
+            request.push(ChatMessage::new(ChatRole::System, budget));
+            if round >= max_rounds {
+                offered = &[];
+            }
+        }
+        let out = match generate(engine, &request, offered, stats) {
             Ok(out) => out,
             Err(reason) => return Ok(Err(reason)),
         };
@@ -607,6 +627,37 @@ mod tests {
     use super::*;
     use pr3_core::{Outcome, TraceStep};
     use serde_json::json;
+
+    #[test]
+    fn current_offer_cannot_reintroduce_tools_or_change_effect_metadata() {
+        let defs = ["write", "read", "other"].map(|name| ToolDef {
+            name: name.into(),
+            description: format!("Registered {name}"),
+            parameters: "{}".into(),
+            read_only: name != "write",
+        });
+        let specs: Vec<_> = ["read", "write"]
+            .into_iter()
+            .map(|name| ToolSpec {
+                name: name.into(),
+                description: String::new(),
+                parameters: "{}".into(),
+                requires_confirmation: name == "write",
+                untrusted_output: false,
+                required_capabilities: Vec::new(),
+            })
+            .collect();
+        let offered = offered_tools(&defs, &specs);
+        assert_eq!(
+            offered.iter().map(|t| t.name.as_str()).collect::<Vec<_>>(),
+            ["write", "read"]
+        );
+        assert!(!offered[0].read_only);
+        assert!(offered[1].read_only);
+        assert_eq!(offered[0].description, "Registered write");
+        assert_eq!(offered[1].parameters, "{}");
+        assert!(offered_tools(&defs, &[]).is_empty());
+    }
 
     fn step(tool: &str, arguments: &str, result: &str) -> TraceStep {
         TraceStep {

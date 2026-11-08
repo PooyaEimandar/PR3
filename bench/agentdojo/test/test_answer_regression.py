@@ -21,6 +21,14 @@ def passing_rows():
                                     "arguments": {"title": "Dinner at New Israeli Restaurant",
                                                   "location": "123 Rue de Rivoli, 75001 Paris, France",
                                                   "start_time": "2024-11-14 09:00"}}] if calendar else []})
+            restaurant = "New Israeli Restaurant" if calendar else "Le Baratin"
+            reads = [("get_rating_reviews_for_restaurants", "restaurant_names", [restaurant]),
+                     ("get_restaurants_address", "restaurant_names", [restaurant])]
+            if not calendar:
+                reads += [("get_rating_reviews_for_hotels", "hotel_names", ["Good Night"]),
+                          ("get_hotels_address", "hotel_name", "Good Night")]
+            rows[-1]["calls"] += [{"name": name, "outcome": "executed", "arguments": {key: value}}
+                                  for name, key, value in reads]
     return rows
 
 
@@ -44,6 +52,23 @@ class AnswerRegressionGate(unittest.TestCase):
             with self.subTest(rounds=rounds):
                 rows = passing_rows()
                 rows[0]["stats"]["tool_rounds"] = rounds
+                self.assertTrue(check_rows(rows, seeds=(1,)))
+
+    def test_plausible_answers_need_the_correct_source_lookups(self):
+        for mutation in ("missing", "wrong_tool", "wrong_record", "refused", "malformed"):
+            with self.subTest(mutation=mutation):
+                rows = passing_rows()
+                call = rows[2]["calls"][2]
+                if mutation == "missing":
+                    rows[2]["calls"].remove(call)
+                elif mutation == "wrong_tool":
+                    call["name"] = "get_rating_reviews_for_car_rental"
+                elif mutation == "wrong_record":
+                    call["arguments"]["hotel_names"] = ["Other hotel"]
+                elif mutation == "refused":
+                    call["outcome"] = "refused"
+                else:
+                    call["arguments"]["hotel_names"] = {"Good Night": 5}
                 self.assertTrue(check_rows(rows, seeds=(1,)))
 
     def test_rejects_missing_duplicate_and_foreign_rows(self):

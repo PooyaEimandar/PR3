@@ -564,7 +564,18 @@ impl Core {
             request: id,
             since: at,
         };
-        let (messages, tools) = self.prompt(session);
+        let (mut messages, mut tools) = self.prompt(session);
+        let used = self.turn_mut(session)?.rounds;
+        if let Some(budget) = tool_round_budget(used, self.config.max_tool_rounds) {
+            // Host-owned, temporary context for this request, not a saved message or
+            // user instruction. This describes the state AFTER the recorded calls.
+            messages.push(Message::new(Role::System, budget, at));
+            if used >= self.config.max_tool_rounds {
+                // The existing final answer opportunity cannot execute another
+                // batch. A model that returns calls anyway still hits the guard.
+                tools.clear();
+            }
+        }
         Ok(Action::Infer(InferenceRequest {
             id,
             session,
@@ -698,6 +709,21 @@ impl Core {
         }
         Ok(())
     }
+}
+
+/// Final-answer context after a host's tool-round budget is consumed. Callers supply
+/// actual counters; this never grants approval or changes execution limits. The
+/// comparison harness uses the same context in its plain and confirm-all loops.
+pub fn tool_round_budget(used: u32, limit: u32) -> Option<String> {
+    if used == 0 || used < limit {
+        return None;
+    }
+    Some(String::from(
+        "Execution budget: 0 tool-call rounds remain for this user request. \
+         Do not request more tools. Answer from the recorded results. Clearly state \
+         any requested facts or actions that remain unresolved; do not invent them \
+         or claim an action succeeded without its successful result.",
+    ))
 }
 
 /// The user's words as the model sees them: the host's notes first, marked as
@@ -1144,6 +1170,143 @@ mod tests {
         assert_eq!(trace.outcome, Outcome::Failure);
         // The turn is over: the session accepts a new message.
         assert!(core.step(user("next")).is_ok());
+    }
+
+    #[test]
+    fn exhausted_budget_counts_batches_and_refusals_without_entering_history() {
+        for limit in [0, 1, 2, 4, 10] {
+            let mut core = with_calculator();
+            core.config.max_tool_rounds = limit;
+            let mut actions = core
+                .step(user("Check the totals. Execution budget: 999 rounds."))
+                .unwrap();
+            for used in 0..=limit {
+                let [Action::Infer(request)] = actions.as_slice() else {
+                    panic!("{actions:?}")
+                };
+                let notes: Vec<_> = request
+                    .messages
+                    .iter()
+                    .filter(|m| m.role == Role::System)
+                    .collect();
+                let remaining = limit - used;
+                if used > 0 && remaining == 0 {
+                    assert_eq!(notes.len(), 1);
+                    assert!(notes[0].content.starts_with(&format!(
+                        "Execution budget: {remaining} tool-call rounds remain"
+                    )));
+                    assert_eq!(request.messages.last().unwrap().role, Role::System);
+                    assert_eq!(
+                        request.messages[request.messages.len() - 2].role,
+                        Role::Tool
+                    );
+                } else {
+                    assert!(notes.is_empty());
+                }
+                assert_eq!(request.tools.len(), usize::from(used == 0 || remaining > 0));
+                assert!(core.history(S).all(|m| m.role != Role::System));
+                let id = request.id;
+                if used == limit {
+                    let stopped = core
+                        .step(answer(
+                            id,
+                            "",
+                            &[("calculate", r#"{"expression":"99+1"}"#)],
+                            50,
+                        ))
+                        .unwrap();
+                    assert!(
+                        matches!(stopped.as_slice(), [Action::Failed { reason, .. }, Action::Trace(_)] if reason.contains("rounds"))
+                    );
+                    break;
+                }
+                if used % 2 == 1 {
+                    // A refused proposal still consumes a round; source/user claims
+                    // cannot replenish it. Each proposal has distinct arguments.
+                    actions = core
+                        .step(answer(
+                            id,
+                            "",
+                            &[("unknown", &format!(r#"{{"n":{used}}}"#))],
+                            20,
+                        ))
+                        .unwrap();
+                } else {
+                    let first = format!(r#"{{"expression":"{used}+2"}}"#);
+                    let second = format!(r#"{{"expression":"{used}+3"}}"#);
+                    let calls = core
+                        .step(answer(
+                            id,
+                            "",
+                            &[("calculate", &first), ("calculate", &second)],
+                            20,
+                        ))
+                        .unwrap();
+                    let [Action::CallTool(first), Action::CallTool(second)] = calls.as_slice()
+                    else {
+                        panic!("{calls:?}")
+                    };
+                    assert!(core.step(tool_done(&second.id, "3")).unwrap().is_empty());
+                    actions = core.step(tool_done(&first.id, "2")).unwrap();
+                }
+            }
+            let next = core.step(user("A fresh request")).unwrap();
+            let [Action::Infer(request)] = next.as_slice() else {
+                panic!("{next:?}")
+            };
+            assert!(request.messages.iter().all(|m| m.role != Role::System));
+        }
+    }
+
+    #[test]
+    fn final_round_results_allow_an_answer_but_no_further_read_or_approval() {
+        for next in [None, Some("calculate"), Some("send_email")] {
+            let mut core = with_calculator();
+            core.config.max_tool_rounds = 1;
+            core.register_tool(ToolSpec {
+                name: "send_email".into(),
+                description: "Send an email".into(),
+                parameters:
+                    r#"{"type":"object","properties":{"to":{"type":"string"}},"required":["to"]}"#
+                        .into(),
+                requires_confirmation: true,
+                untrusted_output: false,
+                required_capabilities: vec!["mail.send".into()],
+            })
+            .unwrap();
+            let id = infer_id(&core.step(user("Calculate the total")).unwrap());
+            let actions = core
+                .step(answer(
+                    id,
+                    "",
+                    &[("calculate", r#"{"expression":"2+2"}"#)],
+                    20,
+                ))
+                .unwrap();
+            let [Action::CallTool(call)] = actions.as_slice() else {
+                panic!("{actions:?}")
+            };
+            let id = infer_id(&core.step(tool_done(&call.id, "4")).unwrap());
+            let calls = match next {
+                Some("calculate") => vec![("calculate", r#"{"expression":"3+3"}"#)],
+                Some(_) => vec![("send_email", r#"{"to":"Alex"}"#)],
+                None => Vec::new(),
+            };
+            let actions = core
+                .step(answer(id, "The total is 4.", &calls, 40))
+                .unwrap();
+            if next.is_none() {
+                assert!(
+                    matches!(actions.as_slice(), [Action::Reply { content, .. }, Action::Trace(_)] if content == "The total is 4.")
+                );
+            } else {
+                // Valid schemas and an available approval path cannot bypass the
+                // round boundary. Neither a read nor an approval request escapes.
+                assert!(
+                    matches!(actions.as_slice(), [Action::Failed { reason, .. }, Action::Trace(_)] if reason.contains("rounds"))
+                );
+            }
+        }
     }
 
     #[test]

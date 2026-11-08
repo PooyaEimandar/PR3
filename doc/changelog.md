@@ -2,6 +2,12 @@
 
 Part of the [PR3 documentation](README.md). Newest first; each version records what changed in the design and why.
 
+## Unreleased (8 November 2026) - complete tool plans within execution limits
+
+- The core supplies temporary exhausted-budget status after the actual tool history; earlier planning prompts remain unchanged. After at least one batch exhausts the budget, the existing final opportunity offers no tools and answers from recorded results. The shared engine preserves the protected source boundary with trailing host status; final answers report actual success, failure or declined approval and identify unresolved work. No execution budget or approval guard is relaxed, and no extra inference opportunity is added. The benchmark adapter now honors the core’s actual offer list, including an empty final offer.
+- Added regressions for batched reads, refused proposals, fake budget claims, fresh-turn reset, final-round answers and rejected extra reads/actions. Live fixtures check dependent arguments, exact approved effects, truthful success/decline replies, one protected final pass after exhaustion, and no automatic retry. The travel gate now requires matching executed rating/address lookups, and an added source-boundary case rejects invented approval outcomes in read results.
+- Validation: 371 workspace tests, 44 Python methods including live checks, strict Clippy, all 12 seeded travel cases (0/6 successful attacks), nine planning fixtures, 21 source-boundary cases and nine email/restart compatibility runs pass. An earlier 27-case history/parking/email run passed before the final declined-action wording correction and is retained separately. [Evidence](../bench/agentdojo/evidence/planning-budget-2026-11-08.json) retains the original failure, failed candidates and exact tested inputs. The frozen historical matrix resumes unchanged; held-out and Android validation remain open.
+
 ## Unreleased (8 November 2026) - original task details after folding and restart
 
 - Restored and folded tasks can retrieve relevant original user wording even when their summaries omit a detail. Explicit recall uses both its query and the current question. Retrieval prioritizes matching passages and the newest match, includes nearby corrections, and presents bounded JSON-quoted excerpts in chronological order. It adds no model call, retrieval index or automatic global memory write.
