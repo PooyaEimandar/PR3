@@ -29,7 +29,7 @@ pub fn bind(
 ) -> Result<(), String> {
     let executable = std::env::current_exe().map_err(|e| e.to_string())?;
     let config = json!({
-        "harness": 2, "model_sha256": digest(model)?,
+        "harness": 3, "model_sha256": digest(model)?,
         "binary_sha256": digest(&executable)?, "corpus_sha256": digest(corpus)?,
         "seed": seed, "web": web, "cases": cases,
     });

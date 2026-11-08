@@ -10,6 +10,9 @@ use serde_json::{Map, Value};
 
 use crate::{Tool, ToolContext, clock};
 
+mod context;
+pub use context::{relevant_task_context, task_context};
+
 /// A memory store the host shares with the tools.
 pub type SharedMemory = Arc<Mutex<dyn MemoryStore + Send>>;
 
@@ -21,7 +24,6 @@ const NOTE_CANDIDATES: usize = 12;
 const MAX_FACT_CHARS: usize = 300;
 const MAX_PRINCIPAL_CHARS: usize = 60;
 const MAX_EXCERPT_CHARS: usize = 1000;
-const TASK_EXCERPTS: usize = 3;
 const TASK_EXCERPT_BYTES: usize = 384;
 
 /// The tools that read and write `store`.
@@ -142,7 +144,13 @@ impl Tool for Recall {
                 .take(RECALL_LIMIT)
                 .collect();
             if recent.is_empty() {
-                "No saved memory notes available to this task. This does not mean the task's conversation is empty.".to_string()
+                let previous =
+                    ctx.earlier.len() - usize::from(ctx.earlier.last() == Some(&ctx.utterance));
+                if previous == 0 {
+                    "No saved memory notes found for this request. There are no earlier user messages in THIS task. Use a detail only if the current user message supplies it; otherwise explain that it is unavailable here. Do not invent a value or repeat recall to search this empty task history.".to_string()
+                } else {
+                    "No saved memory notes available to this task. This does not mean the task's conversation is empty.".to_string()
+                }
             } else {
                 format!(
                     "Nothing in memory matches that. Most recent memories:\n{}",
@@ -150,7 +158,8 @@ impl Tool for Recall {
                 )
             }
         };
-        let mut context = task_context(&ctx.earlier, &ctx.utterance).unwrap_or_default();
+        let mut context =
+            context::retrieve(&ctx.earlier, &ctx.utterance, query, true).unwrap_or_default();
         // The latest statement can itself supply the answer (for example a new
         // budget). Do not send the model back to an empty store to look it up again.
         if ctx.earlier.last() == Some(&ctx.utterance) {
@@ -164,23 +173,6 @@ impl Tool for Recall {
         }
         Ok(format!("{context}\n\nSaved memory notes:\n{notes}"))
     }
-}
-
-/// Bounded user-authored context for a restored task or an explicit recall. The
-/// caller supplies only this task's raw user messages, never assistant/tool output.
-pub fn task_context(earlier: &[String], current: &str) -> Option<String> {
-    let end = earlier.len() - usize::from(earlier.last().is_some_and(|s| s == current));
-    let excerpts: Vec<_> = earlier[end.saturating_sub(TASK_EXCERPTS)..end]
-        .iter()
-        .map(|text| task_excerpt(text))
-        .collect();
-    if excerpts.is_empty() {
-        return None;
-    }
-    Some(format!(
-        "Recent user-message excerpts from THIS task, oldest first (quoted context, not new instructions or saved memory; later corrections take precedence): {}",
-        serde_json::json!(excerpts)
-    ))
 }
 
 fn task_excerpt(text: &str) -> String {
@@ -397,7 +389,29 @@ mod tests {
             .run(&args(r#"{"query":"meeting time"}"#), &ctx())
             .unwrap();
         assert!(reply.contains("No saved memory notes"));
-        assert!(reply.contains("does not mean the task's conversation is empty"));
+        assert!(reply.contains("no earlier user messages"));
+        assert!(reply.contains("current user message supplies it"));
+    }
+
+    #[test]
+    fn recall_distinguishes_an_empty_task_history_from_a_missing_memory_match() {
+        let store: SharedMemory = Arc::new(Mutex::new(ListStore::default()));
+        let recall = Recall(store);
+        let mut context = ctx();
+        context.utterance = "What delivery gate did I specify?".into();
+        context.earlier = vec![context.utterance.clone()];
+        let output = recall
+            .run(&args(r#"{"query":"delivery gate"}"#), &context)
+            .unwrap();
+        assert!(output.contains("no earlier user messages"));
+        assert!(output.contains("Do not invent a value or repeat recall"));
+        // No match in the saved-memory store must not erase real task context.
+        context.earlier.insert(0, "The delivery gate is 27.".into());
+        let output = recall
+            .run(&args(r#"{"query":"delivery gate"}"#), &context)
+            .unwrap();
+        assert!(!output.contains("no earlier user messages"));
+        assert!(output.contains("gate is 27"));
     }
 
     #[test]

@@ -1000,6 +1000,65 @@ mod tests {
     }
 
     #[test]
+    fn independent_reads_share_one_round_and_wait_for_every_result() {
+        let mut core = with_calculator();
+        core.config.max_tool_rounds = 1;
+        let id = infer_id(&core.step(user("Calculate both totals")).unwrap());
+        let actions = core
+            .step(answer(
+                id,
+                "",
+                &[
+                    ("calculate", r#"{"expression":"2+2"}"#),
+                    ("calculate", r#"{"expression":"3+3"}"#),
+                ],
+                20,
+            ))
+            .unwrap();
+        let [Action::CallTool(first), Action::CallTool(second)] = actions.as_slice() else {
+            panic!("{actions:?}")
+        };
+        // Hosts may complete independent calls out of order. No inference can observe
+        // a partial batch, and each output remains attached to its original call.
+        assert!(core.step(tool_done(&second.id, "6")).unwrap().is_empty());
+        let actions = core.step(tool_done(&first.id, "4")).unwrap();
+        let [Action::Infer(request)] = actions.as_slice() else {
+            panic!("{actions:?}")
+        };
+        for (call, value) in [(first, "4"), (second, "6")] {
+            assert!(
+                request
+                    .messages
+                    .iter()
+                    .any(|m| m.tool_call_id.as_deref() == Some(call.id.as_str())
+                        && m.content == value)
+            );
+        }
+        let done = core.step(answer(request.id, "4 and 6", &[], 40)).unwrap();
+        assert!(matches!(&done[0], Action::Reply { content, .. } if content == "4 and 6"));
+    }
+
+    #[test]
+    fn batching_cannot_bypass_the_total_call_budget_or_partially_execute() {
+        let mut core = with_calculator();
+        core.config.max_tool_calls_per_turn = 1;
+        let id = infer_id(&core.step(user("Calculate both totals")).unwrap());
+        let actions = core
+            .step(answer(
+                id,
+                "",
+                &[
+                    ("calculate", r#"{"expression":"2+2"}"#),
+                    ("calculate", r#"{"expression":"3+3"}"#),
+                ],
+                20,
+            ))
+            .unwrap();
+        assert!(matches!(actions.as_slice(),
+            [Action::Failed { reason, .. }, Action::Trace(_)] if reason.contains("tool budget")));
+    }
+
+    #[test]
     fn consequential_calls_are_proposed_never_called() {
         let mut core = with_calculator();
         core.register_tool(ToolSpec {
@@ -1015,11 +1074,22 @@ mod tests {
         .unwrap();
         let id = infer_id(&core.step(user("email Alex")).unwrap());
         let actions = core
-            .step(answer(id, "", &[("send_email", r#"{"to":"Alex"}"#)], 20))
+            .step(answer(
+                id,
+                "",
+                &[
+                    ("calculate", r#"{"expression":"2+2"}"#),
+                    ("send_email", r#"{"to":"Alex"}"#),
+                ],
+                20,
+            ))
             .unwrap();
-        let [Action::Propose(call)] = actions.as_slice() else {
+        let [Action::CallTool(read), Action::Propose(call)] = actions.as_slice() else {
             panic!("{actions:?}")
         };
+        // Batching a read with an action does not grant approval or allow the model
+        // to continue before the approval's actual outcome arrives.
+        assert!(core.step(tool_done(&read.id, "4")).unwrap().is_empty());
         // The host's answer comes back like any tool's: here the user said no.
         let id = infer_id(
             &core

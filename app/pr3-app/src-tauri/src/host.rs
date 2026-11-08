@@ -135,6 +135,10 @@ pub trait Backend: Send + Sync {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum TurnEvent {
+    /// This turn's cancellation flag is registered, including continuation/retry.
+    Started {
+        task: u64,
+    },
     /// Actual side effects of this exchange, independent of the generated reply.
     Result {
         text: String,
@@ -517,6 +521,7 @@ impl Host {
             .tasks()
             .map_err(|e| e.to_string())?
             .resume_waiting(id)?;
+        on_event(TurnEvent::Started { task: id.0 });
         let Some(actions) = &self.actions else {
             let reason = "actions are not available".to_string();
             self.tasks()
@@ -690,11 +695,12 @@ impl Host {
         session: SessionId,
         text: String,
         utc_offset_minutes: i32,
-        on_event: F,
+        mut on_event: F,
     ) -> Result<Vec<Action>, HostError>
     where
         F: FnMut(TurnEvent) + Send + 'static,
     {
+        on_event(TurnEvent::Started { task: session.0 });
         let on_event = Arc::new(Mutex::new(on_event));
         // The task keeps its chat as the user saw it.
         let tasks = Arc::clone(&self.tasks);
@@ -877,13 +883,30 @@ impl Host {
             }
             _ => Vec::new(),
         };
-        // Anchor the first resumed question in the persisted user wording. Small
-        // models can otherwise treat a restored chat as missing long-term memory.
-        if restoring
-            && let Some(context) =
-                pr3_tool::memory::task_context(&self.tasks()?.said(session), &text)
-        {
-            notes.insert(0, context);
+        // Summaries are lossy. Retrieve original user wording on every turn of a
+        // folded task as well as after restart; never search other tasks or replies.
+        let remembered = self
+            .core()?
+            .history(session)
+            .filter(|m| m.role == pr3_core::Role::User)
+            .count();
+        let context = {
+            let tasks = self.tasks()?;
+            let earlier = tasks.said(session);
+            if restoring {
+                pr3_tool::memory::task_context(&earlier, &text)
+            } else if earlier.len().saturating_sub(1) > remembered {
+                // The current user message is persisted before entering the core.
+                // Compare with retained history, not summary existence: a failed
+                // summary can still leave older exchanges outside the model window.
+                pr3_tool::memory::relevant_task_context(&earlier, &text)
+            } else {
+                None
+            }
+        };
+        if let Some(context) = context {
+            // Confirmed memory corrections precede historical conversation excerpts.
+            notes.push(context);
         }
         // If the core refuses the message, no turn was started.
         let queue = self.step(Input::Utterance {
@@ -1500,6 +1523,53 @@ mod tests {
     }
 
     #[test]
+    fn every_turn_announces_a_registered_cancellation_before_inference() {
+        for existing in [false, true] {
+            let host = Arc::new(host(MockBackend::default()));
+            if existing {
+                assert!(run(&host, "First request").0.is_ok());
+            }
+            let control = host.clone();
+            let started = Arc::new(Mutex::new(Vec::new()));
+            let seen = started.clone();
+            let result = tauri::async_runtime::block_on(host.send(
+                "Stop this request".into(),
+                0,
+                move |event| {
+                    if let TurnEvent::Started { task } = event {
+                        seen.lock().unwrap().push(task);
+                        assert!(control.task(SessionId(task)).unwrap().running);
+                        control.stop_task(SessionId(task)).unwrap();
+                    }
+                    assert!(!matches!(
+                        event,
+                        TurnEvent::Token { .. } | TurnEvent::Tool { .. }
+                    ));
+                },
+            ));
+            assert_eq!(result.unwrap_err().to_string(), task::STOPPED);
+            let task = host.current_task().unwrap().unwrap();
+            assert_eq!(*started.lock().unwrap(), [task.card.id]);
+            assert!(task.retryable);
+            assert!(!task.running);
+            let seen = started.clone();
+            assert!(
+                tauri::async_runtime::block_on(host.retry(
+                    SessionId(task.card.id),
+                    0,
+                    move |event| {
+                        if let TurnEvent::Started { task } = event {
+                            seen.lock().unwrap().push(task);
+                        }
+                    }
+                ))
+                .is_ok()
+            );
+            assert_eq!(*started.lock().unwrap(), [task.card.id, task.card.id]);
+        }
+    }
+
+    #[test]
     fn stopping_inference_discards_its_late_tool_calls_and_retry_is_a_fresh_attempt() {
         struct LateProposal(AtomicBool);
         impl Backend for LateProposal {
@@ -1898,6 +1968,7 @@ mod tests {
             .map(|e| match e {
                 TurnEvent::Token { text } => text.as_str(),
                 TurnEvent::Tool { .. }
+                | TurnEvent::Started { .. }
                 | TurnEvent::Result { .. }
                 | TurnEvent::Approval { .. }
                 | TurnEvent::TaskOpened(_)
@@ -2010,6 +2081,189 @@ mod tests {
     }
 
     #[test]
+    fn original_task_details_and_corrections_survive_lossy_folds_and_restarts() {
+        use pr3_memory::MemoryStore;
+        let path =
+            std::env::temp_dir().join(format!("pr3-task-retrieval-{}.sqlite", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        let store = Arc::new(Mutex::new(SqliteMemory::open(&path).unwrap()));
+        let mut tasks = Tasks::load(store.clone(), 30, now()).unwrap();
+        let (id, _) = tasks.begin("Prepare for the exhibition.", now());
+        tasks.end(id, Ok("OK.".into()), now());
+        for message in [
+            "The gallery delivery entrance is gate 41.",
+            "Actually, use 208 instead.",
+        ] {
+            assert_eq!(tasks.begin(message, now()).0, id);
+            tasks.end(id, Ok("OK.".into()), now());
+        }
+        for i in 0..40 {
+            tasks.begin(&format!("Explain unrelated subject {i}."), now());
+            tasks.end(id, Ok("Assistant-only secret ZEBRA-901.".into()), now());
+        }
+        while let Some(fold) = tasks.fold(id, 2) {
+            assert!(tasks.summed_up(&fold, "Only general knowledge questions."));
+        }
+        assert!(!tasks.brief(id).unwrap().contains("208"));
+        assert!(
+            tasks
+                .history(id)
+                .iter()
+                .all(|m| !m.content.contains("gate 41"))
+        );
+        drop(tasks);
+        drop(store);
+
+        for _restart in 0..2 {
+            let store = Arc::new(Mutex::new(SqliteMemory::open(&path).unwrap()));
+            let model = Arc::new(Summing::default());
+            let host = Host::new(model.clone(), pr3_tool::builtin())
+                .unwrap()
+                .with_memory(store.clone())
+                .with_tasks(store.clone(), 30)
+                .unwrap();
+            host.continue_task(id).unwrap();
+            // Both the first restored question and a later live question retrieve
+            // the original wording even though the summary explicitly lost it.
+            for _turn in 0..2 {
+                run(&host, "Which gallery entrance should I use?")
+                    .0
+                    .unwrap();
+                let request = model.last();
+                let context = &request.messages.last().unwrap().content;
+                assert!(context.contains("gate 41"), "{context}");
+                assert!(context.contains("use 208 instead"), "{context}");
+                assert!(context.find("gate 41") < context.find("use 208 instead"));
+                assert!(!context.contains("ZEBRA-901"));
+                assert!(!context.contains("subject 20"));
+                assert!(context.ends_with("Which gallery entrance should I use?"));
+            }
+            // Retrieval is task context, never an automatically confirmed memory.
+            assert!(store.lock().unwrap().recent(100, now()).unwrap().is_empty());
+        }
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn original_details_are_retrieved_even_when_summarization_never_succeeds() {
+        struct EmptySummaries(Arc<Summing>);
+        impl Backend for EmptySummaries {
+            fn label(&self) -> String {
+                "empty summaries".into()
+            }
+            fn generate(
+                &self,
+                request: &InferenceRequest,
+                token: &mut dyn FnMut(&str),
+            ) -> Result<Generation, String> {
+                let mut generation = self.0.generate(request, token)?;
+                if request.id == SUMMARY {
+                    generation.content.clear();
+                }
+                Ok(generation)
+            }
+        }
+        let observed = Arc::new(Summing::default());
+        let host = Host::new(
+            Arc::new(EmptySummaries(observed.clone())),
+            pr3_tool::builtin(),
+        )
+        .unwrap();
+        run(&host, "Prepare the exhibition.").0.unwrap();
+        run(&host, "The gallery entrance is gate 41.").0.unwrap();
+        run(&host, "Actually, use 208 instead.").0.unwrap();
+        let id = SessionId(host.current_task().unwrap().unwrap().card.id);
+        for i in 0..40 {
+            run(&host, &format!("Unrelated subject {i}.")).0.unwrap();
+        }
+        assert!(host.tasks().unwrap().brief(id).is_none());
+        assert!(
+            host.core()
+                .unwrap()
+                .history(id)
+                .all(|m| !m.content.contains("208"))
+        );
+        run(&host, "Which gallery entrance should I use?")
+            .0
+            .unwrap();
+        let request = observed.last();
+        let context = &request.messages.last().unwrap().content;
+        assert!(context.contains("gate 41"), "{context}");
+        assert!(context.contains("use 208 instead"), "{context}");
+    }
+
+    #[test]
+    fn retrieved_task_details_stay_isolated_and_deleted_sources_stay_gone() {
+        let path = std::env::temp_dir().join(format!(
+            "pr3-task-retrieval-delete-{}.sqlite",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&path);
+        let store = Arc::new(Mutex::new(SqliteMemory::open(&path).unwrap()));
+        let model = Arc::new(Summing::default());
+        let host = Host::new(model.clone(), pr3_tool::builtin())
+            .unwrap()
+            .with_memory(store.clone())
+            .with_tasks(store.clone(), 30)
+            .unwrap();
+        run(&host, "Prepare the gallery shipment.").0.unwrap();
+        let id = SessionId(host.current_task().unwrap().unwrap().card.id);
+        run(&host, "The gallery collection password is VIOLET-672.")
+            .0
+            .unwrap();
+        assert!(
+            model
+                .last()
+                .messages
+                .iter()
+                .any(|m| m.content.contains("VIOLET-672"))
+        );
+        host.new_topic().unwrap();
+        run(&host, "Prepare the gallery invoices.").0.unwrap();
+        let other = SessionId(host.current_task().unwrap().unwrap().card.id);
+        for _ in 0..2 {
+            run(&host, "What is the gallery collection password?")
+                .0
+                .unwrap();
+            assert!(
+                model
+                    .last()
+                    .messages
+                    .iter()
+                    .all(|m| !m.content.contains("VIOLET-672"))
+            );
+        }
+        host.delete_task(id).unwrap();
+        assert!(host.tasks().unwrap().said(id).is_empty());
+        assert!(host.continue_task(id).is_err());
+        host.continue_task(other).unwrap();
+        drop(host);
+        drop(store);
+
+        let store = Arc::new(Mutex::new(SqliteMemory::open(&path).unwrap()));
+        let host = Host::new(model.clone(), pr3_tool::builtin())
+            .unwrap()
+            .with_memory(store.clone())
+            .with_tasks(store.clone(), 30)
+            .unwrap();
+        assert!(host.task(id).is_err());
+        assert!(host.tasks().unwrap().said(id).is_empty());
+        run(&host, "What is the gallery collection password?")
+            .0
+            .unwrap();
+        assert!(
+            model
+                .last()
+                .messages
+                .iter()
+                .all(|m| !m.content.contains("VIOLET-672"))
+        );
+        drop(host);
+        drop(store);
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
     fn restored_approval_keeps_corrected_task_context_without_saved_memories_or_replay() {
         use pr3_memory::MemoryStore;
         let dir = std::env::temp_dir().join(format!("pr3-restored-context-{}", std::process::id()));
@@ -2093,7 +2347,7 @@ mod tests {
                 user_messages
                     .last()
                     .unwrap()
-                    .contains("Recent user-message excerpts from THIS task")
+                    .contains("user-message excerpts from THIS task")
             );
             assert!(
                 user_messages
@@ -2184,7 +2438,7 @@ mod tests {
             .lock()
             .unwrap()
             .history(child)
-            .map(|m| m.content.clone())
+            .map(|m| m.content.rsplit("\n\n").next().unwrap().to_string())
             .collect();
         assert_eq!(
             history,
@@ -2288,7 +2542,10 @@ mod tests {
                 let (read, opening) = model.read.lock().unwrap().last().unwrap().clone();
                 assert_eq!(opening, "");
                 let (message, earlier) = asked.messages.split_last().unwrap();
-                assert_eq!(message.content, format!("Message {i}"));
+                assert_eq!(
+                    message.content.rsplit("\n\n").next().unwrap(),
+                    format!("Message {i}")
+                );
                 assert_eq!(read.messages, earlier, "turn {i}");
                 assert_eq!(read.tools, asked.tools);
                 assert!(!read.tools.is_empty());

@@ -2464,6 +2464,60 @@ mod tests {
     }
 
     #[test]
+    fn planning_limit_recovery_survives_restart_without_replaying_successful_actions() {
+        for action_succeeded in [false, true] {
+            let store = store();
+            let mut tasks = Tasks::load(store.clone(), 30, at(0)).unwrap();
+            let request = "Calculate the budget, then email Alex";
+            let (id, _) = tasks.begin(request, at(0));
+            tasks.record(
+                id,
+                &TurnEvent::Tool {
+                    name: "calculate".into(),
+                    arguments: r#"{"expression":"20+30"}"#.into(),
+                    success: true,
+                    output: "50".into(),
+                },
+                at(1),
+            );
+            if action_succeeded {
+                tasks.record(
+                    id,
+                    &TurnEvent::Tool {
+                        name: "send_email".into(),
+                        arguments: "{}".into(),
+                        success: true,
+                        output: "added to sandbox outbox".into(),
+                    },
+                    at(2),
+                );
+            }
+            tasks.end(
+                id,
+                Err("stopped: more than 4 rounds of tool calls".into()),
+                at(3),
+            );
+            let chat = tasks.view(id, at(3)).unwrap().chat;
+            drop(tasks);
+            let mut tasks = Tasks::load(store, 30, at(4)).unwrap();
+            let view = tasks.view(id, at(4)).unwrap();
+            assert_eq!(view.card.page, Page::Todo);
+            assert!(view.card.line.starts_with("Needs attention:"));
+            assert_eq!(view.chat, chat, "keep the actual results across restart");
+            assert_eq!(view.retryable, !action_succeeded);
+            let retry = tasks.retry(id, at(5));
+            if action_succeeded {
+                assert!(
+                    retry.is_err(),
+                    "a planning failure must not replay an action"
+                );
+            } else {
+                assert_eq!(retry.unwrap().0, request);
+            }
+        }
+    }
+
+    #[test]
     fn execution_checkpoint_survives_restart_without_repeating_approval() {
         let store = store();
         let mut tasks = Tasks::load(store.clone(), 30, at(0)).unwrap();

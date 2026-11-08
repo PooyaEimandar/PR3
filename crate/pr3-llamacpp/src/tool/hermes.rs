@@ -69,6 +69,7 @@ mod tests {
 
     fn calc() -> ToolDef {
         ToolDef {
+            read_only: true,
             name: "calculate".to_string(),
             description: "Evaluate arithmetic".to_string(),
             parameters: r#"{"type":"object","properties":{"expression":{"type":"string"}}}"#

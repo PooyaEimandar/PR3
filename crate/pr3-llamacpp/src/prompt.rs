@@ -25,6 +25,13 @@ pub enum PromptFormat {
 /// `enable_thinking=False`.
 const EMPTY_THINK: &str = "<think>\n\n</think>\n\n";
 
+// Shared planning guidance, independent of tool names, task content and benchmark
+// answers. The host still validates each proposal and enforces its existing limits.
+const TOOL_PLANNING_POLICY: &str = "Plan the information needed to satisfy every part \
+    of the user's request. Reuse results already available. Skip lookups unrelated to \
+    the request. You can request independent lookups together, but wait for results \
+    needed by dependent calls. Do not repeat successful actions.";
+
 // Shared by local, paired-device and benchmark inference. These are host instructions,
 // never interpolated from tool content. Token isolation below prevents structural role
 // spoofing; this policy also addresses instructions expressed in ordinary language.
@@ -266,13 +273,18 @@ pub(crate) fn render(
     let mut out = Out::default();
     let mut system_end = None;
     let mut query_end = None;
-    // Planning uses Qwen's native prompt. Only the separate tool-free answer pass
-    // gets the source boundary, so the model can still gather the needed facts.
+    // Keep Qwen's native tool format, with shared planning guidance. Only the separate
+    // tool-free answer pass gets the stronger source boundary.
     let protect = tools.is_empty() && rest.iter().any(|m| m.role == ChatRole::Tool);
     let system = if protect {
         Some(match system {
             Some(system) if !system.is_empty() => format!("{system}\n\n{TOOL_DATA_POLICY}"),
             _ => TOOL_DATA_POLICY.to_string(),
+        })
+    } else if !tools.is_empty() {
+        Some(match system {
+            Some(system) if !system.is_empty() => format!("{system}\n\n{TOOL_PLANNING_POLICY}"),
+            _ => TOOL_PLANNING_POLICY.to_string(),
         })
     } else {
         system.map(str::to_string)
@@ -380,6 +392,7 @@ mod tests {
 
     fn calc() -> ToolDef {
         ToolDef {
+            read_only: true,
             name: "calculate".to_string(),
             description: "Evaluate arithmetic".to_string(),
             parameters: r#"{"type":"object","properties":{"expression":{"type":"string"}},"required":["expression"]}"#.to_string(),
@@ -436,6 +449,7 @@ mod tests {
     #[test]
     fn qwen35_tool_turn_matches_the_template() {
         let prompt = render_all(QWEN35, &tool_turn(), &[calc()]);
+        let prompt = prompt.replace(&format!("\n\n{TOOL_PLANNING_POLICY}"), "");
         let (head, tail) = prompt.split_once("</IMPORTANT>").expect("instructions");
         assert_eq!(
             head.lines().take(6).collect::<Vec<_>>(),
@@ -466,6 +480,7 @@ mod tests {
     #[test]
     fn qwen3_tool_turn_matches_the_template() {
         let prompt = render_all(PromptFormat::Qwen3, &tool_turn(), &[calc()]);
+        let prompt = prompt.replace(&format!("\n\n{TOOL_PLANNING_POLICY}"), "");
         assert!(prompt.starts_with("<|im_start|>system\nYou are PR3.\n\n# Tools\n\nYou may call"));
         let (_, tail) = prompt
             .split_once("\n</tool_call><|im_end|>\n")
@@ -478,6 +493,23 @@ mod tests {
              <|im_start|>user\n<tool_response>\n4\n</tool_response><|im_end|>\n\
              <|im_start|>assistant\n<think>\n\n</think>\n\n"
         );
+    }
+
+    #[test]
+    fn planning_guidance_is_host_owned_and_does_not_change_answer_passes() {
+        for format in [PromptFormat::Qwen3, QWEN35, QWEN38] {
+            for messages in [tool_turn(), tool_turn()[1..].to_vec()] {
+                let prompt = render_all(format, &messages, &[calc()]);
+                let (system, _) = prompt.split_once(IM_END).unwrap();
+                assert_eq!(prompt.matches(TOOL_PLANNING_POLICY).count(), 1);
+                assert!(system.contains(TOOL_PLANNING_POLICY));
+                let answer = render_all(format, &messages, &[]);
+                assert!(!answer.contains(TOOL_PLANNING_POLICY));
+                assert!(answer.contains(TOOL_DATA_POLICY));
+            }
+            let plain = render_all(format, &[msg(ChatRole::User, "Hello")], &[]);
+            assert!(!plain.contains(TOOL_PLANNING_POLICY));
+        }
     }
 
     #[test]
@@ -600,7 +632,9 @@ mod tests {
         let joined = |pieces: &[Piece]| pieces.iter().map(|p| p.text.as_str()).collect::<String>();
         let system_end = r.system_end.expect("system turn");
         let query_end = r.query_end.expect("question");
-        assert!(joined(&r.pieces[..system_end]).ends_with("You are PR3.<|im_end|>\n"));
+        assert!(joined(&r.pieces[..system_end]).ends_with(&format!(
+            "You are PR3.\n\n{TOOL_PLANNING_POLICY}<|im_end|>\n"
+        )));
         assert!(joined(&r.pieces[..query_end]).ends_with("<|im_start|>user\nThanks<|im_end|>\n"));
         assert_eq!(
             joined(&r.pieces[query_end..]),

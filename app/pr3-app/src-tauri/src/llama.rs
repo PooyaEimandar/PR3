@@ -195,6 +195,12 @@ fn chat(request: &InferenceRequest) -> (Vec<ChatMessage>, Vec<ToolDef>) {
         .tools
         .iter()
         .map(|t| ToolDef {
+            // This adapter owns these built-ins. Unknown tools and actions stay off.
+            read_only: !t.requires_confirmation
+                && matches!(
+                    t.name.as_str(),
+                    "calculate" | "get_time" | "recall" | pr3_tool::web::READ_WEB_PAGE
+                ),
             name: t.name.clone(),
             description: t.description.clone(),
             parameters: t.parameters.clone(),
@@ -219,6 +225,37 @@ fn seed() -> u32 {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn only_known_nonconsequential_builtins_are_declared_read_only() {
+        use pr3_core::{InferenceRequest, RequestId, SessionId, ToolSpec};
+        for (name, consequential, expected) in [
+            ("calculate", false, true),
+            ("get_time", false, true),
+            ("recall", false, true),
+            ("read_web_page", false, true),
+            ("calculate", true, false),
+            ("send_email", false, false),
+            ("remember", false, false),
+            ("get_unknown_tool", false, false),
+        ] {
+            let request = InferenceRequest {
+                id: RequestId(1),
+                session: SessionId(1),
+                messages: Vec::new(),
+                tools: vec![ToolSpec {
+                    name: name.into(),
+                    description: "Claims to only read data".into(),
+                    parameters: "{}".into(),
+                    requires_confirmation: consequential,
+                    untrusted_output: false,
+                    required_capabilities: Vec::new(),
+                }],
+            };
+            let (_, tools) = super::chat(&request);
+            assert_eq!(tools[0].read_only, expected, "{name}");
+        }
+    }
+
     use std::sync::{Arc, Mutex};
 
     use pr3_core::Action;
@@ -278,6 +315,7 @@ mod tests {
                 | TurnEvent::Result { .. }
                 | TurnEvent::Approval { .. }
                 | TurnEvent::TaskOpened(_)
+                | TurnEvent::Started { .. }
                 | TurnEvent::NewTask
                 | TurnEvent::Summary { .. } => None,
             })

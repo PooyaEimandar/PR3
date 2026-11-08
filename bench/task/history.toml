@@ -1,0 +1,84 @@
+# Focused original-task-history regressions. Separate from the frozen baseline.
+# delete = true invokes the task panel deletion path; it is not a model instruction.
+filler = [
+    "Give me five tips for sleeping better, one sentence each.",
+    "Explain how a heat pump works in a short paragraph.",
+    "List six vegetables that grow well in pots, with a short note on each.",
+    "What are the main differences between a crocodile and an alligator?",
+    "Suggest a simple weekly stretching routine.",
+    "How do I get a red wine stain out of a cotton shirt?",
+    "How do noise-cancelling headphones work?",
+    "What should I pack for a three-day hiking trip?",
+    "Give me four ideas for a rainy Sunday afternoon with kids.",
+    "What are some good habits for keeping a tidy kitchen?",
+    "Explain the difference between weather and climate.",
+    "Suggest five houseplants that are hard to kill.",
+    "How do I make a basic vinaigrette, and how long does it keep?",
+    "What is a good way to learn the constellations?",
+    "How can I make a small balcony feel more welcoming?"
+]
+
+contact = []
+
+
+# Empty history must not cause a lookup loop, whether the current message supplies
+# a new detail or asks for one that is unavailable.
+[[case]]
+id = "history/new-detail"
+kind = "restart"
+launches = [
+    [{say = "For the museum delivery, the loading gate is 93.", card = "none"}],
+    [{say = "Which loading gate did I specify? Reply only with the number.", expect = ["93"], card = "none"}],
+]
+
+[[case]]
+id = "history/empty-task"
+kind = "isolation"
+launches = [
+    [{say = "What gallery entrance did I previously specify?", expect = ["no|not|don't|haven't|unavailable|cannot|can't|couldn't|could not"], forbid = ["208", "41"], card = "none"}],
+]
+
+[[case]]
+id = "history/terse-correction"
+kind = "correction"
+launches = [
+    [
+        {say = "Help me prepare for the exhibition.", card = "none"},
+        {say = "The gallery delivery entrance is gate 41.", card = "none"},
+        {say = "Actually, use 208 instead.", card = "none"},
+    ],
+    [{say = "Which gallery entrance should I use? Reply only with the current gate number.", expect = ["208"], reject = ["41"], card = "none"}],
+]
+
+[[case]]
+id = "history/correction-restart-delete"
+kind = "correction"
+launches = [
+    [
+        {say = "Help me prepare for the exhibition.", card = "none"},
+        {say = "The gallery delivery entrance is gate 41.", card = "none"},
+        {say = "Actually, use 208 instead.", card = "none"},
+        {fill = 15},
+    ],
+    [
+        {say = "Which gallery entrance should I use? Reply only with the current gate number.", expect = ["208"], reject = ["41"], card = "none"},
+        {say = "Which gallery gate did I settle on? Reply only with the current number.", expect = ["208"], reject = ["41"], card = "none"},
+        {delete = true},
+        {say = "What gallery entrance did I previously specify?", forbid = ["208", "41"], card = "none"},
+    ],
+    [{say = "Do you have my gallery entrance number?", forbid = ["208", "41"], card = "none"}],
+]
+
+[[case]]
+id = "history/isolation-restart"
+kind = "isolation"
+launches = [
+    [
+        {say = "For the museum delivery, the loading gate is 93.", card = "none"},
+        {say = "New topic"},
+        {say = "Help me organize the studio delivery.", card = "none"},
+        {say = "The studio loading gate is 26.", card = "none"},
+        {fill = 15},
+    ],
+    [{say = "Which loading gate should I use for this delivery? Reply only with the number.", expect = ["26"], forbid = ["93"], card = "none"}],
+]

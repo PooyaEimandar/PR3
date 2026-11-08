@@ -1,6 +1,7 @@
 // The webview only renders. All decisions live in the Rust runtime, and the types below
 // mirror what its commands send (src-tauri/src).
 import { markdown, plain } from "./markdown.js";
+import { turnStop } from "./turn-stop.js";
 
 const { invoke, Channel } = window.__TAURI__.core;
 
@@ -31,6 +32,7 @@ interface ApprovalRequest {
 
 // What streams in while a turn runs (the host's TurnEvent).
 type TurnEvent =
+  | { type: "started"; task: number }
   | { type: "result"; text: string }
   | { type: "token"; text: string }
   | { type: "tool"; name: string; arguments: string; success: boolean; output: string }
@@ -421,8 +423,8 @@ function setBusy(busy: boolean): void {
   button.disabled = busy || storageLocked;
   button.hidden = busy;
   stopButton.hidden = !busy;
-  stopButton.disabled = false;
-  stopButton.textContent = "Stop";
+  stopButton.disabled = busy && activeStop?.requested === true;
+  stopButton.textContent = stopButton.disabled ? "Stopping…" : "Stop";
   if (!busy) {
     for (const close of pendingApprovals) close("Request closed. Review the recorded result below.");
   }
@@ -432,22 +434,35 @@ function setBusy(busy: boolean): void {
   input.placeholder = storageLocked ? "Unlock storage in Settings" : busy ? "PR3 is answering…" : "Message PR3";
 }
 
-async function stopTask(id: number): Promise<void> {
+async function stopTask(id: number, status: HTMLElement = show("assistant", "Requesting stop…"), active = () => true, retry = () => {}): Promise<void> {
   stopButton.disabled = true;
   stopButton.textContent = "Stopping…";
-  const status = show("assistant", "Requesting stop…");
   try {
     await invoke("stop_task", { id });
     say(status, answering
       ? "Stop requested. Waiting for any in-flight operation to report its result."
       : "Stop request processed. Review the recorded result.");
   } catch (err) {
-    stopButton.disabled = false;
-    stopButton.textContent = "Stop";
+    if (active()) {
+      retry();
+      stopButton.disabled = false;
+      stopButton.textContent = "Stop";
+    }
     say(status, String(err));
   }
 }
-stopButton.addEventListener("click", () => { if (currentTask !== null) stopTask(currentTask); });
+let activeStop: ReturnType<typeof turnStop> | null = null;
+function beginStop(): ReturnType<typeof turnStop> {
+  let status: HTMLElement;
+  const control = turnStop(() => {
+    stopButton.disabled = true;
+    stopButton.textContent = "Stopping…";
+    status = show("assistant", "Stop requested. Waiting for the task to start.");
+  }, id => { void stopTask(id, status, () => control.active && activeStop === control, () => control.failed()); });
+  activeStop = control;
+  return control;
+}
+stopButton.addEventListener("click", () => activeStop?.request());
 
 async function retryTask(id: number, status: HTMLElement): Promise<void> {
   if (answering) return;
@@ -495,9 +510,12 @@ async function send(text: string, retryId?: number): Promise<void> {
     follow();
   };
 
+  const cancellation = beginStop();
   const onEvent = new Channel<TurnEvent>();
   onEvent.onmessage = (event) => {
-    if (event.type === "result") {
+    if (event.type === "started") {
+      cancellation.started(event.task);
+    } else if (event.type === "result") {
       resultText = event.text;
       showResult();
     } else if (event.type === "task_opened") {
@@ -550,6 +568,7 @@ async function send(text: string, retryId?: number): Promise<void> {
     bubble.remove();
     show("error", String(err));
   } finally {
+    cancellation.finish();
     setBusy(false);
     answered = true;
     showResult();
@@ -697,9 +716,11 @@ async function askAgain(id: number): Promise<void> {
       resultShown = true;
     }
   };
+  const cancellation = beginStop();
   const onEvent = new Channel<TurnEvent>();
   onEvent.onmessage = (event) => {
-    if (event.type === "approval" && !answerShown) showApproval(event.request, bubble, event.sources);
+    if (event.type === "started") cancellation.started(event.task);
+    else if (event.type === "approval" && !answerShown) showApproval(event.request, bubble, event.sources);
     else if (event.type === "tool") {
       if (bubble.isConnected) log.insertBefore(toolNode(event), bubble);
       else addToLog(toolNode(event));
@@ -723,6 +744,7 @@ async function askAgain(id: number): Promise<void> {
     bubble.remove();
     show("error", String(err));
   } finally {
+    cancellation.finish();
     setBusy(false);
     answerShown = true;
     showResult();

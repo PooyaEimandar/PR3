@@ -11,6 +11,9 @@ use serde_json::Value;
 /// A tool the model may call, described for the prompt.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ToolDef {
+    /// Trusted caller metadata; false for actions or unknown effects. Never inferred
+    /// from a name, description, model output or source text.
+    pub read_only: bool,
     pub name: String,
     pub description: String,
     /// JSON Schema for the arguments object, as text.
@@ -104,6 +107,7 @@ mod tests {
     #[test]
     fn tool_json_matches_the_template_layout() {
         let tool = ToolDef {
+            read_only: true,
             name: "get_time".to_string(),
             description: "Current time".to_string(),
             parameters: r#"{"type":"object","properties":{}}"#.to_string(),

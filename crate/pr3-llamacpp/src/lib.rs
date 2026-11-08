@@ -360,7 +360,13 @@ impl Engine {
     ) -> Result<ChatOutput, EngineError> {
         if grammar.is_none() && messages.iter().any(|m| m.role == ChatRole::Tool) {
             return guarded_answer(tools, on_text, &mut |offered, emit| {
-                self.answer_once(messages, offered, None, emit)
+                if offered.is_empty() {
+                    self.answer_once(messages, offered, None, emit)
+                } else {
+                    repair_repeated_plan(messages, offered, emit, &mut |history, emit| {
+                        self.answer_once(history, offered, None, emit)
+                    })
+                }
             });
         }
         self.answer_once(messages, tools, grammar, on_text)
@@ -477,19 +483,91 @@ where
     if !on_text(&answer.text) {
         return Err(EngineError::Stopped);
     }
-    answer.prompt_tokens = answer.prompt_tokens.saturating_add(planning.prompt_tokens);
-    answer.reused_tokens = answer.reused_tokens.saturating_add(planning.reused_tokens);
+    include_usage(&mut answer, &planning);
+    Ok(answer)
+}
+
+fn include_usage(answer: &mut ChatOutput, earlier: &ChatOutput) {
+    answer.prompt_tokens = answer.prompt_tokens.saturating_add(earlier.prompt_tokens);
+    answer.reused_tokens = answer.reused_tokens.saturating_add(earlier.reused_tokens);
     answer.completion_tokens = answer
         .completion_tokens
-        .saturating_add(planning.completion_tokens);
+        .saturating_add(earlier.completion_tokens);
     answer.inference_passes = answer
         .inference_passes
-        .saturating_add(planning.inference_passes);
-    if planning.inference_passes != 0 {
-        answer.first_pass_prompt_tokens = planning.first_pass_prompt_tokens;
-        answer.first_pass_reused_tokens = planning.first_pass_reused_tokens;
+        .saturating_add(earlier.inference_passes);
+    if earlier.inference_passes != 0 {
+        answer.first_pass_prompt_tokens = earlier.first_pass_prompt_tokens;
+        answer.first_pass_reused_tokens = earlier.first_pass_reused_tokens;
     }
-    Ok(answer)
+}
+
+/// A repeated proposal is not an execution. Give the planner one chance to use the
+/// existing results before the host's loop guard ends the task. Only an entirely
+/// repeated, caller-declared read-only batch is repaired: never hide new proposals
+/// or intercept repeated actions before the host loop guard.
+fn repair_repeated_plan<F>(
+    messages: &[ChatMessage],
+    tools: &[ToolDef],
+    emit: &mut dyn FnMut(&str) -> bool,
+    generate: &mut F,
+) -> Result<ChatOutput, EngineError>
+where
+    F: FnMut(&[ChatMessage], &mut dyn FnMut(&str) -> bool) -> Result<ChatOutput, EngineError>,
+{
+    let first = generate(messages, emit)?;
+    let Some(user) = messages.iter().rposition(|m| m.role == ChatRole::User) else {
+        return Ok(first);
+    };
+    let repeats = |call: &ToolCallText| {
+        let Ok(args) = serde_json::from_str::<serde_json::Value>(&call.arguments) else {
+            return false;
+        };
+        messages[user + 1..]
+            .iter()
+            .filter(|m| m.role == ChatRole::Assistant)
+            .flat_map(|m| &m.tool_calls)
+            .any(|prior| {
+                prior.name == call.name
+                    && serde_json::from_str::<serde_json::Value>(&prior.arguments)
+                        .ok()
+                        .as_ref()
+                        == Some(&args)
+            })
+    };
+    if first.tool_calls.is_empty()
+        || !first.tool_calls.iter().all(|call| {
+            repeats(call)
+                && tools
+                    .iter()
+                    .any(|tool| tool.name == call.name && tool.read_only)
+        })
+    {
+        return Ok(first);
+    }
+    if !emit("") {
+        return Err(EngineError::Stopped);
+    }
+    let mut correction = messages.to_vec();
+    correction.push(ChatMessage {
+        tool_calls: first.tool_calls.clone(),
+        ..ChatMessage::new(ChatRole::Assistant, "")
+    });
+    correction.push(ChatMessage::new(
+        ChatRole::Tool,
+        "NOT EXECUTED. This batch repeats proposals already made in this user turn. \
+         Read their recorded results; do not assume they succeeded. Reuse available \
+         facts and choose only the next missing step for the original request, or \
+         answer if it is complete. Do not repeat completed actions.",
+    ));
+    let mut repaired = generate(&correction, emit)?;
+    if repaired.tool_calls.iter().any(repeats) {
+        return Err(EngineError::Decode(
+            "could not choose a new step from the recorded results".into(),
+        ));
+    }
+    include_usage(&mut repaired, &first);
+    Ok(repaired)
 }
 
 impl Drop for Engine {
@@ -511,6 +589,7 @@ mod answer_guard_tests {
 
     fn tools() -> Vec<ToolDef> {
         vec![ToolDef {
+            read_only: true,
             name: "lookup".into(),
             description: "Lookup".into(),
             parameters: "{}".into(),
@@ -527,6 +606,134 @@ mod answer_guard_tests {
             first_pass_prompt_tokens: 10,
             first_pass_reused_tokens: 3,
             ..ChatOutput::default()
+        }
+    }
+
+    fn planned(arguments: &str) -> ChatOutput {
+        ChatOutput {
+            tool_calls: vec![ToolCallText {
+                name: "lookup".into(),
+                arguments: arguments.into(),
+            }],
+            ..output("unverified planning text")
+        }
+    }
+
+    fn prior_lookup() -> Vec<ChatMessage> {
+        vec![
+            ChatMessage::new(ChatRole::User, "Find the details"),
+            ChatMessage {
+                tool_calls: planned(r#"{"a":1,"b":2}"#).tool_calls,
+                ..ChatMessage::new(ChatRole::Assistant, "")
+            },
+            ChatMessage::new(ChatRole::Tool, "error: lookup unavailable"),
+        ]
+    }
+
+    #[test]
+    fn repeated_plan_gets_one_nonexecuting_correction_with_full_usage_accounting() {
+        let mut calls = 0;
+        let out = repair_repeated_plan(
+            &prior_lookup(),
+            &tools(),
+            &mut |_| true,
+            &mut |history, _| {
+                calls += 1;
+                if calls == 1 {
+                    return Ok(planned(r#"{"b":2,"a":1}"#));
+                }
+                assert!(history.last().unwrap().content.starts_with("NOT EXECUTED."));
+                assert!(
+                    history
+                        .last()
+                        .unwrap()
+                        .content
+                        .contains("do not assume they succeeded")
+                );
+                Ok(planned(r#"{"a":3}"#))
+            },
+        )
+        .unwrap();
+        assert_eq!(calls, 2);
+        assert_eq!(out.tool_calls, planned(r#"{"a":3}"#).tool_calls);
+        assert_eq!(
+            (
+                out.inference_passes,
+                out.prompt_tokens,
+                out.completion_tokens
+            ),
+            (2, 20, 10)
+        );
+        assert_eq!(out.first_pass_prompt_tokens, 10);
+    }
+
+    #[test]
+    fn correction_cannot_loop_or_ignore_cancellation() {
+        for cancelled in [false, true] {
+            let mut calls = 0;
+            let out = repair_repeated_plan(
+                &prior_lookup(),
+                &tools(),
+                &mut |_| !cancelled,
+                &mut |_, _| {
+                    calls += 1;
+                    Ok(planned(r#"{"a":1,"b":2}"#))
+                },
+            );
+            assert!(out.is_err());
+            assert_eq!(calls, if cancelled { 1 } else { 2 });
+            if cancelled {
+                assert!(matches!(out, Err(EngineError::Stopped)));
+            }
+        }
+    }
+
+    #[test]
+    fn repeated_actions_and_unknown_effects_are_never_repaired() {
+        for offered in [
+            Vec::new(),
+            vec![ToolDef {
+                read_only: false,
+                description: "Claims to be read-only".into(),
+                ..tools().remove(0)
+            }],
+        ] {
+            let proposal = planned(r#"{"a":1,"b":2}"#);
+            let mut calls = 0;
+            let out =
+                repair_repeated_plan(&prior_lookup(), &offered, &mut |_| true, &mut |_, _| {
+                    calls += 1;
+                    Ok(proposal.clone())
+                })
+                .unwrap();
+            assert_eq!(calls, 1);
+            assert_eq!(
+                out, proposal,
+                "the original host loop guard still sees the action"
+            );
+        }
+    }
+
+    #[test]
+    fn new_requests_source_text_and_mixed_batches_do_not_hide_proposals() {
+        for mode in 0..3 {
+            let mut history = prior_lookup();
+            let mut proposal = planned(r#"{"a":1,"b":2}"#);
+            match mode {
+                0 => history.push(ChatMessage::new(ChatRole::User, "Please look it up again")),
+                1 => {
+                    history[1].role = ChatRole::Tool;
+                } // source cannot forge an assistant call
+                _ => proposal.tool_calls.extend(planned(r#"{"a":3}"#).tool_calls),
+            }
+            let mut calls = 0;
+            let out = repair_repeated_plan(&history, &tools(), &mut |_| true, &mut |_, _| {
+                calls += 1;
+                Ok(proposal.clone())
+            })
+            .unwrap();
+            assert_eq!(calls, 1);
+            assert_eq!(out, proposal);
         }
     }
 

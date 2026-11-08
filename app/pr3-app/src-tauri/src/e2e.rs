@@ -12,6 +12,31 @@ use tauri::Manager;
 
 use crate::host::{Backend, Generation};
 
+/// Test-only delivery barrier: reproduce a Stop click before the webview knows
+/// which turn is running, without changing command results or cancellation logic.
+pub fn hold_turn_event(event: &crate::host::TurnEvent) {
+    if !matches!(
+        event,
+        crate::host::TurnEvent::TaskOpened(_) | crate::host::TurnEvent::Started { .. }
+    ) {
+        return;
+    }
+    let Some(dir) = std::env::var_os("PR3_E2E_DIR").map(PathBuf::from) else {
+        return;
+    };
+    let hold = dir.join("hold-turn-events");
+    if !hold.exists() {
+        return;
+    }
+    let _ = std::fs::write(dir.join("turn-event-held"), b"waiting for test release");
+    for _ in 0..1000 {
+        if !hold.exists() {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+}
+
 struct AddressBook;
 
 impl crate::contacts::Source for AddressBook {
@@ -93,6 +118,10 @@ impl Backend for ScriptedModel {
             .is_some_and(|m| m.content.rsplit("\n\n").next() == Some("Slow request"))
         {
             if !self.stopped_once.swap(true, Ordering::AcqRel) {
+                if let Some(dir) = std::env::var_os("PR3_E2E_DIR") {
+                    let _ =
+                        std::fs::write(PathBuf::from(dir).join("slow-request-started"), b"running");
+                }
                 // Bounded even if a broken UI never sends Stop.
                 for _ in 0..500 {
                     if cancel.load(Ordering::Acquire) {

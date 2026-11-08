@@ -115,6 +115,8 @@ enum ToDriver {
 #[derive(Debug, Default, Serialize)]
 struct Stats {
     model_calls: u32,
+    /// Call batches returned to the host; local correction passes count in model_calls.
+    tool_rounds: u32,
     prompt_tokens: u64,
     completion_tokens: u64,
     seconds: f64,
@@ -247,6 +249,7 @@ fn main() -> io::Result<()> {
                 &system,
                 &prompt,
                 &tools,
+                &consequential,
                 (mode == Mode::ConfirmAll).then_some(consequential.as_slice()),
                 max_rounds,
                 &mut stats,
@@ -266,10 +269,11 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-fn tool_defs(tools: &[Tool]) -> Vec<ToolDef> {
+fn tool_defs(tools: &[Tool], consequential: &[String]) -> Vec<ToolDef> {
     tools
         .iter()
         .map(|t| ToolDef {
+            read_only: !consequential.contains(&t.name),
             name: t.name.clone(),
             description: t.description.clone(),
             parameters: t.parameters.to_string(),
@@ -287,6 +291,7 @@ fn generate(
         .chat_with_tools(messages, tools, &mut |_| {})
         .map_err(|e| e.to_string())?;
     stats.model_calls += out.inference_passes;
+    stats.tool_rounds += u32::from(!out.tool_calls.is_empty());
     stats.prompt_tokens += u64::from(out.prompt_tokens);
     stats.completion_tokens += u64::from(out.completion_tokens);
     Ok(out)
@@ -333,7 +338,7 @@ fn run_pr3(
             return Ok(Err(format!("tool {} not accepted: {e}", tool.name)));
         }
     }
-    let defs = tool_defs(tools);
+    let defs = tool_defs(tools, consequential);
     let session = SessionId(1);
     let mut clock = 0u64;
     let mut now = || {
@@ -532,17 +537,18 @@ fn run_plain(
     system: &str,
     prompt: &str,
     tools: &[Tool],
+    consequential: &[String],
     confirm: Option<&[String]>,
     max_rounds: u32,
     stats: &mut Stats,
 ) -> io::Result<Result<String, String>> {
-    let defs = tool_defs(tools);
+    let defs = tool_defs(tools, consequential);
     let mut messages = vec![
         ChatMessage::new(ChatRole::System, system),
         ChatMessage::new(ChatRole::User, prompt),
     ];
     let mut next_id = 0u32;
-    for _ in 0..=max_rounds {
+    for round in 0..=max_rounds {
         let out = match generate(engine, &messages, &defs, stats) {
             Ok(out) => out,
             Err(reason) => return Ok(Err(reason)),
@@ -551,6 +557,14 @@ fn run_plain(
             return Ok(Ok(out.text));
         }
         stats.proposed += u32::try_from(out.tool_calls.len()).unwrap_or(u32::MAX);
+        // Like PR3, allow a final answer after the last permitted tool round, but
+        // never execute or ask approval for another batch beyond the configured limit.
+        if round == max_rounds {
+            stats.refused += u32::try_from(out.tool_calls.len()).unwrap_or(u32::MAX);
+            return Ok(Err(format!(
+                "stopped: more than {max_rounds} rounds of tool calls"
+            )));
+        }
         messages.push(ChatMessage {
             tool_calls: out.tool_calls.clone(),
             ..ChatMessage::new(ChatRole::Assistant, out.text.clone())

@@ -110,7 +110,7 @@ struct Case {
     launches: Vec<Vec<Step>>,
 }
 
-/// One thing the user does: exactly one of `say`, `again` and `fill`.
+/// One thing the user does: exactly one of `say`, `again`, `fill` and `delete`.
 #[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Step {
@@ -132,6 +132,9 @@ struct Step {
     /// Sends this many of the corpus's filler questions.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     fill: Option<usize>,
+    /// Deletes the current task through the host, just as the task panel does.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    delete: Option<bool>,
     /// Words the answer must have, each as `|`-separated ways of saying it.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     expect: Vec<String>,
@@ -487,9 +490,15 @@ impl Corpus {
                     step.say.is_some(),
                     step.again.is_some(),
                     step.fill.is_some(),
+                    step.delete.is_some(),
                 ];
                 if kinds.iter().filter(|&&k| k).count() != 1 {
-                    return Err(format!("{id}: a step says, answers a card again, or fills"));
+                    return Err(format!(
+                        "{id}: a step says, answers a card again, fills, or deletes"
+                    ));
+                }
+                if step.delete == Some(false) {
+                    return Err(format!("{id}: delete must be true"));
                 }
                 if step.offer.is_some() && step.say.is_none() {
                     return Err(format!("{id}: only a message is offered a task of its own"));
@@ -959,6 +968,16 @@ impl App {
                 done.route = "again".to_string();
                 self.again(card, &seen)
             }
+            (None, None) if step.delete == Some(true) => {
+                done.said = "(delete the current task)".to_string();
+                done.route = "delete".to_string();
+                self.host
+                    .current_task()
+                    .map_err(|e| e.to_string())
+                    .and_then(|task| task.ok_or("no current task to delete".to_string()))
+                    .and_then(|task| self.host.delete_task(SessionId(task.card.id)))
+                    .map(|()| "Task deleted.".to_string())
+            }
             (None, None) => Err("nothing to do".to_string()),
         };
         match answer {
@@ -1104,7 +1123,9 @@ impl App {
                         completion_tokens,
                         seconds: ms as f64 / 1000.0,
                     }),
-                    TurnEvent::Token { .. } | TurnEvent::Result { .. } => {}
+                    TurnEvent::Token { .. }
+                    | TurnEvent::Result { .. }
+                    | TurnEvent::Started { .. } => {}
                 }
             }
         };
@@ -1452,6 +1473,7 @@ mod tests {
         assert_eq!(names, ["Alex Rivera", "Sam Chen"]);
         // Also validate the focused post-baseline regression corpus in ordinary CI.
         Corpus::load(&here().join("reliability.toml")).unwrap();
+        Corpus::load(&here().join("history.toml")).unwrap();
     }
 
     #[test]

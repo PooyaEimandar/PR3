@@ -89,7 +89,13 @@ async function textIncludes(selector, value) {
   await driver.waitUntil(async () => (await driver.$(selector).getText()).includes(value), { timeout: 10000, timeoutMsg: `Expected ${selector} to include ${value}` });
 }
 async function idle() {
-  await driver.waitUntil(async () => (await driver.$('#composer button[type=submit]').isEnabled()), { timeout: 15000 });
+  await driver.waitUntil(async () => (await driver.$('#composer button[type=submit]').isEnabled()), { timeout: 15000, timeoutMsg: 'Composer did not return to idle' });
+}
+async function fixtureReached(name) {
+  await driver.waitUntil(async () => {
+    try { await readFile(resolve(dir, name)); return true; }
+    catch (e) { if (e.code === 'ENOENT') return false; throw e; }
+  }, { timeout: 5000, timeoutMsg: `Fixture did not reach ${name}` });
 }
 async function send(text, wait = true) {
   await driver.$('#text').setValue(text);
@@ -260,6 +266,7 @@ test('interrupted approval requires a fresh approval after restart and never rep
 
 test('Stop leaves a recoverable task and only explicit Retry resumes it', { timeout: 45000 }, async () => {
   await send('Slow request', false);
+  await fixtureReached('slow-request-started');
   await click('#stop-task'); await idle();
   const before = await invoke('current_task');
   assert.equal(before.retryable, true);
@@ -273,6 +280,33 @@ test('Stop leaves a recoverable task and only explicit Retry resumes it', { time
   await textIncludes('#log', 'Recovered after explicit retry.');
   assert.deepEqual(await handoffs(), []);
 });
+
+for (const existing of [false, true]) {
+  test(`Stop before turn registration is delivered (${existing ? 'existing task' : 'new task'})`, { timeout: 45000 }, async () => {
+    if (existing) await send('Start a task.');
+    const previous = await invoke('current_task');
+    await writeFile(resolve(dir, 'hold-turn-events'), 'delay native event delivery');
+    try {
+      await send('Slow request', false);
+      await fixtureReached('turn-event-held');
+      await click('#stop-task');
+      await textIncludes('#log', 'Stop requested. Waiting for the task to start.');
+      assert.equal(await driver.$('#stop-task').isEnabled(), false);
+    } finally {
+      await rm(resolve(dir, 'hold-turn-events'), { force: true });
+    }
+    await idle();
+    await textIncludes('#log', 'Stopped by you');
+    const stopped = await invoke('current_task');
+    assert.equal(stopped.retryable, true);
+    assert.equal(stopped.running, false);
+    if (existing) assert.equal(stopped.id, previous.id);
+    await send('Continue after stopping.');
+    await textIncludes('#log', 'We can continue with: Continue after stopping.');
+    assert.equal((await invoke('current_task')).id, stopped.id);
+    assert.deepEqual(await handoffs(), []);
+  });
+}
 
 test('Retry saving commits the known mail result without executing the action twice', { timeout: 60000 }, async () => {
   await syncContacts(); await capture(); await approval();

@@ -77,6 +77,8 @@ async fn send_message(
     storage::require_ready(&app)?;
     let result = host
         .send(text, utc_offset_minutes, move |event| {
+            #[cfg(feature = "e2e")]
+            e2e::hold_turn_event(&event);
             // A closed channel only means the window went away; the turn still completes.
             let _ = on_event.send(event);
         })

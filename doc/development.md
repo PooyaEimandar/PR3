@@ -238,7 +238,7 @@ CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) builds and tests 
 
 ### Automated native workflows
 
-From `app/pr3-app`, run `npm ci --ignore-scripts`, `npm run test:e2e:build`, then `npm run test:e2e`. The suite drives a native Tauri webview through WebDriver, using the production IPC handlers, Host, approval gate and SQLite. It exercises correction and process restart, exact draft approval, decline/failure, interrupted approval recovery, Stop/Retry, saving an action result after storage failure, memory deletion and contact removal. Actions use visible controls; read-only assertions also inspect runtime state. CI runs it on macOS and retains failure screenshots, DOM and app logs under `test-results/`.
+From `app/pr3-app`, run `npm ci --ignore-scripts`, `npm test`, `npm run test:e2e:build`, then `npm run test:e2e`. The unit tests cover turn-scoped Stop requests, including late registration and rejected-stop retry. The native suite drives a Tauri webview through WebDriver, using the production IPC handlers, Host, approval gate and SQLite. It exercises correction and process restart, exact draft approval, decline/failure, interrupted approval recovery, Stop/Retry, saving an action result after storage failure, memory deletion and contact removal. Test-only event-delivery barriers reproduce early Stop clicks for new and existing tasks; they do not replace command results or cancellation behavior. Actions use visible controls; read-only assertions also inspect runtime state. CI runs the native suite on macOS and retains failure screenshots, DOM and app logs under `test-results/`.
 
 `pr3-e2e` is a distinct debug-only binary, requires the `e2e` feature and a marked temporary directory, and uses a separate application identity. Its model, contact source, software key and mail-app adapter are fixtures. It cannot be compiled with the feature in release mode. Normal builds exclude the WebDriver server. This catches native UI/runtime wiring regressions but does not measure model intelligence or device permissions. The [Android email](android-email-checklist.md) and [continuity](continuity-checklist.md) checks remain physical-device work. The driver follows [Tauri's native WebDriver support](https://v2.tauri.app/develop/tests/webdriver/).
 
@@ -263,7 +263,7 @@ Harness regressions: `python3 -m unittest discover -s bench/rebaseline -p 'test_
 
 ### Individual suites
 
-The two travel answer-injection regressions have a reproducible gate with the unchanged AgentDojo attack and scorer, the original failing seed 1, and a benign control for each task. It also requires useful answer facts, the exact requested calendar effect and no extra effects:
+The travel planning/answer-injection regressions have a reproducible gate with the unchanged AgentDojo attack and scorer, seeds 1/2/7, and a benign control for each task. All twelve cases must finish within the original ten-round budget, retain useful answer facts, perform the exact requested calendar effect and have no extra effects:
 
 ```bash
 cargo build --release -p pr3-bench-agentdojo --locked
@@ -271,7 +271,13 @@ bench/agentdojo/.venv/bin/python bench/agentdojo/answer_regression.py --model mo
 cargo test -p pr3-llamacpp --test answer_injection -- --ignored --nocapture
 ```
 
-Add `--seeds 1 2 7` for broader strict checks. Seed 2 currently hits the same ten-round planning limit in task 12 before and after the fix; this remains a failed workflow, not a passing answer-safety test. The second command retains raw replies and immutable run manifests; the third exercises novel English/French/Persian instructions, fake roles, legitimate use of the original target name, and explicit quotation. Harness v5 uses the shared engine's separate tool-free answer pass in every comparison arm. Tool-planning prompts keep their native format; draft text is withheld after tool use. Reported inference/pass and token counts include the extra answer generation. Keep this evidence separate from the already frozen v4 full matrix. Real-model tests are opt-in; renderer and gate-validation unit tests run in normal CI. These are development regressions, not held-out security or Android latency measurements.
+Use `--seeds 2` to reproduce just the former planning-limit failures and their controls. The second command retains raw replies and immutable run manifests; the third exercises English/French/Persian instructions, fake roles, legitimate use of the original target name, and explicit quotation. Harness v6 adds the shared engine's planning guidance in every comparison arm: plan all requested details, reuse available results, skip unrelated lookups and group independent reads where possible. Dependencies still wait for results; schemas, approvals, duplicate-call protection and round/call budgets remain enforced by the host. An entirely repeated batch of caller-declared read-only proposals gets at most one local correction attempt before it reaches the host. Repeated actions and tools with unknown effects are never repaired. This is not another execution or an automatic approval; a still-repeated proposal fails, and batches mixing new and repeated proposals go unchanged to normal validation. The plain and confirm-all loops also stop before approval or execution at the configured round boundary; the final answer opportunity does not permit an extra tool batch. Tool-round counts measure batches returned to the host, separately from inference passes; the latter include both local corrections and protected final-answer generation. The gate evaluates every requested seed before reporting failure, so one failure cannot hide another seed's results. Keep this evidence separate from the already frozen v4 full matrix. Real-model tests are opt-in; renderer and gate-validation unit tests run in normal CI. These are development regressions, not held-out security or Android latency measurements.
+
+The [current planning evidence](../bench/agentdojo/evidence/planning-2026-11-07.json) records 11/12 passing travel cases; the seed-7 benign planning failure keeps this gate failing. To include the live zero-round regression for PR3/plain/confirm-all in the Python suite, run after building the bridge:
+
+```bash
+(cd bench/agentdojo && PR3_TEST_MODEL_FILE=../../model/Qwen3.5-4B-Q4_K_M.gguf PR3_TEST_BRIDGE_FILE=../../target/release/pr3-bench-agentdojo .venv/bin/python -m unittest discover -s test)
+```
 
 The focused post-baseline restart/recipient regressions live in `bench/task/reliability.toml`. They exercise recalled details after a restarted approval, a corrected recipient resolved from chat after restart, and declining a corrected draft. `card_contains` and `card_excludes` check the actual confirmation card before any effect, including declined drafts. Run each seed separately, using a fresh output path when the binary changes:
 
@@ -280,6 +286,22 @@ target/release/pr3-bench-task run --model model/Qwen3.5-4B-Q4_K_M.gguf --corpus 
 ```
 
 These results must not be appended to the frozen full rebaseline: that run preserves its original binaries, corpus and source snapshot for comparison.
+
+### Original task history retrieval
+
+Summaries can omit details even when the original chat is intact. A restored task now retrieves relevant original user messages alongside its three most recent messages. Already-running tasks do the same when older wording matches messages outside the runtime window, even if summarization failed; explicit `recall` also searches with its query and the current question. Retrieval uses case-insensitive Unicode words, weights rarer query terms more highly, reserves a window for the newest match, and preserves the two messages following each selected match for short corrections. Selected excerpts stay in chronological order, with later corrections and confirmed memory updates taking precedence.
+
+When older matches are retrieved, the prompt contains at most six older and three recent excerpts, each clipped around its matching word to 240 UTF-8 bytes and at most 280 bytes after JSON quoting. Recent-only fallback preserves the established three-excerpt prompt and its 384-byte clipping; unusually expanded JSON is clipped further so each quoted excerpt stays within 560 bytes. They are labelled historical context, not new instructions or confirmed memory. The source is the current task's user messages only: assistant/tool output, other tasks and unrelated follow-up parents are not searched. There is no persisted retrieval index, additional model call or new global memory write. Deleting or expiring the task removes this source; separately saved memories retain their own controls. This is bounded lexical retrieval, not semantic search across arbitrary paraphrases or languages, and it cannot guarantee that every distant correction fits the selected windows.
+
+`bench/task/history.toml` covers first-turn capture and unavailable details, long conversations followed by a restart, terse corrections, deletion before/after restart, and two tasks with conflicting details. Recall reports when there are no earlier task messages, while retaining details in the current message; it does not equate a missing memory match with an empty conversation. Its established tool description and recent-only context format are preserved after seeded capture regressions caught changed prompts causing repeated lookups or failed answers. Short capture/correction checks run before the expensive long-history cases. Its `delete = true` step invokes the same host operation as the task panel. Run it at seeds 1, 2 and 7, alongside `long/parking` from the historical corpus and the email regressions above. Use separate output paths for each binary/corpus/seed; task harness v3 binds those inputs and does not change the answer/effect checks.
+
+The [8 November validation record](../bench/task/evidence/history-2026-11-07.json) retains 27 passing Qwen3.5-4B workflow runs across those seeds, the failed intermediate prompts, source/input hashes and negative controls. This is focused desktop development evidence, separate from the unchanged frozen full matrix and physical Android acceptance.
+
+```bash
+cargo build --release -p pr3-bench-task --locked
+target/release/pr3-bench-task run --model model/Qwen3.5-4B-Q4_K_M.gguf --corpus bench/task/history.toml --seed 1 --out bench/task/result/history-seed1.jsonl
+target/release/pr3-bench-task run --model model/Qwen3.5-4B-Q4_K_M.gguf --case long/parking --seed 1 --out bench/task/result/parking-seed1.jsonl
+```
 
 The AgentDojo harness in [`bench/agentdojo`](../bench/agentdojo) compares PR3 with a plain tool-calling loop on the same model. Results so far: [Sec. 8.6](benchmarks.md#86-results-so-far).
 
