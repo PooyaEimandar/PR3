@@ -686,18 +686,31 @@ fn install_content(
             }
             crate::task::upsert(tx, &t.record)?;
             for (at, said) in t.chat {
-                let (kind, text, tool, args, success) = match said {
-                    crate::Said::User(v) => ("user", v, None, None, None),
-                    crate::Said::Reply(v) => ("reply", v, None, None, None),
-                    crate::Said::Failed(v) => ("failed", v, None, None, None),
+                let (kind, text, tool, args, success, sources) = match said {
+                    crate::Said::User(v) => ("user", v, None, None, None, None),
+                    crate::Said::Reply(v) => ("reply", v, None, None, None, None),
+                    crate::Said::Failed(v) => ("failed", v, None, None, None, None),
                     crate::Said::Tool {
                         name,
                         arguments,
                         success,
                         output,
-                    } => ("tool", output, Some(name), Some(arguments), Some(success)),
+                        sources,
+                    } => (
+                        "tool",
+                        output,
+                        Some(name),
+                        Some(arguments),
+                        Some(success),
+                        sources,
+                    ),
                 };
-                tx.execute("INSERT INTO messages(task_id,at,kind,text,tool,arguments,success) VALUES(?1,?2,?3,?4,?5,?6,?7)",params![id,crate::db_time(at)?,kind,text,tool,args,success]).map_err(error)?;
+                let sources = sources
+                    .as_ref()
+                    .map(serde_json::to_string)
+                    .transpose()
+                    .map_err(|e| pr3_memory::MemoryError(e.to_string()))?;
+                tx.execute("INSERT INTO messages(task_id,at,kind,text,tool,arguments,success,sources) VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",params![id,crate::db_time(at)?,kind,text,tool,args,success,sources]).map_err(error)?;
             }
         }
     }
@@ -820,6 +833,43 @@ mod tests {
         })
         .unwrap()
     }
+    #[test]
+    fn selected_task_sources_cross_devices_without_restoring_pending_approval() {
+        let (mut phone, mut desktop) = pair();
+        phone
+            .save_task(&crate::TaskRecord {
+                id: 50,
+                title: "Reference email".into(),
+                parent: None,
+                state: TaskState::Waiting(crate::WaitingCall {
+                    tool: "send_email".into(),
+                    arguments: "{}".into(),
+                    until: Timestamp(1000),
+                }),
+                updated_at: Timestamp(1),
+            })
+            .unwrap();
+        let source = crate::Said::Tool {
+            name: "read_web_page".into(),
+            arguments: "{}".into(),
+            success: true,
+            output: "Reference PUB-391".into(),
+            sources: Some(vec!["actual.example".into()]),
+        };
+        phone.add_said(50, Timestamp(1), &source).unwrap();
+        exchange(&mut phone, &mut desktop);
+        assert!(desktop.tasks().unwrap().is_empty());
+        phone
+            .continuity_share("task", 50, true, Timestamp(10))
+            .unwrap();
+        exchange(&mut phone, &mut desktop);
+        let received = desktop.tasks().unwrap();
+        assert_eq!(received.len(), 1);
+        assert_eq!(received[0].chat[0].1, source);
+        assert_eq!(received[0].record.state, TaskState::Failed(REVIEW.into()));
+        assert_ne!(received[0].record.id, 50);
+    }
+
     #[test]
     fn nothing_crosses_without_pairing_and_item_selection() {
         let (mut p, mut n) = pair();

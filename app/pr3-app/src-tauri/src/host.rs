@@ -152,13 +152,16 @@ pub enum TurnEvent {
         arguments: String,
         success: bool,
         output: String,
+        /// Origin metadata accepted from the registered tool's host adapter.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        sources: Option<Vec<String>>,
     },
     /// A consequential action waits for the user: show the confirmation card, built
     /// from the validated intent, and send the answer with `answer_approval`.
     Approval {
         request: ApprovalRequest,
-        /// The sites whose pages the model has read in this conversation and still sees,
-        /// for the card to name (docs RFC-002).
+        /// Origins of retained source results in this task and tasks it explicitly follows,
+        /// for the card to name (docs RFC-002). These labels never restore approval.
         #[serde(skip_serializing_if = "Vec::is_empty")]
         sources: Vec<String>,
     },
@@ -545,6 +548,7 @@ impl Host {
             .tasks()
             .map_err(|e| e.to_string())?
             .email_exclusions(id);
+        let sources = self.tasks().map_err(|e| e.to_string())?.sources(id);
         let (success, output) = Arc::clone(actions)
             .run_checked(
                 &call,
@@ -557,10 +561,9 @@ impl Host {
                         }
                     }
                     asked = Some((actions::names(&request.mail.to), request.expires_at));
-                    // Asked again after a restart: the model no longer sees any page.
                     on_event(TurnEvent::Approval {
                         request: request.clone(),
-                        sources: Vec::new(),
+                        sources: sources.clone(),
                     });
                 },
                 Arc::clone(&cancel),
@@ -573,6 +576,7 @@ impl Host {
             )
             .await;
         let tool = TurnEvent::Tool {
+            sources: None,
             name: call.name.clone(),
             arguments: call.arguments.clone(),
             success,
@@ -875,6 +879,7 @@ impl Host {
             ),
         };
         emit(TurnEvent::Tool {
+            sources: None,
             name: tool.to_string(),
             arguments,
             success,
@@ -1170,6 +1175,12 @@ impl Host {
                         earlier,
                     };
                     let ToolOutput { result, sources } = self.run_tool(&call, ctx).await;
+                    // Keep the actual tool result even if the core lock is unavailable.
+                    // Feeding its outcome below still reports that runtime failure.
+                    let labels = self
+                        .core()
+                        .ok()
+                        .and_then(|core| core.tool_sources(&call.name, &sources));
                     let (success, output) = match result {
                         Ok(text) => (true, text),
                         Err(error) => (false, error),
@@ -1180,6 +1191,7 @@ impl Host {
                             arguments: call.arguments.clone(),
                             success,
                             output: output.clone(),
+                            sources: labels,
                         });
                     }
                     queue.extend(self.step(Input::ToolOutcome {
@@ -1191,7 +1203,7 @@ impl Host {
                     })?);
                 }
                 Action::Propose(call) => {
-                    let sources = self.core()?.untrusted_sources(session);
+                    let sources = self.tasks()?.sources(session);
                     let (success, output) = match &self.actions {
                         Some(actions) => {
                             let ask = |request: &ApprovalRequest| {
@@ -1235,6 +1247,7 @@ impl Host {
                     };
                     if let Ok(mut emit) = on_event.lock() {
                         emit(TurnEvent::Tool {
+                            sources: None,
                             name: call.name.clone(),
                             arguments: call.arguments.clone(),
                             success,
@@ -3002,6 +3015,7 @@ mod tests {
             [Action::Reply { content, .. }] if content == "It is 7006652."
         ));
         assert!(events.contains(&TurnEvent::Tool {
+            sources: None,
             name: "calculate".to_string(),
             arguments: r#"{"expression":"1234*5678"}"#.to_string(),
             success: true,
@@ -3525,3 +3539,6 @@ mod tests {
         assert_eq!(host.backend_label(), MockBackend::default().label());
     }
 }
+
+#[cfg(test)]
+mod source_tests;

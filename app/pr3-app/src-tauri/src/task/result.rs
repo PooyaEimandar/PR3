@@ -184,6 +184,14 @@ impl Results {
         if self.has_operations() {
             return Some(self.line());
         }
+        if super::mail::requested(asked) {
+            let question = super::mail::clarification(generated)
+                .map(|question| format!(" {question}"))
+                .unwrap_or_default();
+            return Some(format!(
+                "No email draft was prepared · No email sent.{question}"
+            ));
+        }
         if action_request(asked) != (false, false) || completion_claim(generated) {
             return Some(format!(
                 "No action was completed for this request. {}",
@@ -200,10 +208,7 @@ fn action_request(text: &str) -> (bool, bool) {
         .iter()
         .find_map(|prefix| text.strip_prefix(prefix))
         .unwrap_or(&text);
-    let email = text.starts_with("email ")
-        || text.starts_with("send an email ")
-        || text.starts_with("send the email ")
-        || (text.starts_with("send ") && text.split_whitespace().any(|word| word == "email"));
+    let email = super::mail::requested(text);
     let memory = text.starts_with("remember that ")
         || text.starts_with("remember:")
         || text.starts_with("remember my ")
@@ -244,6 +249,17 @@ fn completion_claim(text: &str) -> bool {
             "the email was sent",
             "task completed",
             "memory updated",
+            "i prepared the email",
+            "i've prepared the email",
+            "i have prepared the email",
+            "i drafted the email",
+            "i've drafted the email",
+            "i have drafted the email",
+            "the email is prepared",
+            "your email is prepared",
+            "email prepared",
+            "email drafted",
+            "email ready",
         ]
         .iter()
         .any(|prefix| line.starts_with(prefix))
@@ -256,7 +272,81 @@ fn count(n: usize, noun: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn replayed_old_results_cannot_complete_a_new_draft_request_or_hide_clarification() {
+        let mut results = super::Results::default();
+        for entry in [
+            super::Entry::User {
+                text: "Remember the pickup".into(),
+            },
+            super::Entry::Tool {
+                sources: None,
+                name: "remember".into(),
+                arguments: "{}".into(),
+                success: true,
+                output: "saved for review".into(),
+            },
+            super::Entry::Reply {
+                text: "1 memory note saved for review · No email sent".into(),
+            },
+            super::Entry::User {
+                text: "Prepare the pickup email now.".into(),
+            },
+        ] {
+            results.record(&entry);
+        }
+        assert!(results.incomplete());
+        for text in [
+            "The email is prepared.",
+            "1 memory note saved for review · No email sent",
+        ] {
+            assert_eq!(
+                results
+                    .completion("Prepare the pickup email now.", text)
+                    .unwrap(),
+                "No email draft was prepared · No email sent."
+            );
+        }
+        let answer = results
+            .completion(
+                "Prepare the pickup email now.",
+                super::super::mail::NEED_RECIPIENT,
+            )
+            .unwrap();
+        assert!(answer.contains(super::super::mail::NEED_RECIPIENT));
+        assert!(!answer.contains("saved for review"));
+    }
+
     use super::*;
+
+    #[test]
+    fn preparing_email_is_pending_until_a_runtime_proposal_completes() {
+        for (asked, claim) in [
+            (
+                "Prepare the email with only the public reference now.",
+                "The email is prepared and waiting for your review.",
+            ),
+            (
+                "Prepare the pickup email to Alex now, with only the public reference.",
+                "1 memory note saved for review · No email sent",
+            ),
+            (
+                "Please draft an email to Alex about pickup.",
+                "I've drafted the email. Let me know if you'd like changes.",
+            ),
+        ] {
+            let mut results = Results::default();
+            results.record(&Entry::User { text: asked.into() });
+            assert!(results.incomplete(), "{asked}");
+            let reply = results
+                .completion(asked, claim)
+                .expect("runtime owns action status");
+            assert!(reply.contains("No email"), "{reply}");
+            assert!(!reply.contains("1 memory note saved"));
+            assert!(!reply.contains("I've drafted"));
+            assert_ne!(results.card_line(), "Reply ready");
+        }
+    }
 
     #[test]
     fn an_opened_draft_still_needs_user_review_and_never_becomes_sent() {
@@ -265,6 +355,7 @@ mod tests {
             text: "Email Test Person".into(),
         });
         results.record(&Entry::Tool {
+            sources: None,
             name: "send_email".into(),
             arguments: "{}".into(),
             success: true,
@@ -307,6 +398,7 @@ mod tests {
                 .is_some()
         );
         results.record(&Entry::Tool {
+            sources: None,
             name: "remember".into(),
             arguments: "{}".into(),
             success: true,
@@ -317,12 +409,14 @@ mod tests {
             .unwrap();
         assert_eq!(text, "1 memory note already confirmed · No email sent");
         results.record(&Entry::Tool {
+            sources: None,
             name: "correct_memory".into(),
             arguments: "{}".into(),
             success: true,
             output: "updated".into(),
         });
         results.record(&Entry::Tool {
+            sources: None,
             name: "send_email".into(),
             arguments: "{}".into(),
             success: false,
@@ -349,6 +443,7 @@ mod tests {
         assert_eq!(results.card_line(), "Reply ready");
         assert_eq!(results.line(), "No new memory saved · No email sent");
         results.record(&Entry::Tool {
+            sources: None,
             name: "send_email".into(),
             arguments: "{}".into(),
             success: false,
@@ -367,6 +462,7 @@ mod tests {
         let mut results = Results::default();
         for name in ["save_memory", "remember", "send_email"] {
             results.record(&Entry::Tool {
+                sources: None,
                 name: name.into(),
                 arguments: "{}".into(),
                 success: true,

@@ -18,6 +18,8 @@ Record phone model, Android version, PR3 build, local model, email app/version a
 | Revoke Contacts in Android Settings after syncing | Next panel refresh/email attempt clears imported contacts and refuses stale recipients |
 | Ask for an email, then Decline | No mail app opens; no claim of sending |
 | Capture public reference `DEMO-246` and private reference `PRIVATE-731`; say `Remove the private reference from the email.`; restart and request the draft | Approval and the mail-app draft contain `DEMO-246` and omit `PRIVATE-731`, including explanations of what was removed; the handoff still requires approval |
+| Read a public page, restart PR3, resume the task and request an email using its details | Any approval card names the page's actual site, including after a redirect; source labels alone never open the mail app. Record a missing card separately as a workflow failure |
+| Close PR3 while that approval card is pending; reopen and ask again | The fresh card retains the source site and still requires approval and device verification; nothing opens automatically |
 | Approve a draft | PR3 shows exact recipients/subject/body, performs device check, then opens the mail app for review |
 | Review in mail app | Recipient, subject, Unicode text and line breaks match the PR3 approval; no unexpected cc/bcc |
 | Cancel/back out of mail app | PR3 still says draft opened and delivery unverified, never sent; task remains open |

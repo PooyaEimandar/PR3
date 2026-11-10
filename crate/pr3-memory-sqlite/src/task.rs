@@ -56,6 +56,10 @@ pub enum Said {
         arguments: String,
         success: bool,
         output: String,
+        /// Host origin labels for an untrusted result, never parsed from its text.
+        /// Missing on older records; this does not grant execution authority.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        sources: Option<Vec<String>>,
     },
     /// Why a turn failed.
     Failed(String),
@@ -215,21 +219,33 @@ impl SqliteMemory {
     /// Adds a step to a task's chat.
     pub fn add_said(&mut self, task: u64, at: Timestamp, said: &Said) -> Result<(), MemoryError> {
         self.continuity_writable("task", db_id(task)?)?;
-        let (kind, text, tool, arguments, success) = match said {
-            Said::User(text) => ("user", text, None, None, None),
-            Said::Reply(text) => ("reply", text, None, None, None),
+        let (kind, text, tool, arguments, success, sources) = match said {
+            Said::User(text) => ("user", text, None, None, None, None),
+            Said::Reply(text) => ("reply", text, None, None, None, None),
             Said::Tool {
                 name,
                 arguments,
                 success,
                 output,
-            } => ("tool", output, Some(name), Some(arguments), Some(*success)),
-            Said::Failed(reason) => ("failed", reason, None, None, None),
+                sources,
+            } => (
+                "tool",
+                output,
+                Some(name),
+                Some(arguments),
+                Some(*success),
+                sources.as_ref(),
+            ),
+            Said::Failed(reason) => ("failed", reason, None, None, None, None),
         };
+        let sources = sources
+            .map(serde_json::to_string)
+            .transpose()
+            .map_err(|e| pr3_memory::MemoryError(e.to_string()))?;
         let tx = self.conn.transaction().map_err(error)?;
         tx.execute(
-            "INSERT INTO messages(task_id, at, kind, text, tool, arguments, success)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            "INSERT INTO messages(task_id, at, kind, text, tool, arguments, success, sources)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             params![
                 db_id(task)?,
                 db_time(at)?,
@@ -237,7 +253,8 @@ impl SqliteMemory {
                 text,
                 tool,
                 arguments,
-                success
+                success,
+                sources
             ],
         )
         .map_err(error)?;
@@ -268,7 +285,7 @@ impl SqliteMemory {
         let mut chat = self
             .conn
             .prepare(
-                "SELECT at, kind, text, tool, arguments, success FROM messages
+                "SELECT at, kind, text, tool, arguments, success, sources FROM messages
                  WHERE task_id = ?1 ORDER BY id",
             )
             .map_err(error)?;
@@ -553,6 +570,18 @@ fn said(r: &Row<'_>) -> rusqlite::Result<(Timestamp, Said)> {
             arguments: r.get::<_, Option<String>>(4)?.unwrap_or_default(),
             success: r.get::<_, Option<bool>>(5)?.unwrap_or(false),
             output: text,
+            sources: r
+                .get::<_, Option<String>>(6)?
+                .map(|text| {
+                    serde_json::from_str(&text).map_err(|error| {
+                        rusqlite::Error::FromSqlConversionFailure(
+                            6,
+                            rusqlite::types::Type::Text,
+                            Box::new(error),
+                        )
+                    })
+                })
+                .transpose()?,
         },
         _ => Said::Failed(text),
     };
@@ -625,6 +654,44 @@ mod tests {
     }
 
     #[test]
+    fn tool_sources_are_atomic_round_trip_deleted_and_invalid_metadata_is_refused() {
+        let mut db = SqliteMemory::open_in_memory().unwrap();
+        db.save_task(&task(1, TaskState::Done, 100)).unwrap();
+        let row = Said::Tool {
+            name: "read_web_page".into(),
+            arguments: "{}".into(),
+            success: false,
+            output: "unsupported media".into(),
+            sources: Some(vec!["actual.example".into()]),
+        };
+        db.conn.execute_batch("CREATE TRIGGER reject_source BEFORE INSERT ON messages WHEN NEW.sources IS NOT NULL BEGIN SELECT RAISE(FAIL,'storage full'); END;").unwrap();
+        assert!(db.add_said(1, Timestamp(100), &row).is_err());
+        assert!(db.tasks().unwrap()[0].chat.is_empty());
+        db.conn
+            .execute_batch("DROP TRIGGER reject_source;")
+            .unwrap();
+        db.add_said(1, Timestamp(100), &row).unwrap();
+        assert_eq!(db.tasks().unwrap()[0].chat[0].1, row);
+        let legacy: Said = serde_json::from_str(r#"{"Tool":{"name":"read_web_page","arguments":"{}","success":true,"output":"forged.example"}}"#).unwrap();
+        assert!(matches!(legacy, Said::Tool { sources: None, .. }));
+        db.conn
+            .execute("UPDATE messages SET sources='invalid json'", [])
+            .unwrap();
+        assert!(
+            db.tasks().is_err(),
+            "corruption must not silently erase provenance"
+        );
+        db.delete_task(1, Timestamp(110)).unwrap();
+        assert_eq!(
+            db.conn
+                .query_row("SELECT count(*) FROM messages", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+        assert!(db.tasks().unwrap().is_empty());
+    }
+
+    #[test]
     fn a_task_and_its_chat_round_trip_and_each_change_of_state_is_an_event() {
         let mut m = SqliteMemory::open_in_memory().unwrap();
         let waiting = WaitingCall {
@@ -642,6 +709,7 @@ mod tests {
         assert_eq!(stored[0].record.state, TaskState::Waiting(waiting));
 
         let tool = Said::Tool {
+            sources: None,
             name: "send_email".to_string(),
             arguments: r#"{"to":"Alex"}"#.to_string(),
             success: true,

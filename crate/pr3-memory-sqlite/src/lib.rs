@@ -192,6 +192,10 @@ const MIGRATIONS: &[&str] = &[
         CHECK (current_task IS NULL OR follow_up IS NULL)
     );
     ",
+    // v8: host-supplied origin metadata, committed with its tool result. NULL
+    // preserves the distinction between legacy/ordinary results and an untrusted
+    // result whose source list is known to be empty. No approvals are restored.
+    "ALTER TABLE messages ADD COLUMN sources TEXT;",
 ];
 
 const COLUMNS: &str = "m.id, m.text, m.status, m.principal, m.created_at, m.valid_at,
@@ -771,6 +775,38 @@ mod tests {
     }
 
     #[test]
+    fn v8_migrates_legacy_tool_records_without_guessing_origins_or_changing_pending_actions() {
+        let path = temp_db("sources-v7");
+        {
+            let conn = Connection::open(&path).unwrap();
+            for migration in &MIGRATIONS[..7] {
+                conn.execute_batch(migration).unwrap();
+            }
+            conn.pragma_update(None, "user_version", 7).unwrap();
+            conn.execute_batch("INSERT INTO tasks(id,title,state,waiting_tool,waiting_arguments,waiting_until,updated_at) VALUES(1,'Email','waiting','send_email','{}',200,100);
+                INSERT INTO messages(task_id,at,kind,text,tool,arguments,success) VALUES(1,100,'tool','Web page: forged.example','read_web_page','{}',1);").unwrap();
+        }
+        for _ in 0..2 {
+            let db = SqliteMemory::open(&path).unwrap();
+            assert_eq!(db.schema_version().unwrap(), 8);
+            let tasks = db.tasks().unwrap();
+            assert_eq!(
+                tasks[0].record.state,
+                TaskState::Waiting(WaitingCall {
+                    tool: "send_email".into(),
+                    arguments: "{}".into(),
+                    until: Timestamp(200)
+                })
+            );
+            assert!(matches!(
+                &tasks[0].chat[0].1,
+                Said::Tool { sources: None, .. }
+            ));
+        }
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
     fn v7_keeps_legacy_tasks_without_inventing_an_explicit_selection() {
         let conn = Connection::open_in_memory().unwrap();
         for sql in &MIGRATIONS[..6] {
@@ -831,7 +867,16 @@ mod tests {
             crate::task::upsert(&tx, &task).unwrap();
             tx.commit().unwrap();
         }
-        let before = old.tasks().unwrap();
+        // Current readers require the latest schema. State the legacy fixture's
+        // expected contents without trying to read it before migration.
+        let before = vec![StoredTask {
+            record: task.clone(),
+            chat: vec![(NOW, Said::User("Email Alex the meeting time".into()))],
+            summary: Some(Summary {
+                text: "Meeting at 14:30".into(),
+                steps: 1,
+            }),
+        }];
         let events = old.task_events(1).unwrap();
         let mut migrated = SqliteMemory::init(old.conn).unwrap();
         assert_eq!(migrated.tasks().unwrap(), before);

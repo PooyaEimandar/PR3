@@ -503,7 +503,8 @@ fn include_usage(answer: &mut ChatOutput, earlier: &ChatOutput) {
 }
 
 /// A repeated proposal is not an execution. Give the planner one chance to use the
-/// existing results before the host's loop guard ends the task. Only an entirely
+/// existing results, then use the existing protected answer pass if it repeats
+/// those reads again. Only an entirely
 /// repeated, caller-declared read-only batch is repaired: never hide new proposals
 /// or intercept repeated actions before the host loop guard.
 fn repair_repeated_plan<F>(
@@ -535,14 +536,16 @@ where
                         == Some(&args)
             })
     };
-    if first.tool_calls.is_empty()
-        || !first.tool_calls.iter().all(|call| {
-            repeats(call)
-                && tools
-                    .iter()
-                    .any(|tool| tool.name == call.name && tool.read_only)
-        })
-    {
+    let repeated_reads = |calls: &[ToolCallText]| {
+        !calls.is_empty()
+            && calls.iter().all(|call| {
+                repeats(call)
+                    && tools
+                        .iter()
+                        .any(|tool| tool.name == call.name && tool.read_only)
+            })
+    };
+    if !repeated_reads(&first.tool_calls) {
         return Ok(first);
     }
     if !emit("") {
@@ -561,7 +564,14 @@ where
          answer if it is complete. Do not repeat completed actions.",
     ));
     let mut repaired = generate(&correction, emit)?;
-    if repaired.tool_calls.iter().any(repeats) {
+    if repeated_reads(&repaired.tool_calls) {
+        // The one correction was exhausted. Execute nothing and let guarded_answer
+        // use its existing tool-free answer pass. It can acknowledge missing facts
+        // or ask a question from the recorded results, without another lookup or
+        // exposing either planning draft. Mixed batches/actions still fail below.
+        repaired.tool_calls.clear();
+        repaired.text.clear();
+    } else if repaired.tool_calls.iter().any(repeats) {
         return Err(EngineError::Decode(
             "could not choose a new step from the recorded results".into(),
         ));
@@ -631,6 +641,48 @@ mod answer_guard_tests {
     }
 
     #[test]
+    fn exhausted_read_only_repair_uses_the_existing_protected_answer_pass() {
+        let mut planned_passes = 0;
+        let mut answer_passes = 0;
+        let mut visible = String::new();
+        let out = guarded_answer(
+            &tools(),
+            &mut |s| {
+                visible.push_str(s);
+                true
+            },
+            &mut |offered, emit| {
+                if offered.is_empty() {
+                    answer_passes += 1;
+                    assert!(emit("unreleased answer draft"));
+                    return Ok(output("What tone would you like for the wedding speech?"));
+                }
+                repair_repeated_plan(&prior_lookup(), offered, emit, &mut |_, emit| {
+                    planned_passes += 1;
+                    assert!(emit("untrusted planning prose"));
+                    Ok(planned(r#"{"a":1,"b":2}"#))
+                })
+            },
+        )
+        .unwrap();
+        assert_eq!((planned_passes, answer_passes), (2, 1));
+        assert!(
+            out.tool_calls.is_empty(),
+            "no repeated lookup reaches execution"
+        );
+        assert_eq!(visible, out.text);
+        assert!(!visible.contains("untrusted") && !visible.contains("unreleased"));
+        assert_eq!(
+            (
+                out.inference_passes,
+                out.prompt_tokens,
+                out.completion_tokens
+            ),
+            (3, 30, 15)
+        );
+    }
+
+    #[test]
     fn repeated_plan_gets_one_nonexecuting_correction_with_full_usage_accounting() {
         let mut calls = 0;
         let out = repair_repeated_plan(
@@ -680,12 +732,32 @@ mod answer_guard_tests {
                     Ok(planned(r#"{"a":1,"b":2}"#))
                 },
             );
-            assert!(out.is_err());
             assert_eq!(calls, if cancelled { 1 } else { 2 });
             if cancelled {
                 assert!(matches!(out, Err(EngineError::Stopped)));
+            } else {
+                let out = out.unwrap();
+                assert!(out.tool_calls.is_empty() && out.text.is_empty());
             }
         }
+    }
+
+    #[test]
+    fn a_mixed_repair_cannot_silently_drop_repeats_or_actions() {
+        let mut passes = 0;
+        let result = repair_repeated_plan(&prior_lookup(), &tools(), &mut |_| true, &mut |_, _| {
+            passes += 1;
+            let mut out = planned(r#"{"a":1,"b":2}"#);
+            if passes == 2 {
+                out.tool_calls.push(ToolCallText {
+                    name: "send_email".into(),
+                    arguments: "{}".into(),
+                });
+            }
+            Ok(out)
+        });
+        assert!(matches!(result, Err(EngineError::Decode(_))));
+        assert_eq!(passes, 2);
     }
 
     #[test]

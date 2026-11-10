@@ -210,6 +210,20 @@ impl Core {
         sources
     }
 
+    /// Bounded origin labels for a tool result, according to the registered tool's
+    /// trust classification. This is display metadata, never a result or permission.
+    /// `Some([])` means an untrusted result whose host supplied no origin.
+    pub fn tool_sources(&self, tool: &str, sources: &[String]) -> Option<Vec<String>> {
+        self.tools.untrusted_output(tool).then(|| {
+            sources
+                .iter()
+                .take(MAX_SOURCES_PER_RESULT)
+                .map(|source| clip(source.trim(), MAX_SOURCE_BYTES))
+                .filter(|source| !source.is_empty())
+                .collect()
+        })
+    }
+
     /// What the session's next turn shows the model before its new message: the history,
     /// with the brief on its first message, and the tools. For a host that has the model
     /// read it while the user writes, so the turn reads little more than its message.
@@ -525,13 +539,7 @@ impl Core {
         self.push_tool_result(session, &call, content.clone(), at)?;
         // A failure may still contain remote headers or other attacker-controlled text.
         // Whether an operation succeeded says nothing about whether its output is trusted.
-        if self.tools.untrusted_output(&call.name) {
-            let sources = sources
-                .iter()
-                .take(MAX_SOURCES_PER_RESULT)
-                .map(|source| clip(source.trim(), MAX_SOURCE_BYTES))
-                .filter(|source| !source.is_empty())
-                .collect();
+        if let Some(sources) = self.tool_sources(&call.name, &sources) {
             self.turn_mut(session)?.read_untrusted = true;
             self.sessions
                 .entry(session)
@@ -1857,6 +1865,31 @@ mod tests {
         assert!(core.history(S).all(|m| m.tool_call_id.is_none()));
         assert!(core.untrusted_calls(S).is_empty());
         assert!(core.untrusted_sources(S).is_empty());
+    }
+
+    #[test]
+    fn source_metadata_requires_registered_untrusted_output_and_keeps_existing_bounds() {
+        let core = with_page_reader(Config::default());
+        let labels = vec!["  actual.example  ".into(), " ".into(), "é".repeat(300)];
+        assert!(core.tool_sources("send_email", &labels).is_none());
+        assert!(core.tool_sources("unregistered", &labels).is_none());
+        let accepted = core.tool_sources("read_web_page", &labels).unwrap();
+        assert_eq!(
+            accepted,
+            [
+                "actual.example".to_string(),
+                clip(&labels[2], MAX_SOURCE_BYTES)
+            ]
+        );
+        assert_eq!(
+            core.tool_sources("read_web_page", &vec!["site.example".into(); 100])
+                .unwrap()
+                .len(),
+            MAX_SOURCES_PER_RESULT
+        );
+        assert_eq!(core.tool_sources("read_web_page", &[]), Some(vec![]));
+        assert!(core.history(S).next().is_none());
+        assert!(!core.in_turn(S));
     }
 
     #[test]

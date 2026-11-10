@@ -35,8 +35,8 @@ type TurnEvent =
   | { type: "started"; task: number }
   | { type: "result"; text: string }
   | { type: "token"; text: string }
-  | { type: "tool"; name: string; arguments: string; success: boolean; output: string }
-  // `sources`: the sites whose pages the model has read and still sees, if any.
+  | { type: "tool"; name: string; arguments: string; success: boolean; output: string; sources?: string[] }
+  // `sources`: source labels retained with this task and tasks it explicitly follows, if any.
   | { type: "approval"; request: ApprovalRequest; sources?: string[] }
   // The message opened a new task; the one the conversation was on is set aside.
   | ({ type: "task_opened" } & Opened)
@@ -63,7 +63,7 @@ interface TaskCard {
 type Entry = (
   | { type: "user"; text: string }
   | { type: "reply"; text: string }
-  | { type: "tool"; name: string; arguments: string; success: boolean; output: string }
+  | { type: "tool"; name: string; arguments: string; success: boolean; output: string; sources?: string[] }
   | { type: "failed"; reason: string }
 ) & { at: number; result?: string };
 

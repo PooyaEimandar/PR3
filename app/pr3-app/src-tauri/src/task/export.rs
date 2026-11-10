@@ -111,6 +111,7 @@ fn markdown(task: &Task, card: &TaskCard, parent: Option<&Task>, at: (Timestamp,
                 arguments,
                 success,
                 output,
+                ..
             } => {
                 let how = if *success { "done" } else { "failed" };
                 format!(
@@ -263,6 +264,7 @@ mod tests {
         tasks.record(
             id,
             &TurnEvent::Tool {
+                sources: None,
                 name: "send_email".to_string(),
                 arguments: call.arguments.clone(),
                 success: true,

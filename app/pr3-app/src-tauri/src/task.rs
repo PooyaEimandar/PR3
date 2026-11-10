@@ -24,6 +24,7 @@ use crate::host::{Host, TurnEvent};
 pub mod export;
 pub(crate) mod mail;
 mod result;
+mod source;
 mod word;
 
 pub use export::Export;
@@ -109,6 +110,8 @@ pub enum Entry {
         arguments: String,
         success: bool,
         output: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        sources: Option<Vec<String>>,
     },
     Failed {
         reason: String,
@@ -488,6 +491,7 @@ impl Tasks {
             arguments,
             success,
             output,
+            sources,
         } = event
         {
             let answered = self
@@ -502,6 +506,7 @@ impl Tasks {
                     arguments: arguments.clone(),
                     success: *success,
                     output: output.clone(),
+                    sources: sources.clone(),
                 },
             );
             if answered {
@@ -642,6 +647,7 @@ impl Tasks {
         // Not yet in the chat when the app closed while the card was showing.
         if let Some(call) = task.waiting.take() {
             let entry = Entry::Tool {
+                sources: None,
                 name: call.tool,
                 arguments: call.arguments,
                 success: false,
@@ -1519,11 +1525,13 @@ impl From<Entry> for Said {
                 arguments,
                 success,
                 output,
+                sources,
             } => Self::Tool {
                 name,
                 arguments,
                 success,
                 output,
+                sources,
             },
             Entry::Failed { reason } => Self::Failed(reason),
         }
@@ -1540,11 +1548,13 @@ impl From<Said> for Entry {
                 arguments,
                 success,
                 output,
+                sources,
             } => Self::Tool {
                 name,
                 arguments,
                 success,
                 output,
+                sources,
             },
             Said::Failed(reason) => Self::Failed { reason },
         }
@@ -1808,6 +1818,7 @@ mod tests {
 
     fn declined() -> TurnEvent {
         TurnEvent::Tool {
+            sources: None,
             name: "send_email".to_string(),
             arguments: "{}".to_string(),
             success: false,
@@ -1899,6 +1910,7 @@ mod tests {
         tasks.record(
             id,
             &TurnEvent::Tool {
+                sources: None,
                 name: "send_email".into(),
                 arguments: "{}".into(),
                 success: true,
@@ -2086,6 +2098,7 @@ mod tests {
         tasks.record(
             child,
             &TurnEvent::Tool {
+                sources: None,
                 name: "calculate".to_string(),
                 arguments: "{}".to_string(),
                 success: true,
@@ -2441,6 +2454,7 @@ mod tests {
         tasks.record(
             old,
             &TurnEvent::Tool {
+                sources: None,
                 name: "read_web_page".into(),
                 arguments: "{}".into(),
                 success: true,
@@ -2770,6 +2784,7 @@ mod tests {
         tasks.record(
             id,
             &TurnEvent::Tool {
+                sources: None,
                 name: "send_email".into(),
                 arguments: "{}".into(),
                 success: true,
@@ -2795,6 +2810,7 @@ mod tests {
             tasks.record(
                 id,
                 &TurnEvent::Tool {
+                    sources: None,
                     name: "calculate".into(),
                     arguments: r#"{"expression":"20+30"}"#.into(),
                     success: true,
@@ -2806,6 +2822,7 @@ mod tests {
                 tasks.record(
                     id,
                     &TurnEvent::Tool {
+                        sources: None,
                         name: "send_email".into(),
                         arguments: "{}".into(),
                         success: true,

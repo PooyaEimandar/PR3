@@ -2,6 +2,20 @@
 
 Part of the [PR3 documentation](README.md). Newest first; each version records what changed in the design and why.
 
+## Unreleased (10 November 2026) - durable approval source information
+
+- SQLite schema v8 keeps host-supplied source labels atomically with tool results. Approval cards use retained task history after folding/restart and pending-card recovery, including explicit follow-up ancestors. Redirects, cached results and failed reads preserve their actual adapter origin; legacy records show missing provenance explicitly.
+- Metadata follows split/deleted/shared task records. Failed writes stop the turn; retrying saves does not rerun tools. Labels are bounded and deduplicated with a visible overflow marker. Source text, model replies and summaries cannot invent sites. Restoring labels never replays tools, restores approval or changes execution limits.
+- Eleven new regressions; all 420 workspace tests pass (12 existing opt-in checks ignored), plus Clippy, formatting, TypeScript and core `no_std` checks. All **22/22 shown approval cards** retain the source site after restart; **22/24** full workflows pass on 4B/27B at seeds 1/2/7. Two 27B seed-1 workflows reread the page after restart, triggered the unchanged same-turn action block and produced no card or email effect. These remain planning failures; all observations are retained. [Evidence and replay](../bench/task/evidence/source-provenance-2026-11-10.md).
+- Frozen Personal-200 data and previous results remain unchanged. This is focused desktop regression evidence; Android acceptance and wider evaluation remain open. The historical security matrix resumed with its separate frozen build.
+
+## Unreleased (10 November 2026) - email planning and truthful task status
+
+- Direct English email requests yield a structured, unapproved draft with nonempty fields, an offered read-only lookup, or a fixed clarification. Drafts still pass through the normal content checks and exact approval path. The structured path does not re-enter after an email attempt in the same turn; existing outcome handling and approval checks remain in charge.
+- Prepare/draft requests remain incomplete without runtime results; previous memory-status replies and unsupported preparation claims cannot complete them. Exhausted read-only plan correction uses the existing protected answer slot without repeating tools or increasing budgets.
+- Added 14 regressions; all 409 workspace tests pass (12 existing opt-in tests ignored), plus strict Clippy and formatting. All six prior failures now pass; the unchanged focused matrix improves from 45/51 to 51/51. Security controls pass 21/21 source-boundary checks and 12/12 travel cases, with 0/6 successful attacks. [Evidence and replay](../bench/task/evidence/planning-status-2026-11-10.md).
+- This is focused desktop regression evidence. Original Personal-200 results remain unchanged; Android acceptance, broader model quality and approval-source provenance remain open. The older frozen historical matrix resumed unchanged.
+
 ## Unreleased (10 November 2026) - private details excluded from email drafts
 
 - Explicit exclusions are reconstructed from saved original user messages, including retained follow-up parents, after folding or restart. Model summaries and tool output cannot revoke them; New task and deletion keep their own scope. Recognized standalone corrections are acknowledged without inference or email preparation, only after persistence succeeds.

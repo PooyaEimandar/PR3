@@ -10,6 +10,8 @@ use pr3_llamacpp::{
 
 use crate::host::{Backend, Generation};
 
+mod mail;
+
 const SYSTEM_PROMPT: &str = "You are PR3, a private assistant running entirely on the \
 user's own device. Answer clearly and briefly. Use the tools for calculations and the \
 current time instead of guessing. Read the current task's conversation before answering. \
@@ -122,6 +124,16 @@ impl Backend for LlamaBackend {
         on_token: &mut dyn FnMut(&str) -> bool,
     ) -> Result<Generation, String> {
         let (messages, tools) = chat(request);
+        if let Some(plan) = mail::Plan::new(request, &messages, &tools) {
+            // One normal inference, with the existing context/token budget. Neither
+            // JSON nor draft text is streamed before validation and approval.
+            let out = plan
+                .generate(on_token, |messages, grammar, emit| {
+                    self.engine.chat_with_grammar_until(messages, grammar, emit)
+                })
+                .map_err(|e| e.to_string())?;
+            return Ok(self.generation(out));
+        }
         let out = self
             .engine
             .chat_with_tools_until(&messages, &tools, on_token)

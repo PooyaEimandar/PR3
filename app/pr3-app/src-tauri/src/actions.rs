@@ -799,6 +799,7 @@ mod tests {
             tasks.record(
                 id,
                 &crate::host::TurnEvent::Tool {
+                    sources: None,
                     name: "send_email".into(),
                     arguments: TO_ALEX.into(),
                     success: ok,
