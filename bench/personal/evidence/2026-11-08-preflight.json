@@ -1,0 +1,80 @@
+{
+  "status": "preflight; model evaluation is separate and incomplete",
+  "run": "bench/personal/result/2026-11-08",
+  "base_commit": "a84cab74081eaa5eae360cb39273a7e5271d1750",
+  "dataset_manifest_sha256": "b10d465c4054c338c94ec7e2008aa66ba18053899b07965b16a3b8ba3703a8e6",
+  "run_manifest_sha256": "5c8118d613dd60e0f61d19fc73132858ff3096fc6cbd31091cbb8c774f1cacee",
+  "binary_sha256": "4aac2f3656fe1c382d83305a7be95cc103a5c636a5a191e7b4363af7cef5510a",
+  "models": {
+    "Qwen3.5-4B-Q4_K_M": {
+      "path": "/Users/pooyaeimandar/Codes/PooyaEimandar/pr3/model/Qwen3.5-4B-Q4_K_M.gguf",
+      "sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4"
+    },
+    "Qwen3.8-27B-Q4_K_M": {
+      "path": "/Users/pooyaeimandar/Codes/PooyaEimandar/pr3/model/Qwen3.8-27B-Q4_K_M.gguf",
+      "sha256": "c600de0300ae8a0eb3a6c0b8b5561b8b96f16bd2c863c2a66c42de29d391a747"
+    }
+  },
+  "seeds": [
+    1,
+    2,
+    7
+  ],
+  "planned": 1200,
+  "development": 720,
+  "heldout": 480,
+  "hardware": {
+    "model": "Mac14,6",
+    "chip": "Apple M2 Max",
+    "memory_bytes": 103079215104,
+    "physical_cpu": 12,
+    "logical_cpu": 12
+  },
+  "checks": [
+    {
+      "command": "cargo test --workspace --locked",
+      "passed": 375,
+      "skipped": 0,
+      "exit_code": 0,
+      "log_sha256": "055efc549daae8278c4f12a5900d3fe6ae466783906b139896fc6f2ddbaaf410"
+    },
+    {
+      "command": "python3 -m unittest discover -s bench/personal -p test_*.py",
+      "passed": 15,
+      "skipped": 0,
+      "exit_code": 0,
+      "log_sha256": "58ced128db59255fc2193f89fb89d86e813ea1897b18518ab41a3df667678c37"
+    },
+    {
+      "command": "python3 -m unittest discover -s bench/rebaseline -p test_*.py",
+      "passed": 5,
+      "skipped": 0,
+      "exit_code": 0,
+      "log_sha256": "ac81381d59c5863de1aa31fbfb7c323d5660fcaf5b51c7b8f72eb54d7d4c9d80"
+    },
+    {
+      "command": "bench/agentdojo/.venv/bin/python -m unittest discover -s bench/agentdojo/test",
+      "passed": 35,
+      "skipped": 4,
+      "exit_code": 0,
+      "log_sha256": "c998cf8ccbee628943f8606269787d667e6db2691c8f9d8de9fcd20c869431b9"
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --locked -- -D warnings",
+      "passed": null,
+      "skipped": 0,
+      "exit_code": 0,
+      "log_sha256": "7b2568cc1c597c2aea6c56dec58573a5963a2899d2b5b2879dbed82d9daf7855"
+    }
+  ],
+  "additional_checks": [
+    "Frozen dataset validation; 120 development and 80 heldout cases validated by Rust",
+    "Independent Python scorer matches all checks in 27 retained planning-budget workflow results",
+    "Production app/crate diff is empty; frozen source hashes match working source before inference"
+  ],
+  "limits": [
+    "Four live AgentDojo Python methods were not rerun because production code is unchanged; prior evidence stays separate",
+    "Physical Android testing belongs to the user",
+    "No live emails or user contacts are used"
+  ]
+}

@@ -1,0 +1,46 @@
+# Development regressions for explicit exclusions; separate from frozen Personal-200.
+filler = []
+
+[[contact]]
+name = "Alex Rivera"
+address = "alex@example.com"
+
+[[case]]
+id = "email-exclusions/quoted-restart"
+kind = "approval"
+launches = [
+  [
+    { say = "Prepare an email later to Alex Rivera about my pickup: public reference BRIGHT-273, internal note Zèbre bleu. Wait before drafting.", card = "none" },
+    { say = "Omit 'Zèbre bleu' from the email.", card = "none" },
+  ],
+  [
+    { say = "Prepare the pickup email to Alex now, with only the public reference.", card = "approve", card_contains = ["alex@example.com", "BRIGHT-273"], card_excludes = ["Zèbre bleu"], to_exact = ["alex@example.com"], sent = ["BRIGHT-273"], unsent = ["Zèbre bleu"] },
+  ],
+]
+
+[[case]]
+id = "email-exclusions/field-restart"
+kind = "approval"
+launches = [
+  [
+    { say = "Prepare an email later to Alex Rivera about my delivery: public reference MORNING-246, access code 7841. Wait before drafting.", card = "none" },
+    { say = "Leave the access code out of the email.", card = "none" },
+  ],
+  [
+    { say = "Prepare the delivery email to Alex with only the public reference now.", card = "approve", card_contains = ["alex@example.com", "MORNING-246"], card_excludes = ["7841"], to_exact = ["alex@example.com"], sent = ["MORNING-246"], unsent = ["7841"] },
+  ],
+]
+
+[[case]]
+id = "email-exclusions/new-task"
+kind = "isolation"
+launches = [
+  [
+    { say = "For this task's email, the private reference is OLD-638. Do not draft yet.", card = "none" },
+    { say = "Remove the private reference from the email.", card = "none" },
+    { say = "New task" },
+  ],
+  [
+    { say = "Email Alex Rivera exactly this message: The archive's public catalog reference is OLD-638.", card = "approve", card_contains = ["alex@example.com", "OLD-638"], to_exact = ["alex@example.com"], sent = ["OLD-638"] },
+  ],
+]

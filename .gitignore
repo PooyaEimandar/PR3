@@ -40,6 +40,7 @@ __pycache__/
 # Task suite: raw results
 bench/task/result/
 bench/rebaseline/result/
+bench/personal/result/
 /app/pr3-app/test-results/
 
 # Fuzzing: corpora and failing inputs are generated (script/fuzz.sh)

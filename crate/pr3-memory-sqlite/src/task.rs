@@ -94,13 +94,71 @@ pub struct StoredTask {
     pub summary: Option<Summary>,
 }
 
+/// Local conversation navigation, separate from task state and never shared with
+/// another device. New task is a durable choice, not a missing selection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TaskSelection {
+    NewTask,
+    Current(u64),
+    FollowUp(u64),
+}
+
 impl SqliteMemory {
+    /// `None` is a legacy database whose selection has never been recorded.
+    pub fn task_selection(&self) -> Result<Option<TaskSelection>, MemoryError> {
+        self.conn
+            .query_row(
+                "SELECT current_task, follow_up FROM task_selection WHERE singleton = 1",
+                [],
+                |row| {
+                    let current: Option<i64> = row.get(0)?;
+                    let follows: Option<i64> = row.get(1)?;
+                    Ok(match (current, follows) {
+                        (Some(id), _) => TaskSelection::Current(unsigned(id)),
+                        (_, Some(id)) => TaskSelection::FollowUp(unsigned(id)),
+                        _ => TaskSelection::NewTask,
+                    })
+                },
+            )
+            .optional()
+            .map_err(error)
+    }
+
+    /// Commit navigation before reporting it to the user. This grants no action
+    /// authority and does not change the task's history or approval state.
+    pub fn select_task(&mut self, selection: TaskSelection) -> Result<(), MemoryError> {
+        if let TaskSelection::Current(id) | TaskSelection::FollowUp(id) = selection {
+            self.continuity_writable("task", db_id(id)?)?;
+        }
+        let tx = self.conn.transaction().map_err(error)?;
+        select(&tx, selection)?;
+        tx.commit().map_err(error)
+    }
+
+    /// A new/current turn and its selection commit together. Background updates
+    /// use `save_task` so they cannot steal the local conversation selection.
+    pub fn save_current_task(&mut self, task: &TaskRecord) -> Result<(), MemoryError> {
+        self.continuity_writable("task", db_id(task.id)?)?;
+        let tx = self.conn.transaction().map_err(error)?;
+        upsert(&tx, task)?;
+        select(&tx, TaskSelection::Current(task.id))?;
+        tx.commit().map_err(error)
+    }
+
     /// Stores a task's record, adding it if it is new. A new task, and each change of
     /// state, is logged as an event.
     pub fn save_task(&mut self, task: &TaskRecord) -> Result<(), MemoryError> {
         self.continuity_writable("task", db_id(task.id)?)?;
         let tx = self.conn.transaction().map_err(error)?;
         upsert(&tx, task)?;
+        if task.state == TaskState::Finished {
+            tx.execute(
+                "UPDATE task_selection SET current_task = NULL, follow_up = NULL
+                 WHERE current_task = ?1 OR follow_up = ?1",
+                params![db_id(task.id)?],
+            )
+            .map_err(error)?;
+        }
         tx.commit().map_err(error)
     }
 
@@ -137,6 +195,7 @@ impl SqliteMemory {
         )
         .map_err(error)?;
         upsert(&tx, from)?;
+        select(&tx, TaskSelection::Current(to.id))?;
         tx.commit().map_err(error)
     }
 
@@ -323,6 +382,22 @@ impl SqliteMemory {
         }
         Ok(true)
     }
+}
+
+fn select(tx: &Transaction<'_>, selection: TaskSelection) -> Result<(), MemoryError> {
+    let (current, follows) = match selection {
+        TaskSelection::NewTask => (None, None),
+        TaskSelection::Current(id) => (Some(db_id(id)?), None),
+        TaskSelection::FollowUp(id) => (None, Some(db_id(id)?)),
+    };
+    tx.execute(
+        "INSERT INTO task_selection(singleton, current_task, follow_up) VALUES (1, ?1, ?2)
+         ON CONFLICT(singleton) DO UPDATE SET
+             current_task = excluded.current_task, follow_up = excluded.follow_up",
+        params![current, follows],
+    )
+    .map_err(error)?;
+    Ok(())
 }
 
 /// Deletes a task; its chat goes with it (`ON DELETE CASCADE`).
@@ -512,6 +587,41 @@ mod tests {
             .unwrap()
             .collect::<Result<_, _>>()
             .unwrap()
+    }
+
+    #[test]
+    fn task_selection_commits_with_a_new_task_and_clears_when_its_target_is_deleted() {
+        let mut m = SqliteMemory::open_in_memory().unwrap();
+        assert_eq!(m.task_selection().unwrap(), None);
+        m.select_task(TaskSelection::NewTask).unwrap();
+        m.conn.execute_batch("CREATE TRIGGER fail_selection AFTER UPDATE ON task_selection BEGIN SELECT RAISE(FAIL, 'storage full'); END;").unwrap();
+        assert!(
+            m.save_current_task(&task(1, TaskState::Working, 100))
+                .is_err()
+        );
+        assert!(m.tasks().unwrap().is_empty());
+        assert!(events(&m).is_empty());
+        assert_eq!(m.task_selection().unwrap(), Some(TaskSelection::NewTask));
+        m.conn
+            .execute_batch("DROP TRIGGER fail_selection;")
+            .unwrap();
+        m.save_current_task(&task(1, TaskState::Done, 100)).unwrap();
+        m.save_task(&task(2, TaskState::Done, 110)).unwrap();
+        assert_eq!(
+            m.task_selection().unwrap(),
+            Some(TaskSelection::Current(1)),
+            "background task writes cannot change selection"
+        );
+        m.select_task(TaskSelection::FollowUp(1)).unwrap();
+        m.delete_task(1, Timestamp(120)).unwrap();
+        assert_eq!(m.task_selection().unwrap(), Some(TaskSelection::NewTask));
+        assert_eq!(m.tasks().unwrap()[0].record.id, 2);
+        assert!(m.select_task(TaskSelection::Current(999)).is_err());
+        assert_eq!(m.task_selection().unwrap(), Some(TaskSelection::NewTask));
+        m.select_task(TaskSelection::Current(2)).unwrap();
+        m.save_task(&task(2, TaskState::Finished, 130)).unwrap();
+        assert_eq!(m.task_selection().unwrap(), Some(TaskSelection::NewTask));
+        assert!(m.task_events_intact().unwrap());
     }
 
     #[test]

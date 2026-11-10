@@ -158,6 +158,8 @@ jobs:
         working-directory: bench/agentdojo
       - name: Full matrix completeness and error accounting
         run: python -m unittest discover -s bench/rebaseline -p 'test_*.py'
+      - name: Personal-200 frozen split, scoring and resume checks
+        run: python -m unittest discover -s bench/personal -p 'test_*.py'
 
   miri:
     # Undefined behaviour in the core and the code it calls (docs Sec. 12), on the

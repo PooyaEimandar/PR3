@@ -541,9 +541,14 @@ impl Host {
             .cancellation(id)
             .ok_or("task is no longer running")?;
         let execution_tasks = Arc::clone(&self.tasks);
+        let exclusions = self
+            .tasks()
+            .map_err(|e| e.to_string())?
+            .email_exclusions(id);
         let (success, output) = Arc::clone(actions)
-            .run_controlled(
+            .run_checked(
                 &call,
+                move |mail| exclusions.check(mail),
                 |request| {
                     if let Ok(mut tasks) = self.tasks.lock() {
                         tasks.waiting(id, &call, request.expires_at, now());
@@ -716,6 +721,8 @@ impl Host {
         let result = if let Some(command) = crate::memory::command(&text) {
             self.capture_memory(session, &text, command, &mut recorded)
                 .await
+        } else if task::mail::command(&text) {
+            self.capture_email_instruction(session, &text).await
         } else {
             self.turn(session, text, utc_offset_minutes, recorded).await
         };
@@ -749,6 +756,52 @@ impl Host {
         }
         saved.map_err(HostError::Host)?;
         result
+    }
+
+    /// A standalone content correction records instructions, not permission to
+    /// prepare an email. Keep the normal core turn/input/provenance boundary but
+    /// acknowledge it without inference or tools, like an explicit memory command.
+    async fn capture_email_instruction(
+        &self,
+        session: SessionId,
+        utterance: &str,
+    ) -> Result<Vec<Action>, HostError> {
+        let _settled = self.settling.lock().await;
+        self.cancelled(session)?;
+        self.restore(session)?;
+        let started = self.step(Input::Utterance {
+            session,
+            content: utterance.to_string(),
+            notes: Vec::new(),
+            at: now(),
+        })?;
+        let Some(request) = started.iter().find_map(|action| match action {
+            Action::Infer(request) => Some(request.id),
+            _ => None,
+        }) else {
+            return Ok(self.deliver(started));
+        };
+        let content = self.tasks()?.email_exclusions(session).acknowledgement();
+        let finished = self.step(if let Err(error) = self.cancelled(session) {
+            Input::ModelFailed {
+                request,
+                reason: error.to_string(),
+                at: now(),
+            }
+        } else {
+            Input::ModelOutput {
+                request,
+                content,
+                tool_calls: Vec::new(),
+                info: GenerationInfo {
+                    model: "PR3 email content instruction".into(),
+                    engine: "runtime".into(),
+                    ..GenerationInfo::default()
+                },
+                at: now(),
+            }
+        })?;
+        Ok(self.deliver(finished))
     }
 
     async fn capture_memory(
@@ -907,6 +960,9 @@ impl Host {
         if let Some(context) = context {
             // Confirmed memory corrections precede historical conversation excerpts.
             notes.push(context);
+        }
+        if let Some(note) = self.tasks()?.email_exclusions(session).note() {
+            notes.push(note);
         }
         // If the core refuses the message, no turn was started.
         let queue = self.step(Input::Utterance {
@@ -1157,13 +1213,22 @@ impl Host {
                                 HostError::Host("task is no longer running".into())
                             })?;
                             let tasks = Arc::clone(&self.tasks);
+                            let exclusions = self.tasks()?.email_exclusions(session);
                             Arc::clone(actions)
-                                .run_controlled(&call, ask, cancel, move || {
-                                    tasks
-                                        .lock()
-                                        .map_err(|_| "the task list is unavailable".to_string())?
-                                        .executing(session, now())
-                                })
+                                .run_checked(
+                                    &call,
+                                    move |mail| exclusions.check(mail),
+                                    ask,
+                                    cancel,
+                                    move || {
+                                        tasks
+                                            .lock()
+                                            .map_err(|_| {
+                                                "the task list is unavailable".to_string()
+                                            })?
+                                            .executing(session, now())
+                                    },
+                                )
                                 .await
                         }
                         None => (false, "actions are not available".to_string()),
@@ -2081,6 +2146,58 @@ mod tests {
     }
 
     #[test]
+    fn new_topic_restart_excludes_old_details_from_the_model_request() {
+        let dir = std::env::temp_dir().join(format!("pr3-new-topic-host-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("memory.sqlite");
+        let old;
+        {
+            let store = Arc::new(Mutex::new(SqliteMemory::open(&path).unwrap()));
+            let runtime = host(Summing::default())
+                .with_memory(store.clone())
+                .with_tasks(store, 30)
+                .unwrap();
+            run(
+                &runtime,
+                "For this task only: the membership number is ALDER-1190.",
+            )
+            .0
+            .unwrap();
+            old = runtime.current_task().unwrap().unwrap().card.id;
+            runtime.new_topic().unwrap();
+        }
+        for _ in 0..2 {
+            let store = Arc::new(Mutex::new(SqliteMemory::open(&path).unwrap()));
+            let model = Arc::new(Summing::default());
+            let runtime = Host::new(model.clone(), pr3_tool::builtin())
+                .unwrap()
+                .with_memory(store.clone())
+                .with_tasks(store, 30)
+                .unwrap();
+            assert!(runtime.current_task().unwrap().is_none());
+            let (_, events) = run(
+                &runtime,
+                "What membership number have I supplied in this new task?",
+            );
+            let request = model.last();
+            assert!(
+                request
+                    .messages
+                    .iter()
+                    .all(|m| !m.content.contains("ALDER-1190")),
+                "{request:?}"
+            );
+            assert!(events.iter().any(
+                |e| matches!(e, TurnEvent::TaskOpened(o) if o.id != old && o.previous.is_none())
+            ));
+            assert!(runtime.task(SessionId(old)).unwrap().chat.iter().any(|s| matches!(&s.entry, crate::task::Entry::User { text } if text.contains("ALDER-1190"))));
+            runtime.new_topic().unwrap();
+        }
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
     fn original_task_details_and_corrections_survive_lossy_folds_and_restarts() {
         use pr3_memory::MemoryStore;
         let path =
@@ -2261,6 +2378,162 @@ mod tests {
         drop(host);
         drop(store);
         std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn email_exclusions_are_acknowledged_without_inference_and_failed_saves_cannot_revoke_them() {
+        let dir = std::env::temp_dir().join(format!("pr3-exclusion-ack-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("memory.sqlite");
+        let store = Arc::new(Mutex::new(SqliteMemory::open(&path).unwrap()));
+        let runtime = host(FailingBackend).with_tasks(store.clone(), 30).unwrap();
+        let (actions, events) = run(&runtime, "Omit 'SECRET-821' from the email.");
+        assert!(reply(&actions.unwrap()).contains("No email was prepared or sent"));
+        assert!(!events.iter().any(|e| matches!(
+            e,
+            TurnEvent::Approval { .. } | TurnEvent::Tool { .. } | TurnEvent::Token { .. }
+        )));
+        let id = SessionId(runtime.current_task().unwrap().unwrap().card.id);
+        let injector = rusqlite::Connection::open(&path).unwrap();
+        injector.execute_batch("CREATE TRIGGER fail_exclusion BEFORE INSERT ON messages BEGIN SELECT RAISE(FAIL, 'storage full'); END;").unwrap();
+        assert!(
+            run(&runtime, "Include 'SECRET-821' in the email.")
+                .0
+                .is_err()
+        );
+        drop(runtime);
+        drop(store);
+        injector
+            .execute_batch("DROP TRIGGER fail_exclusion;")
+            .unwrap();
+        drop(injector);
+        let store = Arc::new(Mutex::new(SqliteMemory::open(&path).unwrap()));
+        let runtime = host(FailingBackend).with_tasks(store, 30).unwrap();
+        let mail = pr3_core::trusted::Mail {
+            to: Vec::new(),
+            subject: "Update".into(),
+            body: "SECRET-821".into(),
+        };
+        assert!(
+            runtime
+                .tasks()
+                .unwrap()
+                .email_exclusions(id)
+                .check(&mail)
+                .is_err()
+        );
+        let (actions, _) = run(&runtime, "Remove the missing reference from the email.");
+        assert!(reply(&actions.unwrap()).contains("quote the exact text"));
+        drop(runtime);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn email_exclusions_block_model_and_restored_drafts_before_approval() {
+        struct Draft;
+        impl Backend for Draft {
+            fn label(&self) -> String {
+                "excluded draft".into()
+            }
+            fn generate(
+                &self,
+                request: &InferenceRequest,
+                _: &mut dyn FnMut(&str),
+            ) -> Result<Generation, String> {
+                Ok(
+                    if request
+                        .messages
+                        .last()
+                        .is_some_and(|m| m.role == Role::Tool)
+                    {
+                        Generation {
+                            content: "See the recorded result.".into(),
+                            ..Generation::default()
+                        }
+                    } else {
+                        Generation { tool_calls: vec![ProposedToolCall {
+                        name: "send_email".into(),
+                        arguments: r#"{"to":"Alex","subject":"Public reference PUB-391","body":"Use PUB-391. The private reference SECRET-482 has been omitted."}"#.into(),
+                    }], ..Generation::default() }
+                    },
+                )
+            }
+        }
+        for restored_card in [false, true] {
+            let dir = std::env::temp_dir().join(format!(
+                "pr3-mail-exclusion-{restored_card}-{}",
+                std::process::id()
+            ));
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).unwrap();
+            let path = dir.join("memory.sqlite");
+            let store = Arc::new(Mutex::new(SqliteMemory::open(&path).unwrap()));
+            let mut tasks = Tasks::load(store.clone(), 30, now()).unwrap();
+            let (id, _) = tasks.begin("Draft an email later to Alex: public reference PUB-391, private reference SECRET-482. Do not draft yet.", now());
+            tasks.end(id, Ok("Waiting.".into()), now());
+            tasks.begin(
+                "Remove the private reference completely from the eventual email.",
+                now(),
+            );
+            tasks.end(id, Ok("Understood.".into()), now());
+            if restored_card {
+                tasks.begin("Prepare that email.", now());
+                tasks.waiting(id, &ToolCall {
+                    id: "old-build-draft".into(), name: "send_email".into(),
+                    arguments: r#"{"to":"Alex","subject":"SECRET-482 omitted","body":"Public reference PUB-391."}"#.into(),
+                }, Timestamp(now().0 + 60_000), now());
+            }
+            drop(tasks);
+            drop(store);
+            let actions = Arc::new(
+                Actions::with_vault(
+                    &dir,
+                    Default::default(),
+                    pr3_core::trusted::Directory {
+                        contacts: vec![pr3_core::trusted::Contact {
+                            name: "Alex".into(),
+                            address: "alex@example.com".into(),
+                        }],
+                    },
+                    Box::new(pr3_vault::SoftwareVault::generate().unwrap()),
+                )
+                .unwrap(),
+            );
+            let runtime = host(Draft)
+                .with_tasks(Arc::new(Mutex::new(SqliteMemory::open(&path).unwrap())), 30)
+                .unwrap()
+                .with_actions(actions.clone())
+                .unwrap();
+            let cards = Arc::new(Mutex::new(Vec::new()));
+            let seen = cards.clone();
+            let approve = actions.clone();
+            let emit = move |event| {
+                if let TurnEvent::Approval { request, .. } = event {
+                    seen.lock().unwrap().push(request.mail.clone());
+                    approve.answer(&request.request, true).unwrap();
+                }
+            };
+            if restored_card {
+                let _ = tauri::async_runtime::block_on(runtime.ask_again(id, emit));
+            } else {
+                tauri::async_runtime::block_on(runtime.send(
+                    "Prepare the email with only the public reference now.".into(),
+                    0,
+                    emit,
+                ))
+                .unwrap();
+            }
+            assert!(
+                cards.lock().unwrap().is_empty(),
+                "an excluded value reached approval"
+            );
+            assert!(!dir.join("outbox.jsonl").exists());
+            assert!(runtime.task(id).unwrap().chat.iter().any(|line| matches!(&line.entry, crate::task::Entry::Tool { name, success: false, output, .. } if name == "send_email" && output.contains("excluded"))));
+            drop(runtime);
+            drop(actions);
+            std::fs::remove_dir_all(dir).unwrap();
+        }
     }
 
     #[test]

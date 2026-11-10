@@ -1,0 +1,1826 @@
+{
+  "version": "personal-200-v1",
+  "frozen_at_utc": "2026-11-08T17:26:56.926684+00:00",
+  "split_policy": {
+    "salt": "PR3-Personal-200/v1/family-split/2026-11-08",
+    "group": "scenario family",
+    "per_category": "3 development / 2 heldout families; four variants each"
+  },
+  "scope": "Desktop app Host, local model, task memory, fixture pages and sandbox mail. No real contacts or external effects.",
+  "excluded": [
+    "physical Android permissions/latency",
+    "cross-device transport and ownership",
+    "live calendar/file-sharing connectors",
+    "encrypted-storage/key custody",
+    "live mail delivery"
+  ],
+  "heldout_policy": "Public synthetic runtime holdout, not a secret or model-training-contamination guarantee. Freeze before model runs; no runtime tuning on heldout results. All declared seeds form one evaluation. Later tuning retires its clean-holdout claim.",
+  "files": {
+    "development.toml": "8198b58f0bbb92c3cc7ce4d8db91c2327a17f384718991472c95bfc89df33301",
+    "heldout.toml": "2e24dff6838c0c79479a12e165ae94db34e03c03aaacf6f93439b36c613c9345",
+    "scoring.json": "e3f8fb449b1435e2e04f317cbcc1f8f55fea050c8bc5e620a5b0f3a65d2d6e9e",
+    "authoring.py": "e2327f9d2d539c2d9e6c294ca3107042f29bc7741c82ba37ae327a335a1de8fc"
+  },
+  "cases": [
+    {
+      "id": "personal/recall/collection-ticket/1",
+      "category": "recall",
+      "family": "recall/collection-ticket",
+      "language": "en",
+      "variant": 1,
+      "split": "development",
+      "sha256": "aad1e0ddbb687612f68fb0eba31c5c028d7dc3aa48f1bf8c440633e5326fb542"
+    },
+    {
+      "id": "personal/recall/collection-ticket/2",
+      "category": "recall",
+      "family": "recall/collection-ticket",
+      "language": "en",
+      "variant": 2,
+      "split": "development",
+      "sha256": "75eb6079884401763a190b646e9c800eb42424ff7b331e7690a4ace727bc171d"
+    },
+    {
+      "id": "personal/recall/collection-ticket/3",
+      "category": "recall",
+      "family": "recall/collection-ticket",
+      "language": "en",
+      "variant": 3,
+      "split": "development",
+      "sha256": "ec215eb4be227348145ad780e530d1138df98ce5d7e19ef74de9b7607b25cc30"
+    },
+    {
+      "id": "personal/recall/collection-ticket/4",
+      "category": "recall",
+      "family": "recall/collection-ticket",
+      "language": "en",
+      "variant": 4,
+      "split": "development",
+      "sha256": "bf6d817de8552a8453626b090990382517f56bc0523b88aa89364ccadd0361c2"
+    },
+    {
+      "id": "personal/recall/rental-allowance/1",
+      "category": "recall",
+      "family": "recall/rental-allowance",
+      "language": "en",
+      "variant": 1,
+      "split": "development",
+      "sha256": "73ab140f83426c70708482796fd5c23eb20482b9ef689e0a7f4f9e8e8521024d"
+    },
+    {
+      "id": "personal/recall/rental-allowance/2",
+      "category": "recall",
+      "family": "recall/rental-allowance",
+      "language": "en",
+      "variant": 2,
+      "split": "development",
+      "sha256": "5dacdd5a52ae259e3236ae78e75d945837dc83f710d5061c61b6bc03cd4e2b48"
+    },
+    {
+      "id": "personal/recall/rental-allowance/3",
+      "category": "recall",
+      "family": "recall/rental-allowance",
+      "language": "en",
+      "variant": 3,
+      "split": "development",
+      "sha256": "01832f5ba710ff7517cb5920e098795c98015be6d3c079d6a4d799ed929ea833"
+    },
+    {
+      "id": "personal/recall/rental-allowance/4",
+      "category": "recall",
+      "family": "recall/rental-allowance",
+      "language": "en",
+      "variant": 4,
+      "split": "development",
+      "sha256": "ffecb7b580ca071346d124d25cc365482688aec237931622b739fed30f9fa880"
+    },
+    {
+      "id": "personal/recall/equipment-label/1",
+      "category": "recall",
+      "family": "recall/equipment-label",
+      "language": "en",
+      "variant": 1,
+      "split": "heldout",
+      "sha256": "8831200cbfdb0916ec7c34fe2029f953a5cdbdf113f0fc7d3f63e7d08c01d9b5"
+    },
+    {
+      "id": "personal/recall/equipment-label/2",
+      "category": "recall",
+      "family": "recall/equipment-label",
+      "language": "en",
+      "variant": 2,
+      "split": "heldout",
+      "sha256": "3ebda82d822e2359c8ac420564d787e01fac41b7fbfc63752c6332c260bc250e"
+    },
+    {
+      "id": "personal/recall/equipment-label/3",
+      "category": "recall",
+      "family": "recall/equipment-label",
+      "language": "en",
+      "variant": 3,
+      "split": "heldout",
+      "sha256": "a83df45ea89cc38c9b8a38414e77df2aae302b43c4c71dde9b698fa9d4032bf8"
+    },
+    {
+      "id": "personal/recall/equipment-label/4",
+      "category": "recall",
+      "family": "recall/equipment-label",
+      "language": "en",
+      "variant": 4,
+      "split": "heldout",
+      "sha256": "eb5ef9015bd36035b0cb481e18d97086e9550ae96649bc6292a1cc980c0b5aad"
+    },
+    {
+      "id": "personal/recall/event-room/1",
+      "category": "recall",
+      "family": "recall/event-room",
+      "language": "en",
+      "variant": 1,
+      "split": "development",
+      "sha256": "1235d712aa38e9f61bfda25e182ab3babd0c02e124bb88524f710083722718df"
+    },
+    {
+      "id": "personal/recall/event-room/2",
+      "category": "recall",
+      "family": "recall/event-room",
+      "language": "en",
+      "variant": 2,
+      "split": "development",
+      "sha256": "a53b9d7117309df34e0b5e15862fd9a18382bafc9a6041a9852c5ab6148ead2d"
+    },
+    {
+      "id": "personal/recall/event-room/3",
+      "category": "recall",
+      "family": "recall/event-room",
+      "language": "en",
+      "variant": 3,
+      "split": "development",
+      "sha256": "1f9255498079d474de63eb52a12409bee2a9b5cf2d3111efc879c0fbcab3a900"
+    },
+    {
+      "id": "personal/recall/event-room/4",
+      "category": "recall",
+      "family": "recall/event-room",
+      "language": "en",
+      "variant": 4,
+      "split": "development",
+      "sha256": "f0d9edd774924426f45a4bee55d19d2c21984b5eb62bf52482d0675085b6f95e"
+    },
+    {
+      "id": "personal/recall/relative-detail/1",
+      "category": "recall",
+      "family": "recall/relative-detail",
+      "language": "en",
+      "variant": 1,
+      "split": "heldout",
+      "sha256": "b13c5a4de226a34c24d31b4f8aac79d3cb5e125b34def2e9e22ff8466dc50687"
+    },
+    {
+      "id": "personal/recall/relative-detail/2",
+      "category": "recall",
+      "family": "recall/relative-detail",
+      "language": "en",
+      "variant": 2,
+      "split": "heldout",
+      "sha256": "d3a5773bde00de13ba729ecc86c5aed93b268ec341f213eec25212fe72e81347"
+    },
+    {
+      "id": "personal/recall/relative-detail/3",
+      "category": "recall",
+      "family": "recall/relative-detail",
+      "language": "en",
+      "variant": 3,
+      "split": "heldout",
+      "sha256": "0cb99808af447661bce22a10ff7ef2fa62afa9a4bd6e9c5b5bef93fd5e87ad65"
+    },
+    {
+      "id": "personal/recall/relative-detail/4",
+      "category": "recall",
+      "family": "recall/relative-detail",
+      "language": "en",
+      "variant": 4,
+      "split": "heldout",
+      "sha256": "242ae19397a74ddf8c5b0cd745c2da2f6f836c16a7d68025ff74058936ecbba4"
+    },
+    {
+      "id": "personal/correction/replace-quantity/1",
+      "category": "correction",
+      "family": "correction/replace-quantity",
+      "language": "en",
+      "variant": 1,
+      "split": "heldout",
+      "sha256": "e1d5c889c41f726e9aaaaa06142c17bfb46c3d502356a1da05e5a91bee4c8d40"
+    },
+    {
+      "id": "personal/correction/replace-quantity/2",
+      "category": "correction",
+      "family": "correction/replace-quantity",
+      "language": "en",
+      "variant": 2,
+      "split": "heldout",
+      "sha256": "63b7025c3c9a09f2849ebbaefb23093f0942de09a8755b3ef887e59f563238de"
+    },
+    {
+      "id": "personal/correction/replace-quantity/3",
+      "category": "correction",
+      "family": "correction/replace-quantity",
+      "language": "en",
+      "variant": 3,
+      "split": "heldout",
+      "sha256": "92bdee297a4bcc232f67ef50b2f3560d25a3bcc830260a68746e3836134ce51d"
+    },
+    {
+      "id": "personal/correction/replace-quantity/4",
+      "category": "correction",
+      "family": "correction/replace-quantity",
+      "language": "en",
+      "variant": 4,
+      "split": "heldout",
+      "sha256": "d6a20c2c860bd2760288a61a8c44d06ba22c9d2b9d9d06f84856c1ce29b6a3ee"
+    },
+    {
+      "id": "personal/correction/terse-location/1",
+      "category": "correction",
+      "family": "correction/terse-location",
+      "language": "en",
+      "variant": 1,
+      "split": "development",
+      "sha256": "a9400f13de4ce9a3a6aa539a1ccadfd48a692acb483f2c390251e2068a11500e"
+    },
+    {
+      "id": "personal/correction/terse-location/2",
+      "category": "correction",
+      "family": "correction/terse-location",
+      "language": "en",
+      "variant": 2,
+      "split": "development",
+      "sha256": "3819f588390de2d69f64d8e535a9dbf49c1c525db942b5a3fdc884a8f522762f"
+    },
+    {
+      "id": "personal/correction/terse-location/3",
+      "category": "correction",
+      "family": "correction/terse-location",
+      "language": "en",
+      "variant": 3,
+      "split": "development",
+      "sha256": "32fd74f848fcfa47ba54a82ffb3d0c1773dad6505f12f8d97b605d6cfba14f7f"
+    },
+    {
+      "id": "personal/correction/terse-location/4",
+      "category": "correction",
+      "family": "correction/terse-location",
+      "language": "en",
+      "variant": 4,
+      "split": "development",
+      "sha256": "9bf48120e720d9ca915ffbfc01fc38527e32c25adb0f5accd3bacca24d4ff465"
+    },
+    {
+      "id": "personal/correction/retain-other-field/1",
+      "category": "correction",
+      "family": "correction/retain-other-field",
+      "language": "en",
+      "variant": 1,
+      "split": "development",
+      "sha256": "750bcf13fd077e0e03c91daf5ff4ee0386dd0bf24fffbac1d0f48b326335c8d8"
+    },
+    {
+      "id": "personal/correction/retain-other-field/2",
+      "category": "correction",
+      "family": "correction/retain-other-field",
+      "language": "en",
+      "variant": 2,
+      "split": "development",
+      "sha256": "7443d2a46804af2ab68f2249cccb48c8778cf6f334d3b566dcb0f7833a2e593c"
+    },
+    {
+      "id": "personal/correction/retain-other-field/3",
+      "category": "correction",
+      "family": "correction/retain-other-field",
+      "language": "en",
+      "variant": 3,
+      "split": "development",
+      "sha256": "be200f83bc2a4af5b58964774c5c21f94af482e1547ef2a6cbe179f2792f0ea2"
+    },
+    {
+      "id": "personal/correction/retain-other-field/4",
+      "category": "correction",
+      "family": "correction/retain-other-field",
+      "language": "en",
+      "variant": 4,
+      "split": "development",
+      "sha256": "ecbfe0d12d03594c058cac34fb83bae8844ce5068d90255f86c643266f6eb951"
+    },
+    {
+      "id": "personal/correction/two-revisions/1",
+      "category": "correction",
+      "family": "correction/two-revisions",
+      "language": "en",
+      "variant": 1,
+      "split": "heldout",
+      "sha256": "11dabcda7b4b2e0f201a3d105a894cbeb6f075f7976d01aa49eb593accef505c"
+    },
+    {
+      "id": "personal/correction/two-revisions/2",
+      "category": "correction",
+      "family": "correction/two-revisions",
+      "language": "en",
+      "variant": 2,
+      "split": "heldout",
+      "sha256": "9d2ea6f2c3d958810ac495d73a527c9acabaf7f8d8a643d2f2e8c1fad8566e66"
+    },
+    {
+      "id": "personal/correction/two-revisions/3",
+      "category": "correction",
+      "family": "correction/two-revisions",
+      "language": "en",
+      "variant": 3,
+      "split": "heldout",
+      "sha256": "ccce636a03c3bebcf393f9a2b5f6dc5d20497c28beb6f4d84b50c15e53ecb64d"
+    },
+    {
+      "id": "personal/correction/two-revisions/4",
+      "category": "correction",
+      "family": "correction/two-revisions",
+      "language": "en",
+      "variant": 4,
+      "split": "heldout",
+      "sha256": "71f6d843e0c78d228e26e7e618e59dab5d14fa59fb6bc6016b79591b2fb35ffe"
+    },
+    {
+      "id": "personal/correction/cancel-a-change/1",
+      "category": "correction",
+      "family": "correction/cancel-a-change",
+      "language": "en",
+      "variant": 1,
+      "split": "development",
+      "sha256": "d8e80834709033e5550b61fbf2cc46c8f6ef4574fe8055fb2bb71912b1b00972"
+    },
+    {
+      "id": "personal/correction/cancel-a-change/2",
+      "category": "correction",
+      "family": "correction/cancel-a-change",
+      "language": "en",
+      "variant": 2,
+      "split": "development",
+      "sha256": "c7e31b3530d8ea662fb9f3662d95bc75b3f2c948134c97ec993efe226a11bee4"
+    },
+    {
+      "id": "personal/correction/cancel-a-change/3",
+      "category": "correction",
+      "family": "correction/cancel-a-change",
+      "language": "en",
+      "variant": 3,
+      "split": "development",
+      "sha256": "244379f311197338de1cc4d2bb09a1580d229818f8d280596e3fd372df8e7af5"
+    },
+    {
+      "id": "personal/correction/cancel-a-change/4",
+      "category": "correction",
+      "family": "correction/cancel-a-change",
+      "language": "en",
+      "variant": 4,
+      "split": "development",
+      "sha256": "8125098286864d95771e876ea4beeb070c0027d90d4498a99800777b9b988eec"
+    },
+    {
+      "id": "personal/isolation/parallel-deliveries/1",
+      "category": "isolation",
+      "family": "isolation/parallel-deliveries",
+      "language": "en",
+      "variant": 1,
+      "split": "heldout",
+      "sha256": "1ba908b704804889a9f812673ecdb5757dbdb17a73bf83cc2054da8d8def47d0"
+    },
+    {
+      "id": "personal/isolation/parallel-deliveries/2",
+      "category": "isolation",
+      "family": "isolation/parallel-deliveries",
+      "language": "en",
+      "variant": 2,
+      "split": "heldout",
+      "sha256": "e2e9cdb3831a98933a97c361c870e4ee2e7f7a5fc889f653574e6c650bc9fe58"
+    },
+    {
+      "id": "personal/isolation/parallel-deliveries/3",
+      "category": "isolation",
+      "family": "isolation/parallel-deliveries",
+      "language": "en",
+      "variant": 3,
+      "split": "heldout",
+      "sha256": "f9f44796c53e9b49e35670c1ac7aaf6e194876743b140af9e4da8cfa2b24f644"
+    },
+    {
+      "id": "personal/isolation/parallel-deliveries/4",
+      "category": "isolation",
+      "family": "isolation/parallel-deliveries",
+      "language": "en",
+      "variant": 4,
+      "split": "heldout",
+      "sha256": "91ef5bc169874d69a157a23873fb9142e8bf35c0cae051e89caa0780edb4c6eb"
+    },
+    {
+      "id": "personal/isolation/private-code/1",
+      "category": "isolation",
+      "family": "isolation/private-code",
+      "language": "en",
+      "variant": 1,
+      "split": "development",
+      "sha256": "814c53a7fd2399d1334e27a9f91130c0fcc7b7509291e8b50873dc3f43a9bebb"
+    },
+    {
+      "id": "personal/isolation/private-code/2",
+      "category": "isolation",
+      "family": "isolation/private-code",
+      "language": "en",
+      "variant": 2,
+      "split": "development",
+      "sha256": "071fa5421e7a05dd1aceca12b990768dae921b305332cf5051a0d64c4385265b"
+    },
+    {
+      "id": "personal/isolation/private-code/3",
+      "category": "isolation",
+      "family": "isolation/private-code",
+      "language": "en",
+      "variant": 3,
+      "split": "development",
+      "sha256": "459985f98848e7b54bf36e557cc2e574d9fe8abf27d552f11fa97f5970cddd8f"
+    },
+    {
+      "id": "personal/isolation/private-code/4",
+      "category": "isolation",
+      "family": "isolation/private-code",
+      "language": "en",
+      "variant": 4,
+      "split": "development",
+      "sha256": "50ba8636731f240e95a80efdf56a90532a669e7062baf781cad29867bd6bfaee"
+    },
+    {
+      "id": "personal/isolation/same-person-two-events/1",
+      "category": "isolation",
+      "family": "isolation/same-person-two-events",
+      "language": "en",
+      "variant": 1,
+      "split": "development",
+      "sha256": "9afb151816508f0e4f1024c20b2adf4f7de75975347eaaf7ed65fe884d22f58b"
+    },
+    {
+      "id": "personal/isolation/same-person-two-events/2",
+      "category": "isolation",
+      "family": "isolation/same-person-two-events",
+      "language": "en",
+      "variant": 2,
+      "split": "development",
+      "sha256": "a26ece7d6ef35c0602ef5fb8ec9a5d121f3ff259139431e7166cfc4088d42cf5"
+    },
+    {
+      "id": "personal/isolation/same-person-two-events/3",
+      "category": "isolation",
+      "family": "isolation/same-person-two-events",
+      "language": "en",
+      "variant": 3,
+      "split": "development",
+      "sha256": "7769add2d07dfccd9656c71fd5c8003e4de8d5a48a1c76e276b387e121d82bb1"
+    },
+    {
+      "id": "personal/isolation/same-person-two-events/4",
+      "category": "isolation",
+      "family": "isolation/same-person-two-events",
+      "language": "en",
+      "variant": 4,
+      "split": "development",
+      "sha256": "25f6de67f1ba580b0e3c210c0b0f4b22779bbe5b1950f6729a821c892b0c075c"
+    },
+    {
+      "id": "personal/isolation/unrelated-budget/1",
+      "category": "isolation",
+      "family": "isolation/unrelated-budget",
+      "language": "en",
+      "variant": 1,
+      "split": "development",
+      "sha256": "3d9130a044b4402af04925ccf8aed1aee84636f2c6bbfc00ee29a9d3f1277118"
+    },
+    {
+      "id": "personal/isolation/unrelated-budget/2",
+      "category": "isolation",
+      "family": "isolation/unrelated-budget",
+      "language": "en",
+      "variant": 2,
+      "split": "development",
+      "sha256": "bb1740821c99ff01f41733f2c893aaf5df880d56a9978074d4b600f45019b6f8"
+    },
+    {
+      "id": "personal/isolation/unrelated-budget/3",
+      "category": "isolation",
+      "family": "isolation/unrelated-budget",
+      "language": "en",
+      "variant": 3,
+      "split": "development",
+      "sha256": "a675204004282993bf8ecb836ca1144266060c37c4619044d6a8840d7896d890"
+    },
+    {
+      "id": "personal/isolation/unrelated-budget/4",
+      "category": "isolation",
+      "family": "isolation/unrelated-budget",
+      "language": "en",
+      "variant": 4,
+      "split": "development",
+      "sha256": "c375c8487f9d32589695f52a104b23bc25646ff28246862c68c39623cbc7ca62"
+    },
+    {
+      "id": "personal/isolation/new-task-empty/1",
+      "category": "isolation",
+      "family": "isolation/new-task-empty",
+      "language": "en",
+      "variant": 1,
+      "split": "heldout",
+      "sha256": "a0d01b6215b7f632bc1ea4e7414c9dd2f5095a148acb4ea2879cc81a33f739b5"
+    },
+    {
+      "id": "personal/isolation/new-task-empty/2",
+      "category": "isolation",
+      "family": "isolation/new-task-empty",
+      "language": "en",
+      "variant": 2,
+      "split": "heldout",
+      "sha256": "25379335596ddfbf287238c2abfdbaa998469abdeadcf860c0a392bfbdf41f76"
+    },
+    {
+      "id": "personal/isolation/new-task-empty/3",
+      "category": "isolation",
+      "family": "isolation/new-task-empty",
+      "language": "en",
+      "variant": 3,
+      "split": "heldout",
+      "sha256": "899bc686b3c48743cfe8b7baf093ca842d2ca2e680d2abff9af6aa6eb7759442"
+    },
+    {
+      "id": "personal/isolation/new-task-empty/4",
+      "category": "isolation",
+      "family": "isolation/new-task-empty",
+      "language": "en",
+      "variant": 4,
+      "split": "heldout",
+      "sha256": "3af30f8770fb71838ec9249907bf163fc1dd814878be9137f9e21b6db34c9b0d"
+    },
+    {
+      "id": "personal/deletion/erase-reference/1",
+      "category": "deletion",
+      "family": "deletion/erase-reference",
+      "language": "en",
+      "variant": 1,
+      "split": "development",
+      "sha256": "3754a3310d597c3b0fa2cd6ba940623540c68bc7b19ea105bd20ae21e88b4633"
+    },
+    {
+      "id": "personal/deletion/erase-reference/2",
+      "category": "deletion",
+      "family": "deletion/erase-reference",
+      "language": "en",
+      "variant": 2,
+      "split": "development",
+      "sha256": "811973fe1b6c1cd629511b4d425130f7b5b0200acb5c97587806af5d761809c7"
+    },
+    {
+      "id": "personal/deletion/erase-reference/3",
+      "category": "deletion",
+      "family": "deletion/erase-reference",
+      "language": "en",
+      "variant": 3,
+      "split": "development",
+      "sha256": "d7d0f412d2ab85c47fe5361691740f2249d12078a6929f370fccb576710df374"
+    },
+    {
+      "id": "personal/deletion/erase-reference/4",
+      "category": "deletion",
+      "family": "deletion/erase-reference",
+      "language": "en",
+      "variant": 4,
+      "split": "development",
+      "sha256": "afd26201a87f986eea45dc4d2d395a1466b2393b220cc2f29e4dc5819fdf976e"
+    },
+    {
+      "id": "personal/deletion/erase-correction/1",
+      "category": "deletion",
+      "family": "deletion/erase-correction",
+      "language": "en",
+      "variant": 1,
+      "split": "heldout",
+      "sha256": "9faa391da3f9ffcccb8e1f04cb955712e53e0fdd24a819b62147cf6fb6680b81"
+    },
+    {
+      "id": "personal/deletion/erase-correction/2",
+      "category": "deletion",
+      "family": "deletion/erase-correction",
+      "language": "en",
+      "variant": 2,
+      "split": "heldout",
+      "sha256": "f5c73c932d4fe1ff81d9486c03f4ca6b3251d894c1e209c204dd5672daeb97c3"
+    },
+    {
+      "id": "personal/deletion/erase-correction/3",
+      "category": "deletion",
+      "family": "deletion/erase-correction",
+      "language": "en",
+      "variant": 3,
+      "split": "heldout",
+      "sha256": "bc586708f25e7d672f86e5e2ecce9ae4d903d27d0b0b6e6296231b925d915e20"
+    },
+    {
+      "id": "personal/deletion/erase-correction/4",
+      "category": "deletion",
+      "family": "deletion/erase-correction",
+      "language": "en",
+      "variant": 4,
+      "split": "heldout",
+      "sha256": "2037953a36ddc8d2dec628c87d2537780714a587a7c1371271ab5acbf8436cc4"
+    },
+    {
+      "id": "personal/deletion/erase-after-reopen/1",
+      "category": "deletion",
+      "family": "deletion/erase-after-reopen",
+      "language": "en",
+      "variant": 1,
+      "split": "heldout",
+      "sha256": "46e7630c0780f1094deaa7bb570a011b6b45fbed18797b3c81126d84952b3b53"
+    },
+    {
+      "id": "personal/deletion/erase-after-reopen/2",
+      "category": "deletion",
+      "family": "deletion/erase-after-reopen",
+      "language": "en",
+      "variant": 2,
+      "split": "heldout",
+      "sha256": "984ae4e1108836b1c9503751770b4d9e93e7cf5bc17ccd1b7b818df296e27084"
+    },
+    {
+      "id": "personal/deletion/erase-after-reopen/3",
+      "category": "deletion",
+      "family": "deletion/erase-after-reopen",
+      "language": "en",
+      "variant": 3,
+      "split": "heldout",
+      "sha256": "f2766fcee70c74b2e20e3d48238338339a6024db9cc78856b48f6f29bbb9dd97"
+    },
+    {
+      "id": "personal/deletion/erase-after-reopen/4",
+      "category": "deletion",
+      "family": "deletion/erase-after-reopen",
+      "language": "en",
+      "variant": 4,
+      "split": "heldout",
+      "sha256": "0314c1329ca8f5977e5ad0bdb5a98cc0d12fd69e442bd426aec7c23dea9bee18"
+    },
+    {
+      "id": "personal/deletion/erase-then-replace/1",
+      "category": "deletion",
+      "family": "deletion/erase-then-replace",
+      "language": "en",
+      "variant": 1,
+      "split": "development",
+      "sha256": "3ddf40529b1018b2144b82a4b57b7ab9e1cfb31b95f12fc680d0cf43653e1b4c"
+    },
+    {
+      "id": "personal/deletion/erase-then-replace/2",
+      "category": "deletion",
+      "family": "deletion/erase-then-replace",
+      "language": "en",
+      "variant": 2,
+      "split": "development",
+      "sha256": "387bb6b10b0a95dcfd80bf8594f4412335226b03011582e39e14ab6d7322c250"
+    },
+    {
+      "id": "personal/deletion/erase-then-replace/3",
+      "category": "deletion",
+      "family": "deletion/erase-then-replace",
+      "language": "en",
+      "variant": 3,
+      "split": "development",
+      "sha256": "4afef32c4e3dcc68e4219cd34d3ebdf861996813d96f163b1bfee3ad2f6a2252"
+    },
+    {
+      "id": "personal/deletion/erase-then-replace/4",
+      "category": "deletion",
+      "family": "deletion/erase-then-replace",
+      "language": "en",
+      "variant": 4,
+      "split": "development",
+      "sha256": "94aab3d6d8b1b76785c8695d13e7d83b669557605cf3706c67492b2e2b049aeb"
+    },
+    {
+      "id": "personal/deletion/erase-pending-mail/1",
+      "category": "deletion",
+      "family": "deletion/erase-pending-mail",
+      "language": "en",
+      "variant": 1,
+      "split": "development",
+      "sha256": "6d16e845d4296da06a4d51461d8214c8d988c74320c34b1c813aaf12dd82308d"
+    },
+    {
+      "id": "personal/deletion/erase-pending-mail/2",
+      "category": "deletion",
+      "family": "deletion/erase-pending-mail",
+      "language": "en",
+      "variant": 2,
+      "split": "development",
+      "sha256": "73f521ae71b7ec6d22d04b8138a561455545e41de2120b4e374fd9863cb805c4"
+    },
+    {
+      "id": "personal/deletion/erase-pending-mail/3",
+      "category": "deletion",
+      "family": "deletion/erase-pending-mail",
+      "language": "en",
+      "variant": 3,
+      "split": "development",
+      "sha256": "afb0ad66b3218c4b8affa7acbbd0597dc068fd20f539c06b57df4dc99396efa9"
+    },
+    {
+      "id": "personal/deletion/erase-pending-mail/4",
+      "category": "deletion",
+      "family": "deletion/erase-pending-mail",
+      "language": "en",
+      "variant": 4,
+      "split": "development",
+      "sha256": "06f812ccee2056fcf0a169f9c1490309771c4e0de7648396c3bd13d0771592a6"
+    },
+    {
+      "id": "personal/approval/exact-message/1",
+      "category": "approval",
+      "family": "approval/exact-message",
+      "language": "en",
+      "variant": 1,
+      "split": "heldout",
+      "sha256": "1ac8747b4e2a5dcdf5c0e1580c197fb7fd0b8dc2459ef10f6532b12de5576012"
+    },
+    {
+      "id": "personal/approval/exact-message/2",
+      "category": "approval",
+      "family": "approval/exact-message",
+      "language": "en",
+      "variant": 2,
+      "split": "heldout",
+      "sha256": "66aae0247411cf718f179bd9c8fb4dcd4b6c26d6db423af8f6d191f8ba6e9dee"
+    },
+    {
+      "id": "personal/approval/exact-message/3",
+      "category": "approval",
+      "family": "approval/exact-message",
+      "language": "en",
+      "variant": 3,
+      "split": "heldout",
+      "sha256": "5e28085b8bafb3bacaef5201941713340883f23456a305d11679131674658afb"
+    },
+    {
+      "id": "personal/approval/exact-message/4",
+      "category": "approval",
+      "family": "approval/exact-message",
+      "language": "en",
+      "variant": 4,
+      "split": "heldout",
+      "sha256": "de9cffe11f6cfe908e7b7f88fc70c9177faccf9da6108c1c858cc035ce713b07"
+    },
+    {
+      "id": "personal/approval/decline-corrected-person/1",
+      "category": "approval",
+      "family": "approval/decline-corrected-person",
+      "language": "en",
+      "variant": 1,
+      "split": "development",
+      "sha256": "b51dcd353e8fe7fff1a748e98759930af25bceae135b87daa43dcf2d846770cb"
+    },
+    {
+      "id": "personal/approval/decline-corrected-person/2",
+      "category": "approval",
+      "family": "approval/decline-corrected-person",
+      "language": "en",
+      "variant": 2,
+      "split": "development",
+      "sha256": "4331d5518d77e1b61d7e8ef879edd73ff8d28521d71856cdd6c98def0a446fbb"
+    },
+    {
+      "id": "personal/approval/decline-corrected-person/3",
+      "category": "approval",
+      "family": "approval/decline-corrected-person",
+      "language": "en",
+      "variant": 3,
+      "split": "development",
+      "sha256": "a2793005a1eee3273c3a0d6cd414f3184594b1642633632bef1e474a032d9ea4"
+    },
+    {
+      "id": "personal/approval/decline-corrected-person/4",
+      "category": "approval",
+      "family": "approval/decline-corrected-person",
+      "language": "en",
+      "variant": 4,
+      "split": "development",
+      "sha256": "ac5d2927fefd247bbe678b7a5a88f2ccffece9478f262a26fc33996672f82104"
+    },
+    {
+      "id": "personal/approval/defer-until-requested/1",
+      "category": "approval",
+      "family": "approval/defer-until-requested",
+      "language": "en",
+      "variant": 1,
+      "split": "heldout",
+      "sha256": "b3e3537bed399f00d89b8260a139e6254638a64d238ae3328cab3e4a7c4d6598"
+    },
+    {
+      "id": "personal/approval/defer-until-requested/2",
+      "category": "approval",
+      "family": "approval/defer-until-requested",
+      "language": "en",
+      "variant": 2,
+      "split": "heldout",
+      "sha256": "10ff1508ffbf84df46b5e859059d518954ab46b9acd46c33725f45a26a4f6b94"
+    },
+    {
+      "id": "personal/approval/defer-until-requested/3",
+      "category": "approval",
+      "family": "approval/defer-until-requested",
+      "language": "en",
+      "variant": 3,
+      "split": "heldout",
+      "sha256": "663a59b5de7aabd91a8dcecea297902525af6dee38c86aa691f8185d32b12d5f"
+    },
+    {
+      "id": "personal/approval/defer-until-requested/4",
+      "category": "approval",
+      "family": "approval/defer-until-requested",
+      "language": "en",
+      "variant": 4,
+      "split": "heldout",
+      "sha256": "62c5d1409dfba472a59722fa473884985edd0d3394c0e89cda7d6a1bd6d0317e"
+    },
+    {
+      "id": "personal/approval/remove-sensitive-detail/1",
+      "category": "approval",
+      "family": "approval/remove-sensitive-detail",
+      "language": "en",
+      "variant": 1,
+      "split": "development",
+      "sha256": "d6e6d3e3352985cb3ce4e480faa0e1c53922e4657f8f8604ecbc6c651b1afea9"
+    },
+    {
+      "id": "personal/approval/remove-sensitive-detail/2",
+      "category": "approval",
+      "family": "approval/remove-sensitive-detail",
+      "language": "en",
+      "variant": 2,
+      "split": "development",
+      "sha256": "be3aa850149873499600aa97e506753b5060908865bbcc09e744cc0c576a3129"
+    },
+    {
+      "id": "personal/approval/remove-sensitive-detail/3",
+      "category": "approval",
+      "family": "approval/remove-sensitive-detail",
+      "language": "en",
+      "variant": 3,
+      "split": "development",
+      "sha256": "56288f77d1d408644939d703aee80882bdc1bca8348c6fa76dc453cf257bbc2b"
+    },
+    {
+      "id": "personal/approval/remove-sensitive-detail/4",
+      "category": "approval",
+      "family": "approval/remove-sensitive-detail",
+      "language": "en",
+      "variant": 4,
+      "split": "development",
+      "sha256": "9a9189a55c25f2fc1a99f1960ef6509c4bae6a284f48e3369c4cf1fb0193ee9a"
+    },
+    {
+      "id": "personal/approval/unicode-draft/1",
+      "category": "approval",
+      "family": "approval/unicode-draft",
+      "language": "en",
+      "variant": 1,
+      "split": "development",
+      "sha256": "25e92ce6bd26885664d492d3f39b30ae55c27e1d5b24767894177df8ce158d19"
+    },
+    {
+      "id": "personal/approval/unicode-draft/2",
+      "category": "approval",
+      "family": "approval/unicode-draft",
+      "language": "en",
+      "variant": 2,
+      "split": "development",
+      "sha256": "aa122fad9a71f7a239e2bcbce1809c6a4cecaa8273af57cd8565d25cf6e54c09"
+    },
+    {
+      "id": "personal/approval/unicode-draft/3",
+      "category": "approval",
+      "family": "approval/unicode-draft",
+      "language": "en",
+      "variant": 3,
+      "split": "development",
+      "sha256": "ad8048eb38b2cf91903ef64fdedf79a3ec115514742b3ac4dd3061f21f60ada9"
+    },
+    {
+      "id": "personal/approval/unicode-draft/4",
+      "category": "approval",
+      "family": "approval/unicode-draft",
+      "language": "en",
+      "variant": 4,
+      "split": "development",
+      "sha256": "1badc9aa82dc5ea8b91cba3b22802152c4daddf0cdd358a0d66a32a7de0a7376"
+    },
+    {
+      "id": "personal/interruption/approve-reopened-card/1",
+      "category": "interruption",
+      "family": "interruption/approve-reopened-card",
+      "language": "en",
+      "variant": 1,
+      "split": "development",
+      "sha256": "bae1e4468b74fc14549a7858a6bc1095c26e7681c6c77bdbe1f1ded6a2f4590b"
+    },
+    {
+      "id": "personal/interruption/approve-reopened-card/2",
+      "category": "interruption",
+      "family": "interruption/approve-reopened-card",
+      "language": "en",
+      "variant": 2,
+      "split": "development",
+      "sha256": "b15ada7007e8c3c6fd7b266a7706a5a65b7f596766a4778161032e590d9fb2bb"
+    },
+    {
+      "id": "personal/interruption/approve-reopened-card/3",
+      "category": "interruption",
+      "family": "interruption/approve-reopened-card",
+      "language": "en",
+      "variant": 3,
+      "split": "development",
+      "sha256": "bf9d67717b8167d119916b7b9c6adfdac92d0b1106dd2793bc7b0eb2eaa54306"
+    },
+    {
+      "id": "personal/interruption/approve-reopened-card/4",
+      "category": "interruption",
+      "family": "interruption/approve-reopened-card",
+      "language": "en",
+      "variant": 4,
+      "split": "development",
+      "sha256": "31e381a1293af4fffd93d7b900bca8767cab1015d87f437bd1b70fb93efb0d58"
+    },
+    {
+      "id": "personal/interruption/decline-reopened-card/1",
+      "category": "interruption",
+      "family": "interruption/decline-reopened-card",
+      "language": "en",
+      "variant": 1,
+      "split": "heldout",
+      "sha256": "8900881cf8c47cbdf25bbb57621e3f799430a78ff301ec0499ade60ef21d1fa8"
+    },
+    {
+      "id": "personal/interruption/decline-reopened-card/2",
+      "category": "interruption",
+      "family": "interruption/decline-reopened-card",
+      "language": "en",
+      "variant": 2,
+      "split": "heldout",
+      "sha256": "a78eb89b306e11fb10dbe82a48b0f838c6442a5845f2b1298ce4900d76cd08bb"
+    },
+    {
+      "id": "personal/interruption/decline-reopened-card/3",
+      "category": "interruption",
+      "family": "interruption/decline-reopened-card",
+      "language": "en",
+      "variant": 3,
+      "split": "heldout",
+      "sha256": "41cc5540e08b19a0d10a7beb8b84cc48047c224154d353939d1ac85deabd2791"
+    },
+    {
+      "id": "personal/interruption/decline-reopened-card/4",
+      "category": "interruption",
+      "family": "interruption/decline-reopened-card",
+      "language": "en",
+      "variant": 4,
+      "split": "heldout",
+      "sha256": "af501f6a534012b46f470cd2e0b27c8ab59cf706865b98f1e130d4de48999bb5"
+    },
+    {
+      "id": "personal/interruption/recall-after-approved-card/1",
+      "category": "interruption",
+      "family": "interruption/recall-after-approved-card",
+      "language": "en",
+      "variant": 1,
+      "split": "development",
+      "sha256": "edcb9e92f4037418ac6f1a74631f870284f91e01d412179f3aedc88de6e9d814"
+    },
+    {
+      "id": "personal/interruption/recall-after-approved-card/2",
+      "category": "interruption",
+      "family": "interruption/recall-after-approved-card",
+      "language": "en",
+      "variant": 2,
+      "split": "development",
+      "sha256": "1bd6c7830bf7ed5c2f98bc8580c59b8df17036d5938c982ef93400e282de3161"
+    },
+    {
+      "id": "personal/interruption/recall-after-approved-card/3",
+      "category": "interruption",
+      "family": "interruption/recall-after-approved-card",
+      "language": "en",
+      "variant": 3,
+      "split": "development",
+      "sha256": "fc35fab088742ed630b682f9656fd5516c29fb424b856f8573fc42c61430730f"
+    },
+    {
+      "id": "personal/interruption/recall-after-approved-card/4",
+      "category": "interruption",
+      "family": "interruption/recall-after-approved-card",
+      "language": "en",
+      "variant": 4,
+      "split": "development",
+      "sha256": "f0f401a24591515376cff67d654f655b31eed16f95e5bbe934ffc78fdcb7ff96"
+    },
+    {
+      "id": "personal/interruption/no-replay-followup/1",
+      "category": "interruption",
+      "family": "interruption/no-replay-followup",
+      "language": "en",
+      "variant": 1,
+      "split": "development",
+      "sha256": "d715e85b8268f08df02d47bc5f6d62af08097672b5fb5a566498546ec1892121"
+    },
+    {
+      "id": "personal/interruption/no-replay-followup/2",
+      "category": "interruption",
+      "family": "interruption/no-replay-followup",
+      "language": "en",
+      "variant": 2,
+      "split": "development",
+      "sha256": "ec602f0dbe6591e4ef0399d293d0bd42e956b37974f2f8051a783f736e507a32"
+    },
+    {
+      "id": "personal/interruption/no-replay-followup/3",
+      "category": "interruption",
+      "family": "interruption/no-replay-followup",
+      "language": "en",
+      "variant": 3,
+      "split": "development",
+      "sha256": "ba25d8fd9b8327dc688838fd46428e210433fc7511ca43917a4ddcda97518852"
+    },
+    {
+      "id": "personal/interruption/no-replay-followup/4",
+      "category": "interruption",
+      "family": "interruption/no-replay-followup",
+      "language": "en",
+      "variant": 4,
+      "split": "development",
+      "sha256": "c787f746a2951720b47371d323b3863faca67af0e3c1b7f0cdc40ffc461abd84"
+    },
+    {
+      "id": "personal/interruption/resume-deferred-draft/1",
+      "category": "interruption",
+      "family": "interruption/resume-deferred-draft",
+      "language": "en",
+      "variant": 1,
+      "split": "heldout",
+      "sha256": "0b67faa37d92fd2f6dde07c0354d157b520e560c2ada266b2485c4250905d647"
+    },
+    {
+      "id": "personal/interruption/resume-deferred-draft/2",
+      "category": "interruption",
+      "family": "interruption/resume-deferred-draft",
+      "language": "en",
+      "variant": 2,
+      "split": "heldout",
+      "sha256": "10e70edf91f976b6888e4791e11137e78cf9c66d2d781fe405788473f5faf18c"
+    },
+    {
+      "id": "personal/interruption/resume-deferred-draft/3",
+      "category": "interruption",
+      "family": "interruption/resume-deferred-draft",
+      "language": "en",
+      "variant": 3,
+      "split": "heldout",
+      "sha256": "33810eecfce1364222fcca17ef5e3e30bf85483fddfa7a5149ce65f92a883eb4"
+    },
+    {
+      "id": "personal/interruption/resume-deferred-draft/4",
+      "category": "interruption",
+      "family": "interruption/resume-deferred-draft",
+      "language": "en",
+      "variant": 4,
+      "split": "heldout",
+      "sha256": "488c537f784f2c723e365b4d2b698561fa887ff1bfc3cdd503a7233bc19a4bae"
+    },
+    {
+      "id": "personal/topic/return-to-booking/1",
+      "category": "topic",
+      "family": "topic/return-to-booking",
+      "language": "en",
+      "variant": 1,
+      "split": "heldout",
+      "sha256": "1036e6e39b4ca3eafc1da718a4328a6cb5e583ec3c44b4c6877f6c2a984d3c8b"
+    },
+    {
+      "id": "personal/topic/return-to-booking/2",
+      "category": "topic",
+      "family": "topic/return-to-booking",
+      "language": "en",
+      "variant": 2,
+      "split": "heldout",
+      "sha256": "d8819480bde5fbf18de998c1be1c56d75f42de8ab34a8b97127def20a7dc60a4"
+    },
+    {
+      "id": "personal/topic/return-to-booking/3",
+      "category": "topic",
+      "family": "topic/return-to-booking",
+      "language": "en",
+      "variant": 3,
+      "split": "heldout",
+      "sha256": "8f05766992b5bd3191e5afe0ad3adabe9f13e597ed469074f71fb5ab21837e51"
+    },
+    {
+      "id": "personal/topic/return-to-booking/4",
+      "category": "topic",
+      "family": "topic/return-to-booking",
+      "language": "en",
+      "variant": 4,
+      "split": "heldout",
+      "sha256": "198fb7bbdb1b343d195d939cd7f8a1a772d43acd85dbd21e5e453a721b6a916b"
+    },
+    {
+      "id": "personal/topic/return-to-writing/1",
+      "category": "topic",
+      "family": "topic/return-to-writing",
+      "language": "en",
+      "variant": 1,
+      "split": "heldout",
+      "sha256": "15d567de7ce253c34a0d8bb8536d52996b11842574ec504840ffd954e9c62532"
+    },
+    {
+      "id": "personal/topic/return-to-writing/2",
+      "category": "topic",
+      "family": "topic/return-to-writing",
+      "language": "en",
+      "variant": 2,
+      "split": "heldout",
+      "sha256": "b29f4f14d6e716a699d896fdee028c563e0e3295a9da30a3b0b4f194a4d53b9d"
+    },
+    {
+      "id": "personal/topic/return-to-writing/3",
+      "category": "topic",
+      "family": "topic/return-to-writing",
+      "language": "en",
+      "variant": 3,
+      "split": "heldout",
+      "sha256": "d91495c1b763570655be1f3a9b7e347c4b4e6330e7772f368f0f76ab386a4c60"
+    },
+    {
+      "id": "personal/topic/return-to-writing/4",
+      "category": "topic",
+      "family": "topic/return-to-writing",
+      "language": "en",
+      "variant": 4,
+      "split": "heldout",
+      "sha256": "91f63f797afe94e98b0f6c7f6ec15a5010594705156b14e2960e52ceb50726eb"
+    },
+    {
+      "id": "personal/topic/finish-then-recall/1",
+      "category": "topic",
+      "family": "topic/finish-then-recall",
+      "language": "en",
+      "variant": 1,
+      "split": "development",
+      "sha256": "b4d6f2864722f4694ba2f9f57de90956da28dbeb990c68f08a2440d42a5949d1"
+    },
+    {
+      "id": "personal/topic/finish-then-recall/2",
+      "category": "topic",
+      "family": "topic/finish-then-recall",
+      "language": "en",
+      "variant": 2,
+      "split": "development",
+      "sha256": "5e7dc97242485abcb53274ec96dcf69400839e864a71b716c4acd77f86eeb58c"
+    },
+    {
+      "id": "personal/topic/finish-then-recall/3",
+      "category": "topic",
+      "family": "topic/finish-then-recall",
+      "language": "en",
+      "variant": 3,
+      "split": "development",
+      "sha256": "2cc4a5249c6ae00da17a014e30ec7f59eadf866c07dc4909d5f0b8c7cbac7200"
+    },
+    {
+      "id": "personal/topic/finish-then-recall/4",
+      "category": "topic",
+      "family": "topic/finish-then-recall",
+      "language": "en",
+      "variant": 4,
+      "split": "development",
+      "sha256": "1bde0384e4b44049054dc0a6c745f918229d8d5879fbfff34c4d62b8d81f90f7"
+    },
+    {
+      "id": "personal/topic/choose-between-projects/1",
+      "category": "topic",
+      "family": "topic/choose-between-projects",
+      "language": "en",
+      "variant": 1,
+      "split": "development",
+      "sha256": "88bf98a7c199e97787535bf85a5aea1e05ba2e7ab7f9ffd82fc1c0abfae18b3b"
+    },
+    {
+      "id": "personal/topic/choose-between-projects/2",
+      "category": "topic",
+      "family": "topic/choose-between-projects",
+      "language": "en",
+      "variant": 2,
+      "split": "development",
+      "sha256": "0a3e0b6554ecb760816264b05f1de75bd69694bd449dea67be26c777d022c8c7"
+    },
+    {
+      "id": "personal/topic/choose-between-projects/3",
+      "category": "topic",
+      "family": "topic/choose-between-projects",
+      "language": "en",
+      "variant": 3,
+      "split": "development",
+      "sha256": "db6ef4f2646d8701dc390c640c65101d34d4d5e6f37b51b21a89f36b49abe655"
+    },
+    {
+      "id": "personal/topic/choose-between-projects/4",
+      "category": "topic",
+      "family": "topic/choose-between-projects",
+      "language": "en",
+      "variant": 4,
+      "split": "development",
+      "sha256": "3eb81293ca7d0f14839f9b46159d9c7e2f451c4e5f34c841b4d835c91bf879e7"
+    },
+    {
+      "id": "personal/topic/restart-after-detour/1",
+      "category": "topic",
+      "family": "topic/restart-after-detour",
+      "language": "en",
+      "variant": 1,
+      "split": "development",
+      "sha256": "d61f13afbf410da71ef0c8dc068158edddc925c0040eb3a738f040796808af17"
+    },
+    {
+      "id": "personal/topic/restart-after-detour/2",
+      "category": "topic",
+      "family": "topic/restart-after-detour",
+      "language": "en",
+      "variant": 2,
+      "split": "development",
+      "sha256": "3fbd77f4d72864eb5d01974b90d8d09a26eb4d6853533b6d8583359cedd351e0"
+    },
+    {
+      "id": "personal/topic/restart-after-detour/3",
+      "category": "topic",
+      "family": "topic/restart-after-detour",
+      "language": "en",
+      "variant": 3,
+      "split": "development",
+      "sha256": "1fe963ced4dfbab160a953bf19159b753e12c9ad491577e2a939ad3a3be2b5f6"
+    },
+    {
+      "id": "personal/topic/restart-after-detour/4",
+      "category": "topic",
+      "family": "topic/restart-after-detour",
+      "language": "en",
+      "variant": 4,
+      "split": "development",
+      "sha256": "dd17418c91328d8a437b8df49270db3d92fc0d41606f1838e9176884f7c01a95"
+    },
+    {
+      "id": "personal/long/buried-reference/1",
+      "category": "long",
+      "family": "long/buried-reference",
+      "language": "en",
+      "variant": 1,
+      "split": "development",
+      "sha256": "ef17c07017b44d9d2717f8d5038f8f7bce038effe5743d627f339ed7d0fcc5cd"
+    },
+    {
+      "id": "personal/long/buried-reference/2",
+      "category": "long",
+      "family": "long/buried-reference",
+      "language": "en",
+      "variant": 2,
+      "split": "development",
+      "sha256": "8289d9fc3657908321790281534661b1e6fad8d43ccaecf55a294e618fc09e2b"
+    },
+    {
+      "id": "personal/long/buried-reference/3",
+      "category": "long",
+      "family": "long/buried-reference",
+      "language": "en",
+      "variant": 3,
+      "split": "development",
+      "sha256": "7940676fe20bba9b515e4dbd1d017621d71ea3b470b96497e754bef512a60709"
+    },
+    {
+      "id": "personal/long/buried-reference/4",
+      "category": "long",
+      "family": "long/buried-reference",
+      "language": "en",
+      "variant": 4,
+      "split": "development",
+      "sha256": "17dc1f233ed126ad8aea4eaaa1abedb09dd4c8a5d5e4a06958e8f7cc679ad882"
+    },
+    {
+      "id": "personal/long/buried-correction/1",
+      "category": "long",
+      "family": "long/buried-correction",
+      "language": "en",
+      "variant": 1,
+      "split": "heldout",
+      "sha256": "bc7457b5dfee9d3b8521da3331eb6743615f1973ba132839bc0ccbb4bb6f28f4"
+    },
+    {
+      "id": "personal/long/buried-correction/2",
+      "category": "long",
+      "family": "long/buried-correction",
+      "language": "en",
+      "variant": 2,
+      "split": "heldout",
+      "sha256": "0c230e69ad5dd95c9e5932bc90135e5cb3d40d19ef2170468555a723a4f073be"
+    },
+    {
+      "id": "personal/long/buried-correction/3",
+      "category": "long",
+      "family": "long/buried-correction",
+      "language": "en",
+      "variant": 3,
+      "split": "heldout",
+      "sha256": "a37ffffd27f10a95bc44425050c175f742906254843953ddcab060f294443f6b"
+    },
+    {
+      "id": "personal/long/buried-correction/4",
+      "category": "long",
+      "family": "long/buried-correction",
+      "language": "en",
+      "variant": 4,
+      "split": "heldout",
+      "sha256": "984b053f23c51dbff55204343fa0f067d734fcf16b8b3c1644754d698837d6e4"
+    },
+    {
+      "id": "personal/long/late-revision/1",
+      "category": "long",
+      "family": "long/late-revision",
+      "language": "en",
+      "variant": 1,
+      "split": "heldout",
+      "sha256": "2db2982eb656682793a9b59c5d84012a8aeace1d5f92765abcc9f691026de338"
+    },
+    {
+      "id": "personal/long/late-revision/2",
+      "category": "long",
+      "family": "long/late-revision",
+      "language": "en",
+      "variant": 2,
+      "split": "heldout",
+      "sha256": "43bdbc59bdcd76cec1aaca8086ed7bf993ef75e9ce22ad39f5b7d208e2aaba6f"
+    },
+    {
+      "id": "personal/long/late-revision/3",
+      "category": "long",
+      "family": "long/late-revision",
+      "language": "en",
+      "variant": 3,
+      "split": "heldout",
+      "sha256": "87161fb5d76a8ab4a0f17389092f35f9693a81f4efffa1f2a55cb349a67212e6"
+    },
+    {
+      "id": "personal/long/late-revision/4",
+      "category": "long",
+      "family": "long/late-revision",
+      "language": "en",
+      "variant": 4,
+      "split": "heldout",
+      "sha256": "2bb5bf13b452749afda5ef3c7e328b6bbc93d14ab2fb18730db3470866f6f06d"
+    },
+    {
+      "id": "personal/long/buried-isolation/1",
+      "category": "long",
+      "family": "long/buried-isolation",
+      "language": "en",
+      "variant": 1,
+      "split": "development",
+      "sha256": "768a8254e3ac81f40fd29491cdc86b7654b899436b811d470e3ecac412db4964"
+    },
+    {
+      "id": "personal/long/buried-isolation/2",
+      "category": "long",
+      "family": "long/buried-isolation",
+      "language": "en",
+      "variant": 2,
+      "split": "development",
+      "sha256": "fdb83b609ac7a4088235c07d71fa57065dcb9b91b528d31eb93263b33d29b5a7"
+    },
+    {
+      "id": "personal/long/buried-isolation/3",
+      "category": "long",
+      "family": "long/buried-isolation",
+      "language": "en",
+      "variant": 3,
+      "split": "development",
+      "sha256": "3d879dd5c0062976b307de289b797bcc1c25806024c91651d240a306bf5fdb60"
+    },
+    {
+      "id": "personal/long/buried-isolation/4",
+      "category": "long",
+      "family": "long/buried-isolation",
+      "language": "en",
+      "variant": 4,
+      "split": "development",
+      "sha256": "2323f85b544d55c2e0171353af879f100c10c977e973dd99c683b63f986ec5a4"
+    },
+    {
+      "id": "personal/long/delete-buried-detail/1",
+      "category": "long",
+      "family": "long/delete-buried-detail",
+      "language": "en",
+      "variant": 1,
+      "split": "development",
+      "sha256": "3f1520f7adc5dcaad0846e435f6df7f2084aa2b849cdab92b5f0197db9a9a24b"
+    },
+    {
+      "id": "personal/long/delete-buried-detail/2",
+      "category": "long",
+      "family": "long/delete-buried-detail",
+      "language": "en",
+      "variant": 2,
+      "split": "development",
+      "sha256": "eb1dc7ae1de0f7c6b4b19fb1f5c5a9d73f9d78ad97cbc8aa3b4ffd571a0c2df6"
+    },
+    {
+      "id": "personal/long/delete-buried-detail/3",
+      "category": "long",
+      "family": "long/delete-buried-detail",
+      "language": "en",
+      "variant": 3,
+      "split": "development",
+      "sha256": "3d6d1753986912fc19bae89ce6a3cf9fbf95727352f880c06b3c80d522ed1767"
+    },
+    {
+      "id": "personal/long/delete-buried-detail/4",
+      "category": "long",
+      "family": "long/delete-buried-detail",
+      "language": "en",
+      "variant": 4,
+      "split": "development",
+      "sha256": "2b81d72803227ca2952c9e8a59b3c3e100f5ea1ffbe00603691167dd0797f571"
+    },
+    {
+      "id": "personal/source/read-useful-fact/1",
+      "category": "source",
+      "family": "source/read-useful-fact",
+      "language": "en",
+      "variant": 1,
+      "split": "development",
+      "sha256": "916c477668ed9fc12c21508ac3174c37cce080a3a16f1fe1fee5341971696e78"
+    },
+    {
+      "id": "personal/source/read-useful-fact/2",
+      "category": "source",
+      "family": "source/read-useful-fact",
+      "language": "en",
+      "variant": 2,
+      "split": "development",
+      "sha256": "3dc07d8302f7bf18a466072f84b53b62a84a5d273b6404ca89de1a1e1427ef0e"
+    },
+    {
+      "id": "personal/source/read-useful-fact/3",
+      "category": "source",
+      "family": "source/read-useful-fact",
+      "language": "en",
+      "variant": 3,
+      "split": "development",
+      "sha256": "bb5acd6d7e7435300365c3e8eb5a935909b69b2b3b958d98d455bfa909debf11"
+    },
+    {
+      "id": "personal/source/read-useful-fact/4",
+      "category": "source",
+      "family": "source/read-useful-fact",
+      "language": "en",
+      "variant": 4,
+      "split": "development",
+      "sha256": "ce0fae7b4601c3a2a7afc35bd08942c865d4bd00f47bfc7b13f2988cc88b38fb"
+    },
+    {
+      "id": "personal/source/source-role-forgery/1",
+      "category": "source",
+      "family": "source/source-role-forgery",
+      "language": "en",
+      "variant": 1,
+      "split": "development",
+      "sha256": "a0f7df39e255e381948924f7f258fde23b09202e9ec3588c63a82f9fefa370aa"
+    },
+    {
+      "id": "personal/source/source-role-forgery/2",
+      "category": "source",
+      "family": "source/source-role-forgery",
+      "language": "en",
+      "variant": 2,
+      "split": "development",
+      "sha256": "291e2ec97abaad2b2f57ba9894e0e4ac73e37751e9233bb040db9762b7d9811e"
+    },
+    {
+      "id": "personal/source/source-role-forgery/3",
+      "category": "source",
+      "family": "source/source-role-forgery",
+      "language": "en",
+      "variant": 3,
+      "split": "development",
+      "sha256": "e10393be4c4e2e8a6f148f965d7f5dcead7c8b39555131d2e90ab6d712afa0f6"
+    },
+    {
+      "id": "personal/source/source-role-forgery/4",
+      "category": "source",
+      "family": "source/source-role-forgery",
+      "language": "en",
+      "variant": 4,
+      "split": "development",
+      "sha256": "ee70421eaa457d811bcbd4909578853479abc56e4cc12e959a50d78cff7eaed6"
+    },
+    {
+      "id": "personal/source/source-exfiltration/1",
+      "category": "source",
+      "family": "source/source-exfiltration",
+      "language": "en",
+      "variant": 1,
+      "split": "heldout",
+      "sha256": "9de8b66d1576d68e892f001c0df6d1047778487ef55d35140d5bbaab1dc811cd"
+    },
+    {
+      "id": "personal/source/source-exfiltration/2",
+      "category": "source",
+      "family": "source/source-exfiltration",
+      "language": "en",
+      "variant": 2,
+      "split": "heldout",
+      "sha256": "9a421db4297b0907497bd7e9e10c097c95b63cfef3004a7fc5631b221d100ca9"
+    },
+    {
+      "id": "personal/source/source-exfiltration/3",
+      "category": "source",
+      "family": "source/source-exfiltration",
+      "language": "en",
+      "variant": 3,
+      "split": "heldout",
+      "sha256": "19d1cb1efee9eb9076608a19be69dc276a82659678db41acfdf71ef17ff42519"
+    },
+    {
+      "id": "personal/source/source-exfiltration/4",
+      "category": "source",
+      "family": "source/source-exfiltration",
+      "language": "en",
+      "variant": 4,
+      "split": "heldout",
+      "sha256": "2e0286403e4be0a2c6f1666584821477c4ecec2a0662c15f68f8760aac710471"
+    },
+    {
+      "id": "personal/source/source-false-completion/1",
+      "category": "source",
+      "family": "source/source-false-completion",
+      "language": "en",
+      "variant": 1,
+      "split": "development",
+      "sha256": "9875f2186478ddc98443696348eb0594ef0ae0ca3dc2563a593c650c522ad9d4"
+    },
+    {
+      "id": "personal/source/source-false-completion/2",
+      "category": "source",
+      "family": "source/source-false-completion",
+      "language": "en",
+      "variant": 2,
+      "split": "development",
+      "sha256": "d68c671aa3c60c62f8a2222df64727d296059c3780e449e3ca9d21ae5f56b290"
+    },
+    {
+      "id": "personal/source/source-false-completion/3",
+      "category": "source",
+      "family": "source/source-false-completion",
+      "language": "en",
+      "variant": 3,
+      "split": "development",
+      "sha256": "694d33b6efb1c845b42fb9b8aa4d0134ed173b67d541a4b0e19538edeefc1ead"
+    },
+    {
+      "id": "personal/source/source-false-completion/4",
+      "category": "source",
+      "family": "source/source-false-completion",
+      "language": "en",
+      "variant": 4,
+      "split": "development",
+      "sha256": "2b51eaa0c5caae74bd6b688e162ee50f8bf9d06ef1801f29fc765cd5a642575c"
+    },
+    {
+      "id": "personal/source/source-to-approved-mail/1",
+      "category": "source",
+      "family": "source/source-to-approved-mail",
+      "language": "en",
+      "variant": 1,
+      "split": "heldout",
+      "sha256": "c4e8c36753d528852d336f3b33ca6b2bb38afa4377d2e21edeb6cdbca1b507a9"
+    },
+    {
+      "id": "personal/source/source-to-approved-mail/2",
+      "category": "source",
+      "family": "source/source-to-approved-mail",
+      "language": "en",
+      "variant": 2,
+      "split": "heldout",
+      "sha256": "2e992b806dfeccf3f4707db445987060f36b74350186c5bda0fe69275690f81c"
+    },
+    {
+      "id": "personal/source/source-to-approved-mail/3",
+      "category": "source",
+      "family": "source/source-to-approved-mail",
+      "language": "en",
+      "variant": 3,
+      "split": "heldout",
+      "sha256": "85749c80eb6da36c881a3865b5962e576bf8ebad4ed22c816e473d6f9e6d12c6"
+    },
+    {
+      "id": "personal/source/source-to-approved-mail/4",
+      "category": "source",
+      "family": "source/source-to-approved-mail",
+      "language": "en",
+      "variant": 4,
+      "split": "heldout",
+      "sha256": "7aca290f6598e4733ba77faddd85b2119c7adc69de3694af0d63d0bd1a73e884"
+    },
+    {
+      "id": "personal/multilingual/french-revision/1",
+      "category": "multilingual",
+      "family": "multilingual/french-revision",
+      "language": "fr",
+      "variant": 1,
+      "split": "development",
+      "sha256": "8bfa85475a067c1b981dcfd6734a4ad6bc80b68526c505edebec0707a62b9c50"
+    },
+    {
+      "id": "personal/multilingual/french-revision/2",
+      "category": "multilingual",
+      "family": "multilingual/french-revision",
+      "language": "fr",
+      "variant": 2,
+      "split": "development",
+      "sha256": "0bce004b30d6aec7264dbdfe02900c85c7361b7ea1fae8d03a31ba0589bbd611"
+    },
+    {
+      "id": "personal/multilingual/french-revision/3",
+      "category": "multilingual",
+      "family": "multilingual/french-revision",
+      "language": "fr",
+      "variant": 3,
+      "split": "development",
+      "sha256": "efb94a2ac9ecdf22fee885fc78c4b6de01dd97b6cbf1a1448e7be617bd1f58bb"
+    },
+    {
+      "id": "personal/multilingual/french-revision/4",
+      "category": "multilingual",
+      "family": "multilingual/french-revision",
+      "language": "fr",
+      "variant": 4,
+      "split": "development",
+      "sha256": "73b810e07509750e4fcd40ef959a0501366ed07449697a9683bab34283af2813"
+    },
+    {
+      "id": "personal/multilingual/spanish-recall/1",
+      "category": "multilingual",
+      "family": "multilingual/spanish-recall",
+      "language": "es",
+      "variant": 1,
+      "split": "heldout",
+      "sha256": "59fd73722d57004f957e542b77e8eacf139443986a950369538f487708ec2419"
+    },
+    {
+      "id": "personal/multilingual/spanish-recall/2",
+      "category": "multilingual",
+      "family": "multilingual/spanish-recall",
+      "language": "es",
+      "variant": 2,
+      "split": "heldout",
+      "sha256": "6de94c412c362943bbba052b419323e12653fa93110087898610e9c75e555de3"
+    },
+    {
+      "id": "personal/multilingual/spanish-recall/3",
+      "category": "multilingual",
+      "family": "multilingual/spanish-recall",
+      "language": "es",
+      "variant": 3,
+      "split": "heldout",
+      "sha256": "c806fe996a1afb452350f6a0abab452a32c84068cf772d4a7dfc8298019ad1cc"
+    },
+    {
+      "id": "personal/multilingual/spanish-recall/4",
+      "category": "multilingual",
+      "family": "multilingual/spanish-recall",
+      "language": "es",
+      "variant": 4,
+      "split": "heldout",
+      "sha256": "57dce371461dff5509201629a370c8900f2609c74aba7fb5051139958a1afc56"
+    },
+    {
+      "id": "personal/multilingual/german-two-fields/1",
+      "category": "multilingual",
+      "family": "multilingual/german-two-fields",
+      "language": "de",
+      "variant": 1,
+      "split": "development",
+      "sha256": "7c0296fcdcaf1c0b87ef2e24b4c8163cae6e9d3bab13af50a1790a3ed362357c"
+    },
+    {
+      "id": "personal/multilingual/german-two-fields/2",
+      "category": "multilingual",
+      "family": "multilingual/german-two-fields",
+      "language": "de",
+      "variant": 2,
+      "split": "development",
+      "sha256": "95416e0657d3e3f71601ac48bca840a3f34bee8eb931d70273cf72accda302af"
+    },
+    {
+      "id": "personal/multilingual/german-two-fields/3",
+      "category": "multilingual",
+      "family": "multilingual/german-two-fields",
+      "language": "de",
+      "variant": 3,
+      "split": "development",
+      "sha256": "c89f10bfd856eceacd9380b8737c607245997c8e380386414575b4eafefb14fe"
+    },
+    {
+      "id": "personal/multilingual/german-two-fields/4",
+      "category": "multilingual",
+      "family": "multilingual/german-two-fields",
+      "language": "de",
+      "variant": 4,
+      "split": "development",
+      "sha256": "349726f9aac5361bcf0512610eedeede03c920fa263ef472e81d104e035436eb"
+    },
+    {
+      "id": "personal/multilingual/persian-revision/1",
+      "category": "multilingual",
+      "family": "multilingual/persian-revision",
+      "language": "fa",
+      "variant": 1,
+      "split": "development",
+      "sha256": "8d402197eb692823fdaa0fc944c13eda3e6474ba30d10a00d8660818becda280"
+    },
+    {
+      "id": "personal/multilingual/persian-revision/2",
+      "category": "multilingual",
+      "family": "multilingual/persian-revision",
+      "language": "fa",
+      "variant": 2,
+      "split": "development",
+      "sha256": "3b42c407eb3ac7d9cdb9bd41804f1e54254b8f982fb628fdfa6c402e06c91b82"
+    },
+    {
+      "id": "personal/multilingual/persian-revision/3",
+      "category": "multilingual",
+      "family": "multilingual/persian-revision",
+      "language": "fa",
+      "variant": 3,
+      "split": "development",
+      "sha256": "b8062bc691013ce75f5f184fae6c07b1844a611e4672c7877abb363048b60588"
+    },
+    {
+      "id": "personal/multilingual/persian-revision/4",
+      "category": "multilingual",
+      "family": "multilingual/persian-revision",
+      "language": "fa",
+      "variant": 4,
+      "split": "development",
+      "sha256": "71b93d48e4892037859ca80566a00d9484a79fbd569cea4aa461991e8341856d"
+    },
+    {
+      "id": "personal/multilingual/arabic-recall/1",
+      "category": "multilingual",
+      "family": "multilingual/arabic-recall",
+      "language": "ar",
+      "variant": 1,
+      "split": "heldout",
+      "sha256": "fa32abf432c47f4fb32457295536ec4df3cf0a4eb618fb0d587fe1a5c0737b30"
+    },
+    {
+      "id": "personal/multilingual/arabic-recall/2",
+      "category": "multilingual",
+      "family": "multilingual/arabic-recall",
+      "language": "ar",
+      "variant": 2,
+      "split": "heldout",
+      "sha256": "961f4b110a137bf1fa58af28d0595da1525206c29f2b0ba8c12e03a547cac8d5"
+    },
+    {
+      "id": "personal/multilingual/arabic-recall/3",
+      "category": "multilingual",
+      "family": "multilingual/arabic-recall",
+      "language": "ar",
+      "variant": 3,
+      "split": "heldout",
+      "sha256": "24d9ca4880c55f4cd45ea24738b30945cc39b8e6560641af7561caeca2c1d319"
+    },
+    {
+      "id": "personal/multilingual/arabic-recall/4",
+      "category": "multilingual",
+      "family": "multilingual/arabic-recall",
+      "language": "ar",
+      "variant": 4,
+      "split": "heldout",
+      "sha256": "1b1cb98a62880c9e16b29ff92f3ffd5bdd6e653f33798697ee5a5b2679984360"
+    }
+  ]
+}

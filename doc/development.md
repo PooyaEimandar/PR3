@@ -128,6 +128,10 @@ The native suite also exercises encryption, missing-key lockout, wrong-code reje
 
 PR3 prepares drafts for your device's email app using opt-in device contacts. Each draft waits for your approval and then Face ID, Touch ID, a fingerprint or the passcode before handoff. The approval key lives in the Secure Enclave or Android Keystore; set a screen lock on Android first. Review and press Send in the email app. PR3 records the handoff in its verified hash-chained `audit.jsonl`, but cannot verify delivery. See [Device contacts and email](#device-contacts-and-email). Benchmark hosts still use the sandbox connector and `outbox.jsonl`, with no external delivery.
 
+Explicit email exclusions are reconstructed from the task's original user messages after restart or summarization, including retained parent tasks chosen through **Follow up**. For example, `Remove the private reference from the email.` resolves a previously supplied field, and `Omit "PRIVATE-821" from the email.` excludes that literal. A recognized standalone correction gets a runtime acknowledgement without inference or email preparation; request the draft when ready. The host checks the resolved recipients, subject and body before showing an approval card, including a restored card. A rejected draft cannot open the email app; a corrected draft still needs fresh approval and is handed off exactly as approved. No text is silently removed after approval.
+
+The deterministic check recognizes bounded, standalone English removal/inclusion commands and quoted literals or labeled values. Matching ignores letter case and whitespace differences; it is not general semantic redaction or a multilingual data-loss-prevention system. Unresolved recognized exclusions ask for exact quoted text rather than allowing an unchecked draft. Other wording still depends on model interpretation and your review. Replies, summaries and tool output cannot revoke restrictions. **New task** starts without inherited restrictions; deleting task history removes that source. Explicit `Include "PRIVATE-821" in the email.` changes that task's restriction, subject to normal approval. Removing a detail from an email does not delete it from local task history or independently saved memory.
+
 ## Reading web pages
 
 Paste a link and ask about it, and PR3 reads that page: over HTTPS only, at most 2 MB in 20 seconds, as text, in parts of 3,000 bytes. It reads only links you wrote in the task, never one the model makes up or finds on a page, and refuses addresses on your own network. A page is text from outside your control, so in a turn that read one PR3 asks for nothing that acts, such as sending an email: ask again, and the card names the sites the conversation has read. Settings, **Web**, turns it off and on again, and `[web] enabled = false` leaves the tool out altogether. The design is [RFC-002](rfc/002-reading-web-pages.md).
@@ -142,7 +146,8 @@ PR3 groups the conversation into tasks ([Sec. 4.8](architecture.md#48-tasks-and-
 - Each message shows its time at its bottom right, and a line above the first message of each day names it: "Today", "24 October", or "15 November 2024" in another year; so does the conversation.
 - **More** holds what to do with the task. **Continue** brings an unfinished task back into the conversation, and **Follow up** starts a new task linked to a finished one. **Delete** asks "Delete task?" first, and also erases what the runtime holds for that task. **Finish task** moves it to Done as **Finished by you**, keeps its chat and clears any approval left by an earlier launch. Finishing does not execute pending work. These choices wait while PR3 is answering; answer any live approval first.
 - A follow-up starts from a summary of the task it follows, which the model writes as soon as you choose **Follow up** or say "carry on with" a finished task, if that task has none yet, and then reads, so that on a phone the follow-up's first answer starts within about a second. A long task is summed up too: once what the model would read again passes about 1,800 tokens, its older exchanges are folded into the summary right after PR3 answers, while you read the answer, and the last two stay as they were. On a phone with the 4B a summary takes about 15 seconds for a short task and a fold, or a long task's summary, a minute or more; a message sent before it is written waits for the rest. After every answer PR3 also reads the conversation ahead of your next message, so on that phone the next answer starts within about two seconds, unless the model looks something up first. Forgetting a memory in Settings erases every summary; each is written again from its task's chat when next needed.
-- When PR3 opens again, the conversation comes back if its 10 minutes have not run out, and a follow-up picks up where it left off. A confirmation card that was waiting is shown again, to approve afresh; if it ran out while PR3 was closed, nothing was sent and the task is on Done as expired. A turn cut off by closing is on To Do as not finished.
+- **New task** saves an empty conversation selection before clearing the screen. It stays empty across restarts until you send a message or explicitly return to a task; old tasks remain in Tasks. A failed selection write reports an error and leaves the conversation selected so you can retry.
+- When PR3 opens again, the selected conversation comes back if its 10 minutes have not run out or it has a waiting approval; an explicitly chosen follow-up also survives restart. Deleting the selected task leaves an empty conversation rather than selecting another task. A confirmation card that was waiting in a selected task is shown again, to approve afresh; if it ran out while PR3 was closed, nothing was sent and the task is on Done as expired. An unselected waiting task remains available in Tasks. A turn cut off by closing is on To Do as not finished.
 - Say or type, as the whole message: "what is still open?" to list To Do and Doing; "carry on with the email to Alex" (or "back to", "resume", "pick up") to go back to that task, or to follow it up if it is finished; "what happened with the trip?" to see where it stands; "export the trip" to export it. PR3 matches the words against each task's title and first message, and offers a choice when several unfinished tasks match. Words that name no task go to the model as usual.
 - To finish from a message, say "finish this task", "finish task about the trip", or "mark the trip as done". "This task" means the task open in Tasks, or the current conversation. Several matches are offered for you to choose; an unknown name reports that no task matched. These commands never go to the model. An explicitly finished task stays finished after restart; **Follow up** opens a new linked task.
 - Replies and task histories show a **Recorded result** from actual tool outcomes, also kept in exports: memory saved, memory saved for review, or email draft opened (sandbox outbox in tests). A model reply alone is **Reply ready** in the task list, never proof of execution. Approval acknowledges the choice; the device check and execution still have to succeed.
@@ -242,6 +247,25 @@ From `app/pr3-app`, run `npm ci --ignore-scripts`, `npm test`, `npm run test:e2e
 
 `pr3-e2e` is a distinct debug-only binary, requires the `e2e` feature and a marked temporary directory, and uses a separate application identity. Its model, contact source, software key and mail-app adapter are fixtures. It cannot be compiled with the feature in release mode. Normal builds exclude the WebDriver server. This catches native UI/runtime wiring regressions but does not measure model intelligence or device permissions. The [Android email](android-email-checklist.md) and [continuity](continuity-checklist.md) checks remain physical-device work. The driver follows [Tauri's native WebDriver support](https://v2.tauri.app/develop/tests/webdriver/).
 
+### Focused email regressions
+
+The focused email-exclusion regressions use the production Host and approval gate,
+with process restarts and sandbox email effects:
+
+```bash
+cargo test -p pr3-app --lib email_exclusions --locked
+cargo test -p pr3-app --lib task::mail --locked
+cargo run --release -p pr3-bench-task --locked -- run \
+  --model model/Qwen3.5-4B-Q4_K_M.gguf \
+  --corpus bench/task/email-exclusions.toml --seed 1 \
+  --out bench/task/result/email-exclusions-4b-seed1.jsonl
+```
+
+Use a new output path after changing the build or corpus. The supplementary cases
+cover quoted text, labeled fields and independent New tasks. They are development
+regressions, separate from the frozen Personal-200 corpus; physical Android
+handoff still requires the device checklist.
+
 ### Full reproducible rebaseline
 
 After installing the pinned AgentDojo environment below, from the repository root:
@@ -260,6 +284,38 @@ The runner deliberately rejects an OS/Python/dependency change during resume. Do
 To refresh a stopped run's report without inference, add `--report-only`. Stop the foreground runner with Ctrl-C; resume with the same command. Preserve the result directory and the installed model files. On macOS `caffeinate -i` can prefix the command to prevent idle sleep. Workflow timing reports whole turns and first visible response after model load; summary preparation/model loading are separate from turn latency. These are desktop measurements, not Android measurements. Existing cases and the new correction cases are development evidence, not a held-out accuracy study.
 
 Harness regressions: `python3 -m unittest discover -s bench/rebaseline -p 'test_*.py'`, `cargo test -p pr3-bench-task`, and the AgentDojo Python tests below. Historical single-seed tables in `benchmarks.md` stay labeled historical until the new matrix finishes.
+
+### Frozen Personal-200 evaluation
+
+[`bench/personal`](../bench/personal/README.md) contains 200 synthetic desktop
+workflows in ten categories. V2 freezes 120 development tasks and 80 held-out
+tasks, with all variants of each scenario family in one split. Its manifest binds
+the case contents, partition and scoring policy. This public runtime holdout is
+separate from the historical task corpus and AgentDojo matrix; it does not cover
+Android permissions, physical device transport or live provider delivery.
+
+```bash
+python3 bench/personal/dataset.py validate
+python3 -m unittest discover -s bench/personal -p 'test_*.py'
+python3 bench/personal/run.py --out bench/personal/result/2026-11-08-v2 \
+  --model model/Qwen3.5-4B-Q4_K_M.gguf \
+  --model model/Qwen3.8-27B-Q4_K_M.gguf --seeds 1 2 7
+```
+
+The declared matrix has 1,200 runs: 720 development and 480 held-out. The driver
+freezes the built binary, current source, models, corpus and independent Python
+scorer before inference. Resume with the same output directory; use
+`--report-only` to validate and report recorded rows without inference. Completed
+failures are retained, missing rows stay in the denominator, and split-specific
+results include seeds, categories, languages, families and desktop latency. Strict
+whole-answer checks apply only to explicitly requested bare-value replies; exact
+recipients and host lifecycle routes supplement approval/outbox equality.
+
+Do not change v2 or tune the runtime on its held-out results. Later changes informed
+by these results make v2 a regression corpus, requiring a new version for a fresh
+holdout. Keep a single model evaluation active, pausing the historical matrix
+cleanly and resuming its original frozen command afterward. Full run artifacts
+live in the ignored output directory; implementation alone is not a passing score.
 
 ### Individual suites
 
@@ -346,6 +402,7 @@ crate/pr3-vault          the device's approval key: Secure Enclave, Android Keys
 fuzz                     fuzz targets for the parsers of untrusted input (pinned nightly, cargo-fuzz)
 app/pr3-app              the Tauri 2 app for macOS, iOS and Android: Rust in src-tauri, the webview's TypeScript in src, its page in ui
 bench/agentdojo         AgentDojo harness (benchmark only, never shipped)
+bench/personal          frozen Personal-200 corpus, independent scoring and resumable evaluation
 bench/task              tasks that span app launches, on the app's own host (benchmark only, never shipped)
 config/pr3.toml           models, traces, actions and node settings
 script/                  model download, Android build, trusted-side check

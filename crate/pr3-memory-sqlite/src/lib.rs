@@ -23,7 +23,9 @@ use pr3_memory::{
 };
 use rusqlite::{Connection, OptionalExtension, Row, Transaction, params};
 
-pub use crate::task::{Said, StoredTask, Summary, TaskEvent, TaskRecord, TaskState, WaitingCall};
+pub use crate::task::{
+    Said, StoredTask, Summary, TaskEvent, TaskRecord, TaskSelection, TaskState, WaitingCall,
+};
 
 /// Schema migrations, applied in order; the database's `user_version` is how many have
 /// run. Never edit a released migration: add a new one.
@@ -180,6 +182,16 @@ const MIGRATIONS: &[&str] = &[
     ALTER TABLE task_events_v5 RENAME TO task_events;
     ",
     continuity::MIGRATION,
+    // v7: device-local conversation selection. No row means an older build's
+    // implicit selection; a row with no references explicitly means New task.
+    "
+    CREATE TABLE task_selection (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        current_task INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
+        follow_up INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
+        CHECK (current_task IS NULL OR follow_up IS NULL)
+    );
+    ",
 ];
 
 const COLUMNS: &str = "m.id, m.text, m.status, m.principal, m.created_at, m.valid_at,
@@ -756,6 +768,22 @@ mod tests {
         let refused = SqliteMemory::open(&path).err().unwrap();
         assert!(refused.0.contains("newer PR3"), "{refused}");
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn v7_keeps_legacy_tasks_without_inventing_an_explicit_selection() {
+        let conn = Connection::open_in_memory().unwrap();
+        for sql in &MIGRATIONS[..6] {
+            conn.execute_batch(sql).unwrap();
+        }
+        conn.pragma_update(None, "user_version", 6).unwrap();
+        conn.execute_batch("INSERT INTO tasks(id, title, state, updated_at) VALUES (7, 'Kept task', 'done', 100); INSERT INTO messages(task_id, at, kind, text) VALUES (7, 100, 'user', 'Keep these details');").unwrap();
+        let m = SqliteMemory::init(conn).unwrap();
+        assert_eq!(m.schema_version().unwrap(), MIGRATIONS.len());
+        assert_eq!(m.task_selection().unwrap(), None);
+        let tasks = m.tasks().unwrap();
+        assert_eq!(tasks[0].record.id, 7);
+        assert_eq!(tasks[0].chat[0].1, Said::User("Keep these details".into()));
     }
 
     #[test]

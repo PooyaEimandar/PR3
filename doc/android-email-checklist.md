@@ -17,6 +17,7 @@ Record phone model, Android version, PR3 build, local model, email app/version a
 | Enable, then Remove all contacts, restart | List empty and sync off; no immediate reimport; device contacts unchanged |
 | Revoke Contacts in Android Settings after syncing | Next panel refresh/email attempt clears imported contacts and refuses stale recipients |
 | Ask for an email, then Decline | No mail app opens; no claim of sending |
+| Capture public reference `DEMO-246` and private reference `PRIVATE-731`; say `Remove the private reference from the email.`; restart and request the draft | Approval and the mail-app draft contain `DEMO-246` and omit `PRIVATE-731`, including explanations of what was removed; the handoff still requires approval |
 | Approve a draft | PR3 shows exact recipients/subject/body, performs device check, then opens the mail app for review |
 | Review in mail app | Recipient, subject, Unicode text and line breaks match the PR3 approval; no unexpected cc/bcc |
 | Cancel/back out of mail app | PR3 still says draft opened and delivery unverified, never sent; task remains open |

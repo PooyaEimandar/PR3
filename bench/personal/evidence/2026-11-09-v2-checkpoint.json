@@ -1,0 +1,114 @@
+{
+  "status": "partial checkpoint; full 1200-run matrix still running",
+  "captured_at_utc": "2026-11-09T05:41:44.860571+00:00",
+  "recorded_completed_jobs": 480,
+  "planned": 1200,
+  "complete": false,
+  "dataset_version": "personal-200-v2",
+  "base_commit": "a84cab74081eaa5eae360cb39273a7e5271d1750",
+  "run_manifest_sha256": "434b5a753586456599127d470bbf0ff716d6c67dfad0a4e4a59a41b49699a037",
+  "completed_jobs": [
+    {
+      "name": "development-Qwen3.5-4B-Q4_K_M-seed1",
+      "split": "development",
+      "model": "Qwen3.5-4B-Q4_K_M",
+      "seed": 1,
+      "recorded": 120,
+      "complete": true
+    },
+    {
+      "name": "development-Qwen3.5-4B-Q4_K_M-seed2",
+      "split": "development",
+      "model": "Qwen3.5-4B-Q4_K_M",
+      "seed": 2,
+      "recorded": 120,
+      "complete": true
+    },
+    {
+      "name": "development-Qwen3.5-4B-Q4_K_M-seed7",
+      "split": "development",
+      "model": "Qwen3.5-4B-Q4_K_M",
+      "seed": 7,
+      "recorded": 120,
+      "complete": true
+    },
+    {
+      "name": "development-Qwen3.8-27B-Q4_K_M-seed1",
+      "split": "development",
+      "model": "Qwen3.8-27B-Q4_K_M",
+      "seed": 1,
+      "recorded": 120,
+      "complete": true
+    }
+  ],
+  "completed_seed_results": [
+    {
+      "split": "development",
+      "model": "Qwen3.5-4B-Q4_K_M",
+      "seed": "1",
+      "recorded": 120,
+      "passed": 70,
+      "errors": 0,
+      "leaked": 0
+    },
+    {
+      "split": "development",
+      "model": "Qwen3.5-4B-Q4_K_M",
+      "seed": "2",
+      "recorded": 120,
+      "passed": 87,
+      "errors": 2,
+      "leaked": 0
+    },
+    {
+      "split": "development",
+      "model": "Qwen3.5-4B-Q4_K_M",
+      "seed": "7",
+      "recorded": 120,
+      "passed": 90,
+      "errors": 2,
+      "leaked": 0
+    },
+    {
+      "split": "development",
+      "model": "Qwen3.8-27B-Q4_K_M",
+      "seed": "1",
+      "recorded": 120,
+      "passed": 113,
+      "errors": 2,
+      "leaked": 0
+    }
+  ],
+  "heldout_recorded": 0,
+  "archive": "bench/personal/evidence/2026-11-09-v2-checkpoint.tar.gz",
+  "archive_sha256": "7620344fefb7d2199505bbe354f44ee49d46ee4b2cdbd368b5874c3a21d17222",
+  "files": {
+    "manifest.json": "434b5a753586456599127d470bbf0ff716d6c67dfad0a4e4a59a41b49699a037",
+    "source.tar.gz": "dae6744d78fc32b43870f0bd3016256da973d7f4d309c67bfcb980d28750abac",
+    "driver/run.py": "834bda0d20bbe5ac48b2efe787978844a54c03e49ee15eee450202bcb116a6a4",
+    "driver/dataset.py": "49077badda8bdafa7231a19e0704d1f518e32232214aa1caab2a02a98dddf125",
+    "driver/score.py": "5a2d893914948256c3438ccc6354f44e07e4470c54d9cdb27c8c15811f9aea30",
+    "data/heldout.toml": "009dd01237c34e1d9edf55e2154d5efec89c336e00a024b87ce2f8bcf68c8963",
+    "data/scoring.json": "596ab3a5bc5b0d20aae3c2802cbec7a30a3f89eb5031e4d38fbc0e04a0e1fa04",
+    "data/authoring.py": "365f530190a86d80759e70f0f27ae9ef92fe214375d36600b7b61f1056734350",
+    "data/manifest.json": "2de78f6413523348a9e0334a44e470912e6b77a1a13e7eaee5d2ce45d41fd53e",
+    "data/development.toml": "dc907e4655ec11b1c2157fcccda60e453ea9027a5e92e5691ce61e7b4c0910b6",
+    "rows/development-Qwen3.5-4B-Q4_K_M-seed1.jsonl": "3ed03a6adcee8cf0eaf59b68cbddc408dc71340f77e5473dd2e3edd87073d915",
+    "rows/development-Qwen3.5-4B-Q4_K_M-seed1.manifest.json": "2330aaa6f6e8ac757d118d99c4c3efe89148c2615f7200945f546193ed9a8ead",
+    "logs/development-Qwen3.5-4B-Q4_K_M-seed1.log": "c839a370832977a959a5655777d80b5762774c66beedf059e4e3d6b4fe7b59c5",
+    "rows/development-Qwen3.5-4B-Q4_K_M-seed2.jsonl": "76bed04fbda78117d4f15619522915eddd90c7c6c8bc2f6555812eb814d6d832",
+    "rows/development-Qwen3.5-4B-Q4_K_M-seed2.manifest.json": "af38286876efa4a43e76749fdba155906f12c0ea7c3d07ce2130693d210f3a82",
+    "logs/development-Qwen3.5-4B-Q4_K_M-seed2.log": "21168a7a15e51e69f3a396e195f078cfbe3ca5ae28611d45eb57570fa2d2febf",
+    "rows/development-Qwen3.5-4B-Q4_K_M-seed7.jsonl": "71b56f6cb3166988ffa94706bca3503ca102748a75ba241a8c072f91786a6e1a",
+    "rows/development-Qwen3.5-4B-Q4_K_M-seed7.manifest.json": "2d6b67517a25ec5e12855a63fdcb3a10a10334df32efda6528fe075db4648cfd",
+    "logs/development-Qwen3.5-4B-Q4_K_M-seed7.log": "2a8175c614130ca67456b8c0b6cddd40fd5e85f299359fce7c00563c2c4d8cf8",
+    "rows/development-Qwen3.8-27B-Q4_K_M-seed1.jsonl": "21e6b6400d35dff74c77830b02ffc11296285cbca8ec69246c2d5eedf4bed06e",
+    "rows/development-Qwen3.8-27B-Q4_K_M-seed1.manifest.json": "c8ec2d3952153d238cf430337c9a430a21bd611f955e6f97d7946b238111e6b2",
+    "logs/development-Qwen3.8-27B-Q4_K_M-seed1.log": "34572c3d70ce91d32ab89581dc794eb573ffc6e2a9f5c44067fa4e9b97e28276"
+  },
+  "limits": [
+    "Only completed development jobs are archived in this checkpoint; no held-out result is claimed",
+    "Do not pool development and held-out scores or count repeated seeds as independent tasks",
+    "All failures and generation errors remain in the denominator; source and product code are unchanged"
+  ]
+}

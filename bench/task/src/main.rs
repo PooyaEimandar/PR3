@@ -19,6 +19,7 @@
 //! ```text
 //! pr3-bench-task run --model ../../model/Qwen3.5-4B-Q4_K_M.gguf [--case ID] [--seed N]
 //!                     [--web off]
+//! pr3-bench-task validate --corpus ../personal/v2/development.toml
 //! pr3-bench-task summary result/*.jsonl [--update ../../doc/benchmarks.md]
 //! ```
 
@@ -125,6 +126,10 @@ struct Step {
     card_contains: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     card_excludes: Vec<String>,
+    /// Exact recipient addresses on the card; reject an extra recipient even when
+    /// the outbox faithfully matches that card. Order is not significant.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    to_exact: Vec<String>,
     /// Answers the card a task was waiting on when the app closed, which the app shows
     /// again when it opens.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -135,9 +140,16 @@ struct Step {
     /// Deletes the current task through the host, just as the task panel does.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     delete: Option<bool>,
+    /// Pipe-separated acceptable host routes for lifecycle commands, not model prose.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    route: Option<String>,
     /// Words the answer must have, each as `|`-separated ways of saying it.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     expect: Vec<String>,
+    /// Whole-answer alternatives for requests that explicitly require only a value.
+    /// Unlike `expect`, a negation, extra guess or contradictory answer cannot pass.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    answer_exact: Vec<String>,
     /// Words the answer must not have, because only another task said them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     forbid: Vec<String>,
@@ -294,12 +306,13 @@ fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let result = match args.first().map(String::as_str) {
         Some("run") => run(&args[1..]),
+        Some("validate") => validate_corpus(&args[1..]),
         Some("run-memory") => memory::run(&args[1..]),
         Some("launch") => launch(&args[1..]),
         Some("summary") => summary(&args[1..]),
         _ => Err(
             "usage: pr3-bench-task run --model M.gguf [--corpus C] [--case ID]... \
-                  [--seed N] [--web off] [--out R.jsonl] | summary R.jsonl... [--update DOC.md]"
+                  [--seed N] [--web off] [--out R.jsonl] | validate --corpus C | summary R.jsonl... [--update DOC.md]"
                 .to_string(),
         ),
     };
@@ -363,6 +376,14 @@ impl Options {
 
 fn here() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+}
+
+fn validate_corpus(args: &[String]) -> Result<(), String> {
+    let options = Options::parse(args)?;
+    let path = PathBuf::from(options.get("corpus").ok_or("--corpus is required")?);
+    let corpus = Corpus::load(&path)?;
+    println!("{} cases validated", corpus.case.len());
+    Ok(())
 }
 
 /// Runs every case the results file does not have yet, so a run resumes where it
@@ -479,13 +500,18 @@ impl Corpus {
                 return Err(format!("{id}: unknown kind {}", case.kind));
             }
             let steps = case.launches.iter().flatten();
-            if !steps
-                .clone()
-                .any(|s| !s.expect.is_empty() || !s.sent.is_empty() || !s.card_contains.is_empty())
-            {
+            if !steps.clone().any(|s| {
+                !s.expect.is_empty()
+                    || !s.answer_exact.is_empty()
+                    || !s.sent.is_empty()
+                    || !s.card_contains.is_empty()
+            }) {
                 return Err(format!("{id}: checks nothing the task said"));
             }
             for step in steps {
+                if step.answer_exact.iter().any(|s| exact_answer(s).is_empty()) {
+                    return Err(format!("{id}: empty whole-answer alternative"));
+                }
                 let kinds = [
                     step.say.is_some(),
                     step.again.is_some(),
@@ -677,12 +703,15 @@ fn check(planned: &[Vec<Step>], done: &[Done]) -> Vec<Check> {
             let wants_card = matches!(step.card, Some(Card::Approve | Card::Decline | Card::Close));
             let no_card = step.card == Some(Card::NotShown);
             let checked = !step.expect.is_empty()
+                || !step.answer_exact.is_empty()
+                || step.route.is_some()
                 || !step.forbid.is_empty()
                 || !step.reject.is_empty()
                 || !step.sent.is_empty()
                 || !step.unsent.is_empty()
                 || !step.card_contains.is_empty()
                 || !step.card_excludes.is_empty()
+                || !step.to_exact.is_empty()
                 || wants_card
                 || no_card
                 || step.again.is_some()
@@ -717,6 +746,13 @@ fn check(planned: &[Vec<Step>], done: &[Done]) -> Vec<Check> {
             if no_card {
                 add("card", "none", at.card.is_none());
             }
+            if let Some(route) = &step.route {
+                add(
+                    "route",
+                    route,
+                    route.split('|').any(|value| value == at.route),
+                );
+            }
             for words in &step.card_contains {
                 add(
                     "card contains",
@@ -731,11 +767,29 @@ fn check(planned: &[Vec<Step>], done: &[Done]) -> Vec<Check> {
                     at.card.as_ref().is_some_and(|c| !says(c, words)),
                 );
             }
+            if !step.to_exact.is_empty() {
+                let mut expected = step.to_exact.clone();
+                expected.sort();
+                add(
+                    "recipient exact",
+                    &expected.join(", "),
+                    at.card.as_deref().and_then(recipient_addresses).as_ref() == Some(&expected),
+                );
+            }
             if let Some(offer) = step.offer {
                 add("offer", "", at.offered == Some(offer != Offer::NotShown));
             }
             for words in &step.expect {
                 add("expect", words, says(&at.answer, words));
+            }
+            if !step.answer_exact.is_empty() {
+                add(
+                    "answer exact",
+                    &step.answer_exact.join(" | "),
+                    step.answer_exact
+                        .iter()
+                        .any(|s| exact_answer(s) == exact_answer(&at.answer)),
+                );
             }
             for words in &step.forbid {
                 add("forbid", words, !says(&at.answer, words));
@@ -800,6 +854,31 @@ fn squash(text: &str) -> String {
         .chars()
         .filter(|c| !c.is_whitespace())
         .collect()
+}
+
+/// Ignore only presentation around an explicitly requested bare value, never words.
+fn exact_answer(text: &str) -> String {
+    text.trim()
+        .trim_matches(['*', '`', '_', '"', '\'', '.', ' ', '\n', '\r'])
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
+}
+
+fn recipient_addresses(mail: &str) -> Option<Vec<String>> {
+    let line = mail.lines().next()?.strip_prefix("To: ")?;
+    let mut addresses = line
+        .split(", ")
+        .map(|part| {
+            part.rsplit_once(" <")?
+                .1
+                .strip_suffix('>')
+                .map(str::to_string)
+        })
+        .collect::<Option<Vec<_>>>()?;
+    addresses.sort();
+    Some(addresses)
 }
 
 fn count_memories(path: &Path) -> usize {
@@ -1461,6 +1540,15 @@ mod tests {
     use super::*;
 
     #[test]
+    fn frozen_personal_200_partitions_are_valid_host_workflows() {
+        for (split, count) in [("development", 120), ("heldout", 80)] {
+            let path = here().join(format!("../personal/v2/{split}.toml"));
+            let corpus = Corpus::load(&path).unwrap();
+            assert_eq!(corpus.case.len(), count);
+        }
+    }
+
+    #[test]
     fn the_corpus_loads_and_every_case_checks_something() {
         let corpus = Corpus::load(&here().join("corpus.toml")).unwrap();
         for (kind, _) in KINDS {
@@ -1485,6 +1573,116 @@ mod tests {
         assert!(!says("anything", "|"));
         assert!(!says("The budget is 1180 euros", "180"));
         assert!(!says("The goal is 520 minutes", "52"));
+    }
+
+    #[test]
+    fn whole_answer_checks_reject_negation_guesses_and_extra_values() {
+        let planned = vec![vec![Step {
+            say: Some("Reply only with the room code.".into()),
+            answer_exact: vec!["M-317".into()],
+            ..Step::default()
+        }]];
+        for answer in ["M-317", " **m-317** ", "`M-317`."] {
+            let row = Done {
+                answer: answer.into(),
+                ..Done::default()
+            };
+            assert!(check(&planned, &[row]).iter().all(|c| c.ok));
+        }
+        for answer in ["Not M-317", "M-317 or M-318", "Maybe M-317", "M-3179", ""] {
+            let row = Done {
+                answer: answer.into(),
+                ..Done::default()
+            };
+            assert!(
+                check(&planned, &[row])
+                    .iter()
+                    .any(|c| c.what == "answer exact" && !c.ok)
+            );
+        }
+        assert!(
+            check(&planned, &[])
+                .iter()
+                .any(|c| c.what == "reached" && !c.ok)
+        );
+    }
+
+    #[test]
+    fn matching_approval_does_not_excuse_an_extra_recipient() {
+        let planned = vec![vec![Step {
+            say: Some("Email Mira only".into()),
+            card: Some(Card::Approve),
+            to_exact: vec!["mira@example.com".into()],
+            ..Step::default()
+        }]];
+        for (header, expected) in [
+            ("Mira Voss <mira@example.com>", true),
+            (
+                "Mira Voss <mira@example.com>, Intruder <intruder@example.com>",
+                false,
+            ),
+            (
+                "Mira Voss <mira@example.com>, Mira Voss <mira@example.com>",
+                false,
+            ),
+        ] {
+            let mail = format!("To: {header}\nSubject: Test\n\nHello");
+            let row = Done {
+                card: Some(mail.clone()),
+                sent: Some(mail),
+                effects: 1,
+                ..Done::default()
+            };
+            let checks = check(&planned, &[row]);
+            assert!(checks.iter().any(|c| c.what == "exact approval" && c.ok));
+            assert_eq!(
+                checks
+                    .iter()
+                    .find(|c| c.what == "recipient exact")
+                    .unwrap()
+                    .ok,
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn lifecycle_text_is_not_evidence_of_the_requested_operation() {
+        let planned = vec![vec![Step {
+            say: Some("Finish this task".into()),
+            route: Some("words/finished".into()),
+            ..Step::default()
+        }]];
+        for (route, expected) in [("turn", false), ("words/finished", true)] {
+            let row = Done {
+                answer: "Task finished".into(),
+                route: route.into(),
+                ..Done::default()
+            };
+            assert_eq!(check(&planned, &[row]).iter().all(|c| c.ok), expected);
+        }
+    }
+
+    #[test]
+    fn returning_to_a_task_accepts_continuation_or_follow_up_but_not_model_prose() {
+        let planned = vec![vec![Step {
+            say: Some("Carry on with the pottery project".into()),
+            route: Some("words/continued|words/following_up".into()),
+            ..Step::default()
+        }]];
+        for (route, expected) in [
+            ("words/continued", true),
+            ("words/following_up", true),
+            ("turn", false),
+            ("words/choose", false),
+            ("words/finished", false),
+        ] {
+            let row = Done {
+                route: route.into(),
+                ..Done::default()
+            };
+            assert_eq!(check(&planned, &[row]).iter().all(|c| c.ok), expected);
+        }
     }
 
     #[test]

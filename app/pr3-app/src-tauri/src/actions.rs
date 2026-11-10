@@ -14,7 +14,7 @@ use std::time::Duration;
 
 use pr3_core::trusted::{
     ApprovalKey, ApprovalRequest, Contact, Directory, Entry, Envelope, Gate, Intent, Limits,
-    MAIL_SEND, Proposal, Submitted,
+    MAIL_SEND, Mail, Proposal, Submitted,
 };
 use pr3_core::{Timestamp, ToolCall, ToolSpec};
 use pr3_tool::mail::{self, SandboxOutbox};
@@ -159,6 +159,20 @@ impl Actions {
         cancel: Arc<AtomicBool>,
         prepare: impl FnOnce() -> Result<(), String> + Send + 'static,
     ) -> (bool, String) {
+        self.run_checked(call, |_| Ok(()), ask, cancel, prepare)
+            .await
+    }
+
+    /// Check task-specific content restrictions on the canonical email before any
+    /// card, signing or execution. The approved object is never rewritten.
+    pub(crate) async fn run_checked(
+        self: Arc<Self>,
+        call: &ToolCall,
+        check: impl FnOnce(&Mail) -> Result<(), String>,
+        ask: impl FnOnce(&ApprovalRequest),
+        cancel: Arc<AtomicBool>,
+        prepare: impl FnOnce() -> Result<(), String> + Send + 'static,
+    ) -> (bool, String) {
         if cancel.load(Ordering::Acquire) {
             return (false, "NOT SENT: stopped by you.".to_string());
         }
@@ -200,6 +214,11 @@ impl Actions {
             Ok(Submitted::Denied(why)) => return (false, format!("not allowed: {why}")),
             Err(error) => return (false, format!("NOT SENT: {error}")),
         };
+
+        if let Err(reason) = check(&request.mail) {
+            let _ = self.with_gate(|gate| gate.decline(&request.request, &reason, now()));
+            return (false, format!("NOT SENT: {reason}"));
+        }
 
         let (sender, answer) = mpsc::channel();
         if let Ok(mut answers) = self.answers.lock() {
@@ -794,6 +813,103 @@ mod tests {
             assert!(tasks.result_line(id).unwrap().contains(AUDIT_FAILED));
             assert!(!run(&actions, TO_ALEX, Some(true)).0);
             assert_eq!(opened.load(Ordering::SeqCst), 1);
+            fs::remove_dir_all(dir).unwrap();
+        }
+    }
+
+    #[test]
+    fn email_exclusions_keep_approval_and_exact_handoff_for_revised_drafts() {
+        struct Contacts;
+        impl crate::contacts::Source for Contacts {
+            fn read(&self, _: bool) -> Result<crate::contacts::Snapshot, String> {
+                Ok(serde_json::from_value(serde_json::json!({"permission":"granted","contacts":[{"name":"Alex Rivera","address":"alex@example.com"}]})).unwrap())
+            }
+        }
+        for device in [false, true] {
+            let dir = temp(if device {
+                "exclusion-device"
+            } else {
+                "exclusion-sandbox"
+            });
+            let handed_off = Arc::new(Mutex::new(Vec::<Mail>::new()));
+            let actions = Arc::new(if device {
+                fs::write(dir.join("contacts-sync"), b"enabled\n").unwrap();
+                let opened = handed_off.clone();
+                Actions::with_device(
+                    &dir,
+                    Limits::default(),
+                    Box::new(SoftwareVault::generate().unwrap()),
+                    Arc::new(crate::contacts::Book::open(&dir, Box::new(Contacts))),
+                    Box::new(move |mail| {
+                        opened.lock().unwrap().push(mail.clone());
+                        Ok(())
+                    }),
+                )
+                .unwrap()
+            } else {
+                Actions::with_vault(
+                    &dir,
+                    Limits::default(),
+                    directory(),
+                    Box::new(SoftwareVault::generate().unwrap()),
+                )
+                .unwrap()
+            });
+            let mut tasks = crate::task::Tasks::default();
+            let (id, _) = tasks.begin("Omit \"SECRET-482\" from the email.", now());
+            tasks.end(id, Ok("Understood.".into()), now());
+            let cards = Arc::new(Mutex::new(Vec::new()));
+            for (body, answer) in [
+                ("PUB-391. SECRET-482 was omitted.", true),
+                ("PUB-391", false),
+                ("PUB-391", true),
+            ] {
+                let exclusions = tasks.email_exclusions(id);
+                let proposed = call(
+                    &serde_json::json!({"to":"Alex Rivera","subject":"Public update","body":body})
+                        .to_string(),
+                );
+                let approved = actions.clone();
+                let seen = cards.clone();
+                let (ok, output) = tauri::async_runtime::block_on(actions.clone().run_checked(
+                    &proposed,
+                    move |mail| exclusions.check(mail),
+                    move |request| {
+                        assert_eq!(request.mail.body, "PUB-391");
+                        seen.lock().unwrap().push(request.mail.clone());
+                        approved.answer(&request.request, answer).unwrap();
+                    },
+                    Arc::new(AtomicBool::new(false)),
+                    || Ok(()),
+                ));
+                assert_eq!(ok, body == "PUB-391" && answer, "{output}");
+                if body.contains("SECRET") {
+                    assert!(output.contains("excluded") && !output.contains("SECRET-482"));
+                    assert!(cards.lock().unwrap().is_empty());
+                }
+                if !ok {
+                    assert!(handed_off.lock().unwrap().is_empty());
+                    assert!(!dir.join("outbox.jsonl").exists());
+                }
+            }
+            let cards = cards.lock().unwrap();
+            assert_eq!(
+                cards.len(),
+                2,
+                "clean drafts still require an explicit decision"
+            );
+            assert_eq!(cards[0], cards[1]);
+            if device {
+                assert_eq!(*handed_off.lock().unwrap(), [cards[1].clone()]);
+            } else {
+                let rows = fs::read_to_string(dir.join("outbox.jsonl")).unwrap();
+                assert_eq!(rows.lines().count(), 1);
+                let sent: serde_json::Value = serde_json::from_str(rows.trim()).unwrap();
+                assert_eq!(sent["body"], cards[1].body);
+                assert_eq!(sent["subject"], cards[1].subject);
+                assert!(!rows.contains("SECRET-482"));
+            }
+            assert!(verify(&read_log(&dir.join("audit.jsonl")).unwrap()).is_ok());
             fs::remove_dir_all(dir).unwrap();
         }
     }

@@ -35,6 +35,11 @@ their details. PR3 resolves names to addresses; you do not need to know the addr
 Use the latest requested recipient, not a superseded one. If they ask you to wait or \
 only correct details, acknowledge that and do not draft until they ask. Once they ask, \
 write a concise subject and body yourself when the conversation supplies enough detail. \
+The send_email proposal's subject and body must honor the user's exclusions. Do not \
+repeat an excluded detail in a sentence explaining that it was removed or kept private. \
+Keep editing commentary out of the email body. If the user asks to communicate only a \
+supplied public reference, that is enough content for a brief email with a nonempty \
+subject. Prepare it through send_email; a chat reply alone does not prepare a draft. \
 Follow the tool's connector description. A proposal, approval, draft handoff and sending \
 are different outcomes; PR3 reports only the recorded result.";
 

@@ -1,0 +1,13 @@
+{
+  "status": "aborted; invalid lifecycle route oracle; no held-out inference performed",
+  "reason": "V1 required words/continued on return-to-task cases, but TaskManager::CarryOn correctly uses words/following_up for completed tasks. V2 accepts either actual route without changing prompts, answer checks, split membership or product code. V1 is preserved and is not pooled with v2.",
+  "runtime_source": "app/pr3-app/src-tauri/src/task.rs:1061",
+  "recorded": 84,
+  "passed_under_invalid_v1_oracle": 40,
+  "errors": 0,
+  "heldout_recorded": 0,
+  "archive": "bench/personal/evidence/2026-11-08-v1-aborted.tar.gz",
+  "archive_sha256": "05b3fb4062d414c70c858b924b19f5bd25e90a1481f252d451ecfdc91d9b8a1c",
+  "run_manifest_sha256": "5c8118d613dd60e0f61d19fc73132858ff3096fc6cbd31091cbb8c774f1cacee",
+  "cleanup": "Runner interruption returned EPERM after the process group disappeared. Process inspection confirmed no Personal-200 process remained; the historical matrix resumed. V2 tests cleanup against departed groups and retains errors when descendants remain."
+}
