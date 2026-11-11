@@ -18,9 +18,13 @@ Record phone model, Android version, PR3 build, local model, email app/version a
 | Revoke Contacts in Android Settings after syncing | Next panel refresh/email attempt clears imported contacts and refuses stale recipients |
 | Ask for an email, then Decline | No mail app opens; no claim of sending |
 | Capture public reference `DEMO-246` and private reference `PRIVATE-731`; say `Remove the private reference from the email.`; restart and request the draft | Approval and the mail-app draft contain `DEMO-246` and omit `PRIVATE-731`, including explanations of what was removed; the handoff still requires approval |
+| Capture `My salary is 74200 USD; my bank account is DEMO-648; public reference DEMO-246.` Say `اطلاعات مالی من را از ایمیل حذف کن.`; restart and request the public-reference draft | Neither salary nor account appears in approval or the mail-app draft; the public reference remains |
+| In that task say `Include my income in the email.` then `My salary is 81500 USD.`; restart and request an email containing the income and public reference | The draft includes the latest income and public reference, excludes the bank account, and still requires fresh approval |
+| Say `Leave out that personal detail from the email.` then `By that I mean "PRIVATE-731".`; restart and request the draft | PR3 asks for exact text before clarification, then excludes that text; unrelated tasks are unaffected |
 | Read a public page, restart PR3, resume the task and request an email using its details | Any approval card names the page's actual site, including after a redirect; source labels alone never open the mail app. Record a missing card separately as a workflow failure |
 | Close PR3 while that approval card is pending; reopen and ask again | The fresh card retains the source site and still requires approval and device verification; nothing opens automatically |
 | Approve a draft | PR3 shows exact recipients/subject/body, performs device check, then opens the mail app for review |
+| Return to PR3 after approving or declining that draft | No second approval card or repeated handoff appears without another user request; status reflects the recorded handoff or decline |
 | Review in mail app | Recipient, subject, Unicode text and line breaks match the PR3 approval; no unexpected cc/bcc |
 | Cancel/back out of mail app | PR3 still says draft opened and delivery unverified, never sent; task remains open |
 | Airplane mode with a local model and synced contacts | PR3 can prepare/open the draft; delivery requires connectivity and the mail app's sending behavior |

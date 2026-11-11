@@ -176,18 +176,7 @@ impl LlamaBackend {
 /// its messages.
 fn chat(request: &InferenceRequest) -> (Vec<ChatMessage>, Vec<ToolDef>) {
     let mut messages = Vec::with_capacity(request.messages.len() + 1);
-    let mut system = SYSTEM_PROMPT.to_string();
-    if request.tools.iter().any(|t| t.name == "remember") {
-        system.push_str(MEMORY_PROMPT);
-    }
-    if request
-        .tools
-        .iter()
-        .any(|t| t.name == pr3_tool::mail::SEND_EMAIL)
-    {
-        system.push_str(MAIL_PROMPT);
-    }
-    messages.push(ChatMessage::new(ChatRole::System, system));
+    messages.push(ChatMessage::new(ChatRole::System, SYSTEM_PROMPT));
     messages.extend(request.messages.iter().map(|m| {
         let role = match m.role {
             Role::System => ChatRole::System,
@@ -208,6 +197,22 @@ fn chat(request: &InferenceRequest) -> (Vec<ChatMessage>, Vec<ToolDef>) {
             ..ChatMessage::new(role, m.content.clone())
         }
     }));
+    if mail::after_attempt(&messages) {
+        // Use the engine's existing protected, tool-free answer pass after an
+        // email attempt. The host owns its outcome; another proposal needs a new
+        // user request. Do not reset trust state, approval checks or loop budgets.
+        return (messages, Vec::new());
+    }
+    if request.tools.iter().any(|t| t.name == "remember") {
+        messages[0].content.push_str(MEMORY_PROMPT);
+    }
+    if request
+        .tools
+        .iter()
+        .any(|t| t.name == pr3_tool::mail::SEND_EMAIL)
+    {
+        messages[0].content.push_str(MAIL_PROMPT);
+    }
     let tools = request
         .tools
         .iter()

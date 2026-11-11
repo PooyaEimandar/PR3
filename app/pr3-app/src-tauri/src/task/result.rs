@@ -320,6 +320,27 @@ mod tests {
     use super::*;
 
     #[test]
+    fn now_email_requests_need_a_current_runtime_result_to_complete() {
+        let asked = "Now email Alex the reference from that notice.";
+        let mut results = Results::default();
+        results.record(&Entry::Tool {
+            sources: None,
+            name: "send_email".into(),
+            arguments: "{}".into(),
+            success: true,
+            output: String::new(),
+        });
+        results.record(&Entry::User { text: asked.into() });
+        assert!(results.incomplete());
+        let text = results
+            .completion(asked, "The draft is ready for your review.")
+            .unwrap();
+        assert!(text.contains("No email"));
+        assert!(!text.contains("draft is ready"));
+        assert_ne!(results.card_line(), "Reply ready");
+    }
+
+    #[test]
     fn preparing_email_is_pending_until_a_runtime_proposal_completes() {
         for (asked, claim) in [
             (

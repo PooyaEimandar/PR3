@@ -725,7 +725,7 @@ impl Host {
         let result = if let Some(command) = crate::memory::command(&text) {
             self.capture_memory(session, &text, command, &mut recorded)
                 .await
-        } else if task::mail::command(&text) {
+        } else if self.tasks()?.email_instruction(session) {
             self.capture_email_instruction(session, &text).await
         } else {
             self.turn(session, text, utc_offset_minutes, recorded).await
@@ -3542,3 +3542,6 @@ mod tests {
 
 #[cfg(test)]
 mod source_tests;
+
+#[cfg(test)]
+mod mail_meaning_tests;

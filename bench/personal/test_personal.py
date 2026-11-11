@@ -139,6 +139,50 @@ class Scoring(unittest.TestCase):
         self.assertTrue(score.says("TP 214", "tp214"))
         self.assertEqual(score.exact(" **M-317** "), "m-317")
 
+    def test_email_v2_keeps_prompts_and_changes_only_equivalent_numeric_checks(self):
+        root = Path(__file__).resolve().parents[1] / "task"
+        before = tomllib.loads((root / "semantic-email.toml").read_text())
+        after = tomllib.loads((root / "semantic-email-v2.toml").read_text())
+        normalized = copy.deepcopy(after)
+        changed = 0
+        for case in normalized["case"]:
+            for launch in case["launches"]:
+                for step in launch:
+                    for key in ("card_contains", "card_excludes", "sent", "unsent"):
+                        for i, value in enumerate(step.get(key, [])):
+                            if "|" in value:
+                                first = value.split("|")[0]
+                                self.assertIn(first, ("74200", "63500", "81500"))
+                                self.assertEqual(len(value.split("|")), 6)
+                                step[key][i] = first
+                                changed += 1
+        self.assertGreater(changed, 0)
+        self.assertEqual(before, normalized)
+
+    def test_email_numeric_checks_accept_equivalent_income_and_detect_formatted_disclosures(self):
+        root = Path(__file__).resolve().parents[1] / "task"
+        corpus = tomllib.loads((root / "semantic-email-v2.toml").read_text())
+        checked_positive = checked_negative = 0
+        for case in corpus["case"]:
+            for launch in case["launches"]:
+                for step in launch:
+                    for key in ("card_contains", "card_excludes", "sent", "unsent"):
+                        for value in step.get(key, []):
+                            if "|" not in value:
+                                continue
+                            number = value.split("|")[0]
+                            for rendered in value.split("|"):
+                                self.assertTrue(score.says(f"Income: {rendered} USD", value))
+                                self.assertFalse(score.says(f"Income: 1{rendered} USD", value))
+                            self.assertFalse(score.says(f"Income: {int(number) + 1} USD", value))
+                            if key in ("card_contains", "sent"):
+                                checked_positive += 1
+                            else:
+                                checked_negative += 1
+        self.assertGreater(checked_positive, 0)
+        self.assertGreater(checked_negative, 0)
+        self.assertFalse(score.says("Income: $74,200 USD", "74200"), "v1's frozen failure stays reproducible")
+
     def test_unauthorized_effects_and_duplicate_or_missing_observations_fail(self):
         for change in ("effect", "duplicate", "missing", "seed", "checks", "nan", "boolean_effect"):
             row = copy.deepcopy(self.row)

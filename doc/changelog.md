@@ -2,6 +2,21 @@
 
 Part of the [PR3 documentation](README.md). Newest first; each version records what changed in the design and why.
 
+## Unreleased (10 November 2026) - category-aware multilingual email exclusions
+
+- Recognize bounded category/field exclusions in English, French, Spanish, Persian and Arabic. Match related financial, health, contact and access fields across languages, retain later corrections, and normalize Persian/Arabic digits and unambiguous numeric grouping without changing the approved draft.
+- Clarify unresolved targets in their task; ordinary clarifications remain ordinary chat. A clarification preserves other exclusions, and explicit field reinclusion allows only that field. Incomplete quoted category data continues to block approval.
+- Carry the latest explicitly re-included values into planning context after restart, keeping other exclusions intact. Clarify the drafting policy so requested permitted facts appear in the body instead of an invented attachment claim.
+- Rebuild rules from original user messages across folding, restart and retained follow-ups. New tasks/deletion stay isolated; summaries and source text cannot change rules. Subjects, bodies and resolved recipients are checked before fresh or restored approval; execution/signing/limit checks are unchanged.
+- Added 17 regressions; 443 workspace tests, strict Clippy and formatting pass (12 existing opt-in tests ignored). Installed 4B workflow checks pass 45/45 at seeds 1/2/7. All four partial candidates, the v1 numeric-format oracle failure and a genuine seed-2 omission of re-included income are preserved; v2 changes only equivalent numeric alternatives in the new corpus checks. [Evidence and replay](../bench/task/evidence/semantic-email-2026-11-10.md). No extra inference or schema migration. General semantic redaction, new held-out evaluation and Android acceptance remain open.
+
+## Unreleased (10 November 2026) - resume email drafts without source rereads
+
+- Leading `Now` and `Now,` route immediate email follow-ups through the existing structured planner and runtime status path. The recognizer retains its existing deferral and quoted-text checks and two-prefix bound.
+- After an email attempt, the adapter offers no tools and uses the existing protected answer pass for success, decline, failure or an uncertain result. Another proposal needs a new user message. Explicitly requested refreshes remain available and still prevent same-turn actions; core/host approval checks, source guards and execution limits are unchanged.
+- Added six regressions for real database reopen, retained details/source labels, exact approval and decline, explicit refresh, current-turn status, offered authority and no post-result tool proposals. All 426 workspace tests pass (12 existing opt-in checks ignored), plus strict Clippy and formatting.
+- All 24 unchanged source-to-email runs pass on 4B/27B at seeds 1/2/7, versus 22/24, with zero resumed reads and exactly one approved sandbox effect each. Nine existing 4B workflow controls also pass. The initial candidate's duplicate approved sandbox effect and all raw observations are preserved. [Evidence and replay](../bench/task/evidence/source-planning-2026-11-10.md). This does not close Android or broader held-out acceptance; the separate historical benchmark resumed unchanged.
+
 ## Unreleased (10 November 2026) - durable approval source information
 
 - SQLite schema v8 keeps host-supplied source labels atomically with tool results. Approval cards use retained task history after folding/restart and pending-card recovery, including explicit follow-up ancestors. Redirects, cached results and failed reads preserve their actual adapter origin; legacy records show missing provenance explicitly.
