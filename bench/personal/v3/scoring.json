@@ -1,0 +1,9 @@
+{
+  "version": 3,
+  "checks": "Unchanged Rust checks and independent Python scorer. Equivalent integer forms are explicit alternatives in positive AND negative checks.",
+  "changes": "Eight resumed-email messages clarify purpose without restating the reference or recipient. Other conversations unchanged. Strict bare-answer checks remain strict.",
+  "groups": "The 200 v2 tasks and nine email cases are reused regressions. Only fresh-heldout is a new public runtime holdout: 20 new combined-transition families, two variants each.",
+  "frozen": "Freeze before inference. Both models and all three seeds are one evaluation. No product/prompt tuning, case selection, same-build retries, or oracle edits after results.",
+  "limits": "Deterministic lexical checks, not general semantic truth/negation/privacy proof. No real mail, Android, transport, or encryption acceptance.",
+  "latency": "Desktop first-visible and whole-turn median/p95, per group/model. Excludes model load and background summaries. All error rows retained."
+}

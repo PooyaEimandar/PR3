@@ -1,0 +1,506 @@
+[
+  {
+    "id": "personal/recall/rental-allowance/1",
+    "before_sha256": "73ab140f83426c70708482796fd5c23eb20482b9ef689e0a7f4f9e8e8521024d",
+    "after_sha256": "88767ba98a30cbe4d4194f5de7ed59b6fffb0f2ad1e93146e43b6a28d45e27ac",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/recall/rental-allowance/2",
+    "before_sha256": "5dacdd5a52ae259e3236ae78e75d945837dc83f710d5061c61b6bc03cd4e2b48",
+    "after_sha256": "9bae328fafa637f0ff3d839b57abad7af5c67fb73e141b8fa0525c3ff9abbfa0",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/recall/rental-allowance/3",
+    "before_sha256": "01832f5ba710ff7517cb5920e098795c98015be6d3c079d6a4d799ed929ea833",
+    "after_sha256": "d182256f79ffb131d734668fd6a75c866093e5eefb007fbe9665416495181668",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/recall/rental-allowance/4",
+    "before_sha256": "ffecb7b580ca071346d124d25cc365482688aec237931622b739fed30f9fa880",
+    "after_sha256": "2b8503198871c162cce8a59e432afac74392fd4998c14d9f3e1bcfd86292a9ec",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/correction/terse-location/1",
+    "before_sha256": "a9400f13de4ce9a3a6aa539a1ccadfd48a692acb483f2c390251e2068a11500e",
+    "after_sha256": "02601ce63720647553a66e9e73ef79b48b6d2db6060bdd73ebc90d9c29a86d91",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/correction/terse-location/2",
+    "before_sha256": "3819f588390de2d69f64d8e535a9dbf49c1c525db942b5a3fdc884a8f522762f",
+    "after_sha256": "46da9bc2709fa7763744e8a483b41d2b598da02701e3507d376e2a2f3cc229ad",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/correction/terse-location/3",
+    "before_sha256": "32fd74f848fcfa47ba54a82ffb3d0c1773dad6505f12f8d97b605d6cfba14f7f",
+    "after_sha256": "b061b04d1a55e7f4858a63021b054158ca79a48cedd7310feabf01a6211f77f0",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/correction/terse-location/4",
+    "before_sha256": "9bf48120e720d9ca915ffbfc01fc38527e32c25adb0f5accd3bacca24d4ff465",
+    "after_sha256": "6f03055765409222e0a9121eec85314a3b0bf18ec3230299e43d4dc64df33e07",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/correction/retain-other-field/1",
+    "before_sha256": "750bcf13fd077e0e03c91daf5ff4ee0386dd0bf24fffbac1d0f48b326335c8d8",
+    "after_sha256": "3b6a5d39e0d16165ebccebcd8d7ab0ad88654fc1377e5e4bf08f5e667e54cecb",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/correction/retain-other-field/2",
+    "before_sha256": "7443d2a46804af2ab68f2249cccb48c8778cf6f334d3b566dcb0f7833a2e593c",
+    "after_sha256": "c925537953a6c80cebc5aed615e38f72bcdca33a83326de98494d9535be2f77a",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/correction/retain-other-field/3",
+    "before_sha256": "be200f83bc2a4af5b58964774c5c21f94af482e1547ef2a6cbe179f2792f0ea2",
+    "after_sha256": "e3ea16d21053af826d2ffa8a3bd632ae39e8399863cb7fca2ccbcd74c23e71b1",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/correction/retain-other-field/4",
+    "before_sha256": "ecbfe0d12d03594c058cac34fb83bae8844ce5068d90255f86c643266f6eb951",
+    "after_sha256": "9f80f6cff3dbb4d936b63f3340bca097620a76543235fc27b656875367b1663d",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/correction/cancel-a-change/1",
+    "before_sha256": "d8e80834709033e5550b61fbf2cc46c8f6ef4574fe8055fb2bb71912b1b00972",
+    "after_sha256": "1bbb641d3bb4137766c7db52d7e9bb9914412ef97dade5fb325cb73b8b4b2cb6",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/correction/cancel-a-change/2",
+    "before_sha256": "c7e31b3530d8ea662fb9f3662d95bc75b3f2c948134c97ec993efe226a11bee4",
+    "after_sha256": "a8db089ccc309e7545af64da63abf2761f0a256d03af932ef8744ccac3a4ffb2",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/correction/cancel-a-change/3",
+    "before_sha256": "244379f311197338de1cc4d2bb09a1580d229818f8d280596e3fd372df8e7af5",
+    "after_sha256": "138620304f814bf66cbe0358f33e7d53e5566f67ff3c4682d301ae521ac2b6ea",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/correction/cancel-a-change/4",
+    "before_sha256": "8125098286864d95771e876ea4beeb070c0027d90d4498a99800777b9b988eec",
+    "after_sha256": "322cde9228b139a269e7d2e76610d0436b46ae3a0feab300578cad95a61b7217",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/isolation/unrelated-budget/1",
+    "before_sha256": "3d9130a044b4402af04925ccf8aed1aee84636f2c6bbfc00ee29a9d3f1277118",
+    "after_sha256": "9a77de94745c0901a1766b9e43a730cdb4015c4f37590b04b1f8431fa0c5cc21",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/isolation/unrelated-budget/2",
+    "before_sha256": "bb1740821c99ff01f41733f2c893aaf5df880d56a9978074d4b600f45019b6f8",
+    "after_sha256": "60f92c7fb18b65c9a915ad100221cc9f6681f7615aae6d9ea9f03ac33628fefd",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/isolation/unrelated-budget/3",
+    "before_sha256": "a675204004282993bf8ecb836ca1144266060c37c4619044d6a8840d7896d890",
+    "after_sha256": "298089ba3cbbe1379a3bfc033e419847fd9c1f0d716c16387b99f0f20b6771ad",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/isolation/unrelated-budget/4",
+    "before_sha256": "c375c8487f9d32589695f52a104b23bc25646ff28246862c68c39623cbc7ca62",
+    "after_sha256": "0e91acafeb1a7200d2d5d22c66ec936b278e7a145bc5736398a205f0853a8bd3",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/deletion/erase-then-replace/1",
+    "before_sha256": "3ddf40529b1018b2144b82a4b57b7ab9e1cfb31b95f12fc680d0cf43653e1b4c",
+    "after_sha256": "44db28b8c5a8b1615518e6950e1514db29b0c347e31626973400a5761f51b44e",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/deletion/erase-then-replace/2",
+    "before_sha256": "387bb6b10b0a95dcfd80bf8594f4412335226b03011582e39e14ab6d7322c250",
+    "after_sha256": "9e81b54794f8f8bc94877b2e77c045014b00038b3d9e5ae901df34105bbee7ee",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/deletion/erase-then-replace/3",
+    "before_sha256": "4afef32c4e3dcc68e4219cd34d3ebdf861996813d96f163b1bfee3ad2f6a2252",
+    "after_sha256": "601ac642aecdee5688ee3df0572da625cd51ad0197145857fbe6d5ce74393a0a",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/deletion/erase-then-replace/4",
+    "before_sha256": "94aab3d6d8b1b76785c8695d13e7d83b669557605cf3706c67492b2e2b049aeb",
+    "after_sha256": "908e0fb50dece71fab8b6e52ae815d9247ce4032840e6770d42a0ac5a2390534",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/topic/choose-between-projects/1",
+    "before_sha256": "3634796d895a67a509ea4859bee11001d7ce7e6308e09a524f1bf032b77e9221",
+    "after_sha256": "3b83e3e175c428a520d53c12419bbeb8ab36ea664b0b0226dce895bc3523966f",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/topic/choose-between-projects/2",
+    "before_sha256": "b60a350424a07ea62c08ff168ca99a8d55296ea18b6eb76c2c26884ca67503bc",
+    "after_sha256": "c9f7eac238e7c801688cf03aab0e41f11263722aa10a5ec51c3b47abb83774b0",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/topic/choose-between-projects/3",
+    "before_sha256": "0fa8d7b78e55b6af3e0e2b95dd49db676b8588cc9faefd831ac479f1c0d13996",
+    "after_sha256": "3262be6bd7294e71d7ed83d64a4034b78634f46c9c1c130c1859b96b7abfbecd",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/topic/choose-between-projects/4",
+    "before_sha256": "672665e51f12df263984bcdf0bcae57ae5e7ec1731b7b9068575bbcd07ac7139",
+    "after_sha256": "99366d35d9f6d1459232c4eb11ccaa023deb2b0e0b8ce4c954ddb49e06c62e4e",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/long/buried-isolation/1",
+    "before_sha256": "768a8254e3ac81f40fd29491cdc86b7654b899436b811d470e3ecac412db4964",
+    "after_sha256": "e1734bab2ae4f08e55ae04dbad7319311e543d21880b1f7a887abad2a5a8a538",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/long/buried-isolation/2",
+    "before_sha256": "fdb83b609ac7a4088235c07d71fa57065dcb9b91b528d31eb93263b33d29b5a7",
+    "after_sha256": "a6c4bd63a228d6a99246276037b75cc21c84163dc3e9c8e24db9204ad0e179f8",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/long/buried-isolation/3",
+    "before_sha256": "3d879dd5c0062976b307de289b797bcc1c25806024c91651d240a306bf5fdb60",
+    "after_sha256": "1d1603f28a38e900fe60201712b1367094ce664b730d7d6ac16e755e3cb7e264",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/long/buried-isolation/4",
+    "before_sha256": "2323f85b544d55c2e0171353af879f100c10c977e973dd99c683b63f986ec5a4",
+    "after_sha256": "49725db83fe23a9f983654ac55d47a28b23578804e491ffb69be21353fae19c1",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/multilingual/french-revision/1",
+    "before_sha256": "8bfa85475a067c1b981dcfd6734a4ad6bc80b68526c505edebec0707a62b9c50",
+    "after_sha256": "00f0df1352d999b41d39cec9ee99facba01af597fdf014c02ffe98bda22169fc",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/multilingual/french-revision/2",
+    "before_sha256": "0bce004b30d6aec7264dbdfe02900c85c7361b7ea1fae8d03a31ba0589bbd611",
+    "after_sha256": "d576e7fbbaf00a53d71b191930b007a62839a41486157755396203237b8c9ae7",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/multilingual/french-revision/3",
+    "before_sha256": "efb94a2ac9ecdf22fee885fc78c4b6de01dd97b6cbf1a1448e7be617bd1f58bb",
+    "after_sha256": "43f4de6f456bf3993dd277441a49c0a8f55d7cab71882278c2da65843b864e03",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/multilingual/french-revision/4",
+    "before_sha256": "73b810e07509750e4fcd40ef959a0501366ed07449697a9683bab34283af2813",
+    "after_sha256": "3fe9820efec5185a67d5aa0208b4e4a268ec34e0c5a201e2d2c35b26be6d890a",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/multilingual/german-two-fields/1",
+    "before_sha256": "7c0296fcdcaf1c0b87ef2e24b4c8163cae6e9d3bab13af50a1790a3ed362357c",
+    "after_sha256": "985b93e42a1ac50152911abbd6af26f5c2f91f48cfc27bb2532e603c31f10754",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/multilingual/german-two-fields/2",
+    "before_sha256": "95416e0657d3e3f71601ac48bca840a3f34bee8eb931d70273cf72accda302af",
+    "after_sha256": "197e1c4f4e813ae3a59a7e8dd435d913d840dff9f49777e256d65efba40c0a22",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/multilingual/german-two-fields/3",
+    "before_sha256": "c89f10bfd856eceacd9380b8737c607245997c8e380386414575b4eafefb14fe",
+    "after_sha256": "743ba9431ea68bb3d49a53e53b0a4384f2242af0cbbc59c8fd99e78799ec6102",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/multilingual/german-two-fields/4",
+    "before_sha256": "349726f9aac5361bcf0512610eedeede03c920fa263ef472e81d104e035436eb",
+    "after_sha256": "911702fd24924360abbeb409f9c2d6db9a9b352b6de88152fd7103a1dc2a55fc",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/multilingual/persian-revision/1",
+    "before_sha256": "8d402197eb692823fdaa0fc944c13eda3e6474ba30d10a00d8660818becda280",
+    "after_sha256": "e8f295c3a4b14a588d6edca471bd5f33169a3cd1317f199402caccd9e86a7f27",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/multilingual/persian-revision/2",
+    "before_sha256": "3b42c407eb3ac7d9cdb9bd41804f1e54254b8f982fb628fdfa6c402e06c91b82",
+    "after_sha256": "adae269ff7f825dc4f139c5a3529cfe7badc8d69bfce406487e86cba65586d33",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/multilingual/persian-revision/3",
+    "before_sha256": "b8062bc691013ce75f5f184fae6c07b1844a611e4672c7877abb363048b60588",
+    "after_sha256": "c5352bdaf3c53148a6935465b681d153d10f4077c69444624d419d0d21742736",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/multilingual/persian-revision/4",
+    "before_sha256": "71b93d48e4892037859ca80566a00d9484a79fbd569cea4aa461991e8341856d",
+    "after_sha256": "01a4063948f01c49b9d8a80b238d0727009414b5cb9687a44f33516dddd9b499",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/recall/relative-detail/1",
+    "before_sha256": "b13c5a4de226a34c24d31b4f8aac79d3cb5e125b34def2e9e22ff8466dc50687",
+    "after_sha256": "05f90b917179ce9d46652e34a37b043f657fcf1c130d5cdf71c1b8ecb688f32d",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/recall/relative-detail/2",
+    "before_sha256": "d3a5773bde00de13ba729ecc86c5aed93b268ec341f213eec25212fe72e81347",
+    "after_sha256": "b1995a4d66ba22db05223b9302f9c0183bcb3516408d8f4f37ac17f8528ae436",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/recall/relative-detail/3",
+    "before_sha256": "0cb99808af447661bce22a10ff7ef2fa62afa9a4bd6e9c5b5bef93fd5e87ad65",
+    "after_sha256": "682aabf8e99becba5331d5b5ca435b66f00d6e399d277af6e11de34c439a9303",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/recall/relative-detail/4",
+    "before_sha256": "242ae19397a74ddf8c5b0cd745c2da2f6f836c16a7d68025ff74058936ecbba4",
+    "after_sha256": "6d58a24a455eee4a4feeb0361bf305941daecf66133bd991a97dc96d967cd067",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/correction/replace-quantity/1",
+    "before_sha256": "e1d5c889c41f726e9aaaaa06142c17bfb46c3d502356a1da05e5a91bee4c8d40",
+    "after_sha256": "3d11530366038f6bf57f981538c8fbd5c9c20dda0eb341c2c62754868db96502",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/correction/replace-quantity/2",
+    "before_sha256": "63b7025c3c9a09f2849ebbaefb23093f0942de09a8755b3ef887e59f563238de",
+    "after_sha256": "362b67174562c1b6b83f741e69747fe554020cd484a674d0f1f0a4dc23cf211a",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/correction/replace-quantity/3",
+    "before_sha256": "92bdee297a4bcc232f67ef50b2f3560d25a3bcc830260a68746e3836134ce51d",
+    "after_sha256": "f8dbecde8507f1bf85604a1edcd791a02cf796343c078cc33bce80ad631e013f",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/correction/replace-quantity/4",
+    "before_sha256": "d6a20c2c860bd2760288a61a8c44d06ba22c9d2b9d9d06f84856c1ce29b6a3ee",
+    "after_sha256": "acc51db69d57552e97f93e775ba03af8a253580f4eadcd932e6ac17800892143",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/correction/two-revisions/1",
+    "before_sha256": "11dabcda7b4b2e0f201a3d105a894cbeb6f075f7976d01aa49eb593accef505c",
+    "after_sha256": "5a3b718ac99e2d9f2482fb44d7edeb35dee731f789c4701aae5cd9409acee727",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/correction/two-revisions/2",
+    "before_sha256": "9d2ea6f2c3d958810ac495d73a527c9acabaf7f8d8a643d2f2e8c1fad8566e66",
+    "after_sha256": "06817fda59ca253bea967b497d632ca26a3a085947acae7a252f2c27c4ee67ff",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/correction/two-revisions/3",
+    "before_sha256": "ccce636a03c3bebcf393f9a2b5f6dc5d20497c28beb6f4d84b50c15e53ecb64d",
+    "after_sha256": "498a98ac781024580e0b6e1827c1df9118c78ee541d7a22044cae23c00e1a8b6",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/correction/two-revisions/4",
+    "before_sha256": "71f6d843e0c78d228e26e7e618e59dab5d14fa59fb6bc6016b79591b2fb35ffe",
+    "after_sha256": "c1ce729258e450e9d4c4d05ab00e3783784d3f4b23d6cc5b02851ecbc05c1808",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/isolation/parallel-deliveries/1",
+    "before_sha256": "1ba908b704804889a9f812673ecdb5757dbdb17a73bf83cc2054da8d8def47d0",
+    "after_sha256": "c0ae5e0b2978ecfc9388664768c44b37466739e01dddc4d7cc2ab8daeb206015",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/isolation/parallel-deliveries/2",
+    "before_sha256": "e2e9cdb3831a98933a97c361c870e4ee2e7f7a5fc889f653574e6c650bc9fe58",
+    "after_sha256": "f0cb4e966852ba65d7326a4e2d6766925b8d782af732998bc65c0aa889c970bf",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/isolation/parallel-deliveries/3",
+    "before_sha256": "f9f44796c53e9b49e35670c1ac7aaf6e194876743b140af9e4da8cfa2b24f644",
+    "after_sha256": "acbf8cffb0b2bfb87c87c592dec2a1fb9945236c060f9d2c16f703085d4c65f6",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/isolation/parallel-deliveries/4",
+    "before_sha256": "91ef5bc169874d69a157a23873fb9142e8bf35c0cae051e89caa0780edb4c6eb",
+    "after_sha256": "96c9fd484b4408dc7b26f017a1399c593c3008bd81004d77a38b29c7e276c105",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/isolation/new-task-empty/1",
+    "before_sha256": "a0d01b6215b7f632bc1ea4e7414c9dd2f5095a148acb4ea2879cc81a33f739b5",
+    "after_sha256": "69dbae94a80fa76ca36bf64a838c0665c1e15eb746cb57c1551bdf9d8b0655dc",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/isolation/new-task-empty/2",
+    "before_sha256": "25379335596ddfbf287238c2abfdbaa998469abdeadcf860c0a392bfbdf41f76",
+    "after_sha256": "4a2218db686971619bda64bbb581bfd75e6c302fff010d856b6e1eff3d13e4fd",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/isolation/new-task-empty/3",
+    "before_sha256": "899bc686b3c48743cfe8b7baf093ca842d2ca2e680d2abff9af6aa6eb7759442",
+    "after_sha256": "d347d874c8552158b6f5d5d0f61cd255e4abab79825ce41618f714a6d04167b4",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/isolation/new-task-empty/4",
+    "before_sha256": "3af30f8770fb71838ec9249907bf163fc1dd814878be9137f9e21b6db34c9b0d",
+    "after_sha256": "618e6cf2188f455f62336c61ad2a0e94dd11020ed6252ebb5864d7ec0cde7e07",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/deletion/erase-correction/1",
+    "before_sha256": "9faa391da3f9ffcccb8e1f04cb955712e53e0fdd24a819b62147cf6fb6680b81",
+    "after_sha256": "e07f5e6481f61ce3ae74928a514ba214e832a4457ba7b37ce72140825872bef8",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/deletion/erase-correction/2",
+    "before_sha256": "f5c73c932d4fe1ff81d9486c03f4ca6b3251d894c1e209c204dd5672daeb97c3",
+    "after_sha256": "22df679ff055f53ab26a650f30f4d051247b225c0921d89e972a1f39acaee0f5",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/deletion/erase-correction/3",
+    "before_sha256": "bc586708f25e7d672f86e5e2ecce9ae4d903d27d0b0b6e6296231b925d915e20",
+    "after_sha256": "5464be82ebb054584d07fe8dbfd5f65c7370c82063f9f5d8dc36e17fab2bfb42",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/deletion/erase-correction/4",
+    "before_sha256": "2037953a36ddc8d2dec628c87d2537780714a587a7c1371271ab5acbf8436cc4",
+    "after_sha256": "fcdfacc0894092b144a6c11230d84f493dc37cd2e6a494bca9f8dc201b95287a",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/approval/defer-until-requested/1",
+    "before_sha256": "b3e3537bed399f00d89b8260a139e6254638a64d238ae3328cab3e4a7c4d6598",
+    "after_sha256": "735295418dca58d05f701262d9993d44e30b2ae82a8e775af8e3fdfffa5a3ee2",
+    "reason": "Explicit equivalent integer grouping checks; clarify resumed email purpose without supplying missing answers."
+  },
+  {
+    "id": "personal/approval/defer-until-requested/2",
+    "before_sha256": "10ff1508ffbf84df46b5e859059d518954ab46b9acd46c33725f45a26a4f6b94",
+    "after_sha256": "5d86315c22d94daf165b9a01a477032e7717fec985deb3d40e28ef2ba8b86222",
+    "reason": "Explicit equivalent integer grouping checks; clarify resumed email purpose without supplying missing answers."
+  },
+  {
+    "id": "personal/approval/defer-until-requested/3",
+    "before_sha256": "663a59b5de7aabd91a8dcecea297902525af6dee38c86aa691f8185d32b12d5f",
+    "after_sha256": "4fbddead330c30354ed1007c6028f08241e51c1200e4230751cd9df0b0196a39",
+    "reason": "Explicit equivalent integer grouping checks; clarify resumed email purpose without supplying missing answers."
+  },
+  {
+    "id": "personal/approval/defer-until-requested/4",
+    "before_sha256": "62c5d1409dfba472a59722fa473884985edd0d3394c0e89cda7d6a1bd6d0317e",
+    "after_sha256": "7ac6f2ab06f8d3d74f0587a0a3703d1f9871e91f0e8499f0ce413b6c70977bc7",
+    "reason": "Explicit equivalent integer grouping checks; clarify resumed email purpose without supplying missing answers."
+  },
+  {
+    "id": "personal/interruption/resume-deferred-draft/1",
+    "before_sha256": "0b67faa37d92fd2f6dde07c0354d157b520e560c2ada266b2485c4250905d647",
+    "after_sha256": "52d7098a2ec31c6e27c7e8287c6ac7e2bca24c911f9cd9e755555f195892227a",
+    "reason": "Explicit equivalent integer grouping checks; clarify resumed email purpose without supplying missing answers."
+  },
+  {
+    "id": "personal/interruption/resume-deferred-draft/2",
+    "before_sha256": "10e70edf91f976b6888e4791e11137e78cf9c66d2d781fe405788473f5faf18c",
+    "after_sha256": "37008d156be9edd37b750efc88dbb9463f034f4826f47db039b48bd29e9ce5ac",
+    "reason": "Explicit equivalent integer grouping checks; clarify resumed email purpose without supplying missing answers."
+  },
+  {
+    "id": "personal/interruption/resume-deferred-draft/3",
+    "before_sha256": "33810eecfce1364222fcca17ef5e3e30bf85483fddfa7a5149ce65f92a883eb4",
+    "after_sha256": "63172e9d5142368bb82e54d42f787b68ca06111b3639c56a582ea95252e27409",
+    "reason": "Explicit equivalent integer grouping checks; clarify resumed email purpose without supplying missing answers."
+  },
+  {
+    "id": "personal/interruption/resume-deferred-draft/4",
+    "before_sha256": "488c537f784f2c723e365b4d2b698561fa887ff1bfc3cdd503a7233bc19a4bae",
+    "after_sha256": "603fde10033252b8e193dfa1c9e496ebe096e314220701f2d0bd78f787ace2b7",
+    "reason": "Explicit equivalent integer grouping checks; clarify resumed email purpose without supplying missing answers."
+  },
+  {
+    "id": "personal/long/buried-correction/1",
+    "before_sha256": "bc7457b5dfee9d3b8521da3331eb6743615f1973ba132839bc0ccbb4bb6f28f4",
+    "after_sha256": "19a0bd0504f4babb2154d74ccd0ccc2eb8f7b7774c70a0fe993eb1469a7ed8b3",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/long/buried-correction/2",
+    "before_sha256": "0c230e69ad5dd95c9e5932bc90135e5cb3d40d19ef2170468555a723a4f073be",
+    "after_sha256": "0d61aa3bf9385b32ecb4c5329e58860f6aea0c04d72b14eb8e6ade8de7aa750d",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/long/buried-correction/3",
+    "before_sha256": "a37ffffd27f10a95bc44425050c175f742906254843953ddcab060f294443f6b",
+    "after_sha256": "98a073d39cabcd3357cd16cfc77ed1111f09285b755aa1ceeace1c4aa02c54ba",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/long/buried-correction/4",
+    "before_sha256": "984b053f23c51dbff55204343fa0f067d734fcf16b8b3c1644754d698837d6e4",
+    "after_sha256": "cdbc7a3f8b8595c18983307d09e024910f5d1ead6eb08e2c6464354dc3177e7c",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/long/late-revision/1",
+    "before_sha256": "2db2982eb656682793a9b59c5d84012a8aeace1d5f92765abcc9f691026de338",
+    "after_sha256": "99f2ff1b5c71b6b9c4ac8e6d0bf30abc0c347d81c99e06a8f5c58112c5202e0e",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/long/late-revision/2",
+    "before_sha256": "43bdbc59bdcd76cec1aaca8086ed7bf993ef75e9ce22ad39f5b7d208e2aaba6f",
+    "after_sha256": "efb1716732bb9f5cd2011150d164fb1a9789be0abd24eab75695766946bd804d",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/long/late-revision/3",
+    "before_sha256": "87161fb5d76a8ab4a0f17389092f35f9693a81f4efffa1f2a55cb349a67212e6",
+    "after_sha256": "88e243cf5cc63207cc5e3af6607c0dc058fe252edaf1f85aad39fda7ac843292",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  },
+  {
+    "id": "personal/long/late-revision/4",
+    "before_sha256": "2bb5bf13b452749afda5ef3c7e328b6bbc93d14ab2fb18730db3470866f6f06d",
+    "after_sha256": "b8b492a551ee65d3b583b78f4f284a0366138e4bc8a9ef9c17d1e6956289f6d4",
+    "reason": "Explicit equivalent integer grouping checks; conversation unchanged."
+  }
+]

@@ -1,4 +1,74 @@
-# PR3-Personal-200 v2
+# PR3-Personal evaluations
+
+## Current build: Personal-200 v3 and fresh challenges (11 November 2026)
+
+V3 freezes **249 tasks / 79 scenario families**, evaluated on the installed
+Qwen3.5-4B and Qwen3.8-27B Q4_K_M models at seeds **1/2/7**: **1,494 runs**.
+The [preflight](evidence/2026-11-11-v3-preflight.json) records 443 passing workspace
+tests, 28 Personal and five rebaseline Python tests, strict checks, and hashes
+confirming that runtime code, prompts, approval checks and budgets match the
+current product commit. The [completed evaluation](evidence/2026-11-11-v3-report.md) retains all **1,494 runs**,
+including every failure and 6 runtime-error task runs.
+Fresh-held-out passes: Qwen3.5-4B-Q4_K_M: 88/120; Qwen3.8-27B-Q4_K_M: 107/120. This is not a release certification.
+
+The [360-run checkpoint](evidence/2026-11-11-v3-360-checkpoint.json) is an earlier
+partial snapshot of the completed 4B development-regression group: 270/360 passes.
+It is not a fresh held-out score or additional runs to pool with the full evaluation.
+
+The [720-run checkpoint](evidence/2026-11-11-v3-720-checkpoint.json) completes the
+development-regression group for both models: 4B **270/360**, 27B **353/360**.
+This remains an earlier partial snapshot; do not pool it with the final evaluation.
+
+| Partition | Tasks | Families | Interpretation |
+|---|---:|---:|---|
+| regression-development | 120 | 30 | Reused v2 development scenarios |
+| regression-prior-heldout | 80 | 20 | Previously observed v2 holdout, now regression data |
+| email-regression | 9 | 9 | Unchanged multilingual email v2 cases |
+| fresh-heldout | 40 | 20 | Newly authored combined-transition challenges, two variants each |
+
+[The v3 manifest](v3/manifest.json) freezes every case and partition before
+inference. Both models and all seeds are one evaluation, with no product/prompt
+changes or result-driven case selection. This public runtime holdout is not a
+secret exam, a pretraining-contamination guarantee, or 240 independent samples.
+Fresh families combine selection versus proposals, multiple corrections, pending
+approvals, task deletion and return, multilingual exclusions, long conversations,
+and conflicting or malicious source information. Shared synthetic contacts and
+non-task-specific filler are fixtures; each task runs in its own database.
+
+V1/v2 files and published scores stay immutable. V3's [change ledger](v3/changes.json)
+records explicit ASCII integer grouping alternatives in both positive and negative
+checks, and eight resumed-email requests with a clear message purpose. These
+requests still require recalling the earlier recipient/reference; they do not
+repeat the answer. Codes with prefixes, leading zeros, decimals and units are not
+converted. Bare-answer checks still reject extra prose, guesses and negation.
+The Rust harness and independent Python scorer are unchanged; all failures,
+including errors, remain in their planned denominators. Numeric alternatives are
+corpus checks, never model-output rewriting or an LLM judge.
+
+The report separates forbidden recalled values, actual forbidden approval/outbox
+content, unapproved/duplicate effects and exact-approval failures. Missing cards
+fail completion but are not counted as content disclosures. Desktop model-turn
+median/p95 latency uses turns with recorded prompt tokens; deterministic runtime
+commands are excluded from those model-turn metrics. It does not measure phone
+latency, model loading, background summaries, energy, real transport or delivery.
+
+```sh
+python3 bench/personal/revision.py validate --data bench/personal/v3
+python3 -m unittest discover -s bench/personal -p 'test_*.py'
+python3 bench/personal/run.py --out bench/personal/result/2026-11-11-v3 \
+  --data bench/personal/v3 \
+  --model model/Qwen3.5-4B-Q4_K_M.gguf \
+  --model model/Qwen3.8-27B-Q4_K_M.gguf --seeds 1 2 7
+```
+
+Resume using only the same `--out`; reporting uses `--report-only`. The frozen
+runner checks model, binary, dataset, plan and environment identity and skips
+only complete recorded cases, including failures. `progress.json`, `report.md`,
+`running.json` and raw `rows/` live in that output directory. Run one model job at
+a time; the separately frozen historical security runner is paused during this
+matrix and restored afterward. Its results are older-build evidence.
+
+## Preserved Personal-200 v2
 
 200 consent-safe synthetic desktop tasks on the app's real `Host`, local model,
 task store and approval path. Contacts, pages, mail effects and key custody are

@@ -55,6 +55,10 @@ def sources():
                     n.startswith(("crate/", "app/", "bench/", "config/", "script/", ".github/")) and Path(n).suffix in extensions)})
 
 
+def split_sizes(dataset):
+    return dataset.get("partitions", SPLITS)
+
+
 def prepare(out, data, models, seeds):
     dataset = validate(data)
     if out.exists():
@@ -79,16 +83,16 @@ def prepare(out, data, models, seeds):
     shutil.copy2(ROOT / "target/release/pr3-bench-task", binary)
     shutil.copytree(data, out / "data")
     validate(out / "data")
-    for name in ("run.py", "dataset.py", "score.py"):
+    for name in ("run.py", "dataset.py", "score.py", "revision.py"):
         shutil.copy2(HERE / name, out / "driver" / name)
     with tarfile.open(out / "source.tar.gz", "w:gz") as archive:
         for name in files:
             archive.add(ROOT / name, arcname=name)
-    for split in SPLITS:
+    for split in split_sizes(dataset):
         subprocess.run([str(binary), "validate", "--corpus", str(out / "data" / f"{split}.toml")], check=True)
     jobs = []
     # Finish development before heldout, with no product/prompt changes in between.
-    for split in SPLITS:
+    for split in split_sizes(dataset):
         ids = [r["id"] for r in dataset["cases"] if r["split"] == split]
         for model, info in model_info.items():
             for seed in seeds:
@@ -118,7 +122,7 @@ def verify(out, manifest, check_environment=True, check_models=True):
         raise ValueError("Dataset identity changed")
     dataset = validate(out / "data")
     expected_jobs = []
-    for split in SPLITS:
+    for split in split_sizes(dataset):
         ids = [r["id"] for r in dataset["cases"] if r["split"] == split]
         for model in manifest["models"]:
             for seed in manifest["seeds"]:
@@ -138,10 +142,21 @@ def percentile(values, fraction):
     return sorted(values)[max(0, math.ceil(len(values) * fraction) - 1)] if values else None
 
 
+def failure_flags(verdict, observations):
+    observed = {(s['launch'], s['step']): s for s in observations}
+    mail_disclosure = any(
+        c['what'] in ('card excludes', 'unsent') and
+        observed.get((c['launch'], c['step']), {}).get('card' if c['what'] == 'card excludes' else 'sent')
+        for c in verdict['failures'])
+    return {'mail_disclosure': bool(mail_disclosure),
+            'effect_violation': any(c['what'] == 'effects' for c in verdict['failures']),
+            'approval_check_failure': any(c['what'] == 'exact approval' for c in verdict['failures'])}
+
+
 def summarize(out, manifest, allow_pending_tail=False):
     dataset = json.loads((out / "data/manifest.json").read_text())
     meta = {r["id"]: r for r in dataset["cases"]}
-    corpora = {s: tomllib.loads((out / "data" / f"{s}.toml").read_text()) for s in SPLITS}
+    corpora = {s: tomllib.loads((out / "data" / f"{s}.toml").read_text()) for s in split_sizes(dataset)}
     cases = {c["id"]: c for corpus in corpora.values() for c in corpus["case"]}
     results, job_status, files = [], [], {}
     for job in manifest["jobs"]:
@@ -168,16 +183,18 @@ def summarize(out, manifest, allow_pending_tail=False):
                 verdict = assess(cases[case_id], corpora[job["split"]]["filler"], row, job["seed"])
                 seen.add(case_id)
                 results.append({"job": job["name"], "model": job["model"], "seed": job["seed"],
-                                **meta[case_id], **verdict, "observations": row["steps"]})
+                                **meta[case_id], **verdict, **failure_flags(verdict, row["steps"]), "observations": row["steps"]})
             files[str(path.relative_to(out))] = hashlib.sha256(raw).hexdigest()
         job_status.append({**job, "recorded": len(seen), "complete": len(seen) == len(job["expected"])})
     groups = []
-    for split in SPLITS:
+    for split in split_sizes(dataset):
         for model in manifest["models"]:
             rows = [r for r in results if r["split"] == split and r["model"] == model]
-            planned = SPLITS[split] * len(manifest["seeds"])
+            planned = split_sizes(dataset)[split] * len(manifest["seeds"])
             times = [s["seconds"] for r in rows for s in r["observations"] if s.get("route") == "turn"]
-            first = [s["first_visible_ms"] for r in rows for s in r["observations"] if s.get("first_visible_ms") is not None]
+            first = [s["first_visible_ms"] for r in rows for s in r["observations"] if s.get("route") == "turn" and s.get("first_visible_ms") is not None]
+            model_turns = [s for r in rows for s in r["observations"] if s.get("route") == "turn" and s.get("prompt_tokens", 0) > 0]
+            model_first = [s['first_visible_ms'] for s in model_turns if s.get('first_visible_ms') is not None]
             by = {}
             for field in ("seed", "category", "language", "family"):
                 buckets = defaultdict(list)
@@ -190,9 +207,17 @@ def summarize(out, manifest, allow_pending_tail=False):
             groups.append({"split": split, "model": model, "planned": planned, "recorded": len(rows),
                            "passed": passed, "failed": len(rows) - passed, "errors": sum(r["error"] for r in rows),
                            "leaked": sum(r["leaked"] for r in rows), "success_fraction_planned": passed / planned,
+                           "mail_disclosure_runs": sum(r["mail_disclosure"] for r in rows),
+                           "unapproved_or_duplicate_effect_runs": sum(r["effect_violation"] for r in rows),
+                           "approval_check_failure_runs": sum(r["approval_check_failure"] for r in rows),
                            "complete": len(rows) == planned, "by": by,
                            "failures_by_check": dict(Counter(c["what"] for r in rows for c in r["failures"])),
-                           "latency": {"turn_count": len(times), "turn_median_seconds": statistics.median(times) if times else None,
+                           "latency": {"model_turn_count": len(model_turns),
+                                       "model_turn_median_seconds": statistics.median([s['seconds'] for s in model_turns]) if model_turns else None,
+                                       "model_turn_p95_seconds": percentile([s['seconds'] for s in model_turns], .95),
+                                       "model_first_visible_median_ms": statistics.median(model_first) if model_first else None,
+                                       "model_first_visible_p95_ms": percentile(model_first, .95),
+                                       "turn_count": len(times), "turn_median_seconds": statistics.median(times) if times else None,
                                        "turn_p95_seconds": percentile(times, .95), "first_visible_count": len(first),
                                        "first_visible_median_ms": statistics.median(first) if first else None,
                                        "first_visible_p95_ms": percentile(first, .95)}})
@@ -204,14 +229,23 @@ def summarize(out, manifest, allow_pending_tail=False):
                "result_sha256": files}
     write_json(out / "progress.json", summary)
     lines = [f"# {dataset['version']} current-build evaluation", "", f"Complete: **{summary['complete']}**. Recorded {summary['recorded']}/{summary['planned']}.",
-             "", "Development and heldout are separate. Pending cases stay in the planned denominator; failed/error cases are never dropped.",
+             "", "Partitions are separate. Only fresh-heldout in v3 is new held-out evidence; both prior v2 partitions and email cases are reused regressions. Pending cases stay in the planned denominator; failures/errors are retained." if dataset["version"] == "personal-200-v3" else "Development and heldout are separate. Pending cases stay in the planned denominator; failures/errors are retained.",
              "", "| Split | Model | Recorded / planned | Passed | Failed | Runtime errors | Task leaks |", "|---|---|---:|---:|---:|---:|---:|"]
     for g in groups:
         lines.append(f"| {g['split']} | {g['model']} | {g['recorded']}/{g['planned']} | {g['passed']} | {g['failed']} | {g['errors']} | {g['leaked']} |")
-    lines += ["", "The 200 synthetic cases belong to 50 families; variants and seeds are related observations. These rates are descriptive, not a population accuracy estimate.",
+    lines += ["", f"The {len(meta)} synthetic cases belong to {len({r['family'] for r in meta.values()})} families; variants and seeds are related observations. Rates are descriptive, not a population accuracy estimate.",
               "No live email, physical Android, cross-device transport, calendar execution, file sharing or encryption-key custody is measured.",
               "Raw answers and exact effects remain in rows/. progress.json contains category/language/seed/family breakdowns and every failing check.",
               "Timings exclude model loading and background summary work. An error-free runner is not a claim that the evaluated product passed every task."]
+    lines += ["", "## Privacy and desktop model-turn latency", "",
+              "Mail disclosures count actual forbidden card/outbox content, not absent cards. Model-turn latency includes only turns with recorded prompt tokens; it excludes model load/background summaries and is not Android latency.", "",
+              "| Partition | Model | Mail disclosures | Unapproved/duplicate effects | Model turns | Turn median / p95 (s) | First visible median / p95 (ms) |",
+              "|---|---|---:|---:|---:|---|---|"]
+    def shown(value):
+        return '-' if value is None else str(round(value, 2))
+    for group in groups:
+        latency = group['latency']
+        lines.append(f"| {group['split']} | {group['model']} | {group['mail_disclosure_runs']} | {group['unapproved_or_duplicate_effect_runs']} | {latency['model_turn_count']} | {shown(latency['model_turn_median_seconds'])} / {shown(latency['model_turn_p95_seconds'])} | {shown(latency['model_first_visible_median_ms'])} / {shown(latency['model_first_visible_p95_ms'])} |")
     (out / "report.md").write_text("\n".join(lines) + "\n")
     return summary
 

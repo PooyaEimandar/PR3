@@ -1,0 +1,2517 @@
+{
+  "version": "personal-200-v3",
+  "frozen_at_utc": "2026-11-11T01:56:20.754266+00:00",
+  "partitions": {
+    "regression-development": 120,
+    "regression-prior-heldout": 80,
+    "email-regression": 9,
+    "fresh-heldout": 40
+  },
+  "cases": [
+    {
+      "id": "personal/recall/collection-ticket/1",
+      "category": "recall",
+      "family": "recall/collection-ticket",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "aad1e0ddbb687612f68fb0eba31c5c028d7dc3aa48f1bf8c440633e5326fb542",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/recall/collection-ticket/2",
+      "category": "recall",
+      "family": "recall/collection-ticket",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "75eb6079884401763a190b646e9c800eb42424ff7b331e7690a4ace727bc171d",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/recall/collection-ticket/3",
+      "category": "recall",
+      "family": "recall/collection-ticket",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "ec215eb4be227348145ad780e530d1138df98ce5d7e19ef74de9b7607b25cc30",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/recall/collection-ticket/4",
+      "category": "recall",
+      "family": "recall/collection-ticket",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "bf6d817de8552a8453626b090990382517f56bc0523b88aa89364ccadd0361c2",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/recall/rental-allowance/1",
+      "category": "recall",
+      "family": "recall/rental-allowance",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "88767ba98a30cbe4d4194f5de7ed59b6fffb0f2ad1e93146e43b6a28d45e27ac",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/recall/rental-allowance/2",
+      "category": "recall",
+      "family": "recall/rental-allowance",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "9bae328fafa637f0ff3d839b57abad7af5c67fb73e141b8fa0525c3ff9abbfa0",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/recall/rental-allowance/3",
+      "category": "recall",
+      "family": "recall/rental-allowance",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "d182256f79ffb131d734668fd6a75c866093e5eefb007fbe9665416495181668",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/recall/rental-allowance/4",
+      "category": "recall",
+      "family": "recall/rental-allowance",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "2b8503198871c162cce8a59e432afac74392fd4998c14d9f3e1bcfd86292a9ec",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/recall/event-room/1",
+      "category": "recall",
+      "family": "recall/event-room",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "1235d712aa38e9f61bfda25e182ab3babd0c02e124bb88524f710083722718df",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/recall/event-room/2",
+      "category": "recall",
+      "family": "recall/event-room",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "a53b9d7117309df34e0b5e15862fd9a18382bafc9a6041a9852c5ab6148ead2d",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/recall/event-room/3",
+      "category": "recall",
+      "family": "recall/event-room",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "1f9255498079d474de63eb52a12409bee2a9b5cf2d3111efc879c0fbcab3a900",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/recall/event-room/4",
+      "category": "recall",
+      "family": "recall/event-room",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "f0d9edd774924426f45a4bee55d19d2c21984b5eb62bf52482d0675085b6f95e",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/correction/terse-location/1",
+      "category": "correction",
+      "family": "correction/terse-location",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "02601ce63720647553a66e9e73ef79b48b6d2db6060bdd73ebc90d9c29a86d91",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/correction/terse-location/2",
+      "category": "correction",
+      "family": "correction/terse-location",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "46da9bc2709fa7763744e8a483b41d2b598da02701e3507d376e2a2f3cc229ad",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/correction/terse-location/3",
+      "category": "correction",
+      "family": "correction/terse-location",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "b061b04d1a55e7f4858a63021b054158ca79a48cedd7310feabf01a6211f77f0",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/correction/terse-location/4",
+      "category": "correction",
+      "family": "correction/terse-location",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "6f03055765409222e0a9121eec85314a3b0bf18ec3230299e43d4dc64df33e07",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/correction/retain-other-field/1",
+      "category": "correction",
+      "family": "correction/retain-other-field",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "3b6a5d39e0d16165ebccebcd8d7ab0ad88654fc1377e5e4bf08f5e667e54cecb",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/correction/retain-other-field/2",
+      "category": "correction",
+      "family": "correction/retain-other-field",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "c925537953a6c80cebc5aed615e38f72bcdca33a83326de98494d9535be2f77a",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/correction/retain-other-field/3",
+      "category": "correction",
+      "family": "correction/retain-other-field",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "e3ea16d21053af826d2ffa8a3bd632ae39e8399863cb7fca2ccbcd74c23e71b1",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/correction/retain-other-field/4",
+      "category": "correction",
+      "family": "correction/retain-other-field",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "9f80f6cff3dbb4d936b63f3340bca097620a76543235fc27b656875367b1663d",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/correction/cancel-a-change/1",
+      "category": "correction",
+      "family": "correction/cancel-a-change",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "1bbb641d3bb4137766c7db52d7e9bb9914412ef97dade5fb325cb73b8b4b2cb6",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/correction/cancel-a-change/2",
+      "category": "correction",
+      "family": "correction/cancel-a-change",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "a8db089ccc309e7545af64da63abf2761f0a256d03af932ef8744ccac3a4ffb2",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/correction/cancel-a-change/3",
+      "category": "correction",
+      "family": "correction/cancel-a-change",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "138620304f814bf66cbe0358f33e7d53e5566f67ff3c4682d301ae521ac2b6ea",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/correction/cancel-a-change/4",
+      "category": "correction",
+      "family": "correction/cancel-a-change",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "322cde9228b139a269e7d2e76610d0436b46ae3a0feab300578cad95a61b7217",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/isolation/private-code/1",
+      "category": "isolation",
+      "family": "isolation/private-code",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "814c53a7fd2399d1334e27a9f91130c0fcc7b7509291e8b50873dc3f43a9bebb",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/isolation/private-code/2",
+      "category": "isolation",
+      "family": "isolation/private-code",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "071fa5421e7a05dd1aceca12b990768dae921b305332cf5051a0d64c4385265b",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/isolation/private-code/3",
+      "category": "isolation",
+      "family": "isolation/private-code",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "459985f98848e7b54bf36e557cc2e574d9fe8abf27d552f11fa97f5970cddd8f",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/isolation/private-code/4",
+      "category": "isolation",
+      "family": "isolation/private-code",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "50ba8636731f240e95a80efdf56a90532a669e7062baf781cad29867bd6bfaee",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/isolation/same-person-two-events/1",
+      "category": "isolation",
+      "family": "isolation/same-person-two-events",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "9afb151816508f0e4f1024c20b2adf4f7de75975347eaaf7ed65fe884d22f58b",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/isolation/same-person-two-events/2",
+      "category": "isolation",
+      "family": "isolation/same-person-two-events",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "a26ece7d6ef35c0602ef5fb8ec9a5d121f3ff259139431e7166cfc4088d42cf5",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/isolation/same-person-two-events/3",
+      "category": "isolation",
+      "family": "isolation/same-person-two-events",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "7769add2d07dfccd9656c71fd5c8003e4de8d5a48a1c76e276b387e121d82bb1",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/isolation/same-person-two-events/4",
+      "category": "isolation",
+      "family": "isolation/same-person-two-events",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "25f6de67f1ba580b0e3c210c0b0f4b22779bbe5b1950f6729a821c892b0c075c",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/isolation/unrelated-budget/1",
+      "category": "isolation",
+      "family": "isolation/unrelated-budget",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "9a77de94745c0901a1766b9e43a730cdb4015c4f37590b04b1f8431fa0c5cc21",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/isolation/unrelated-budget/2",
+      "category": "isolation",
+      "family": "isolation/unrelated-budget",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "60f92c7fb18b65c9a915ad100221cc9f6681f7615aae6d9ea9f03ac33628fefd",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/isolation/unrelated-budget/3",
+      "category": "isolation",
+      "family": "isolation/unrelated-budget",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "298089ba3cbbe1379a3bfc033e419847fd9c1f0d716c16387b99f0f20b6771ad",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/isolation/unrelated-budget/4",
+      "category": "isolation",
+      "family": "isolation/unrelated-budget",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "0e91acafeb1a7200d2d5d22c66ec936b278e7a145bc5736398a205f0853a8bd3",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/deletion/erase-reference/1",
+      "category": "deletion",
+      "family": "deletion/erase-reference",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "3754a3310d597c3b0fa2cd6ba940623540c68bc7b19ea105bd20ae21e88b4633",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/deletion/erase-reference/2",
+      "category": "deletion",
+      "family": "deletion/erase-reference",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "811973fe1b6c1cd629511b4d425130f7b5b0200acb5c97587806af5d761809c7",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/deletion/erase-reference/3",
+      "category": "deletion",
+      "family": "deletion/erase-reference",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "d7d0f412d2ab85c47fe5361691740f2249d12078a6929f370fccb576710df374",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/deletion/erase-reference/4",
+      "category": "deletion",
+      "family": "deletion/erase-reference",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "afd26201a87f986eea45dc4d2d395a1466b2393b220cc2f29e4dc5819fdf976e",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/deletion/erase-then-replace/1",
+      "category": "deletion",
+      "family": "deletion/erase-then-replace",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "44db28b8c5a8b1615518e6950e1514db29b0c347e31626973400a5761f51b44e",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/deletion/erase-then-replace/2",
+      "category": "deletion",
+      "family": "deletion/erase-then-replace",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "9e81b54794f8f8bc94877b2e77c045014b00038b3d9e5ae901df34105bbee7ee",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/deletion/erase-then-replace/3",
+      "category": "deletion",
+      "family": "deletion/erase-then-replace",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "601ac642aecdee5688ee3df0572da625cd51ad0197145857fbe6d5ce74393a0a",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/deletion/erase-then-replace/4",
+      "category": "deletion",
+      "family": "deletion/erase-then-replace",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "908e0fb50dece71fab8b6e52ae815d9247ce4032840e6770d42a0ac5a2390534",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/deletion/erase-pending-mail/1",
+      "category": "deletion",
+      "family": "deletion/erase-pending-mail",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "6d16e845d4296da06a4d51461d8214c8d988c74320c34b1c813aaf12dd82308d",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/deletion/erase-pending-mail/2",
+      "category": "deletion",
+      "family": "deletion/erase-pending-mail",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "73f521ae71b7ec6d22d04b8138a561455545e41de2120b4e374fd9863cb805c4",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/deletion/erase-pending-mail/3",
+      "category": "deletion",
+      "family": "deletion/erase-pending-mail",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "afb0ad66b3218c4b8affa7acbbd0597dc068fd20f539c06b57df4dc99396efa9",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/deletion/erase-pending-mail/4",
+      "category": "deletion",
+      "family": "deletion/erase-pending-mail",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "06f812ccee2056fcf0a169f9c1490309771c4e0de7648396c3bd13d0771592a6",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/approval/decline-corrected-person/1",
+      "category": "approval",
+      "family": "approval/decline-corrected-person",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "b51dcd353e8fe7fff1a748e98759930af25bceae135b87daa43dcf2d846770cb",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/approval/decline-corrected-person/2",
+      "category": "approval",
+      "family": "approval/decline-corrected-person",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "4331d5518d77e1b61d7e8ef879edd73ff8d28521d71856cdd6c98def0a446fbb",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/approval/decline-corrected-person/3",
+      "category": "approval",
+      "family": "approval/decline-corrected-person",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "a2793005a1eee3273c3a0d6cd414f3184594b1642633632bef1e474a032d9ea4",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/approval/decline-corrected-person/4",
+      "category": "approval",
+      "family": "approval/decline-corrected-person",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "ac5d2927fefd247bbe678b7a5a88f2ccffece9478f262a26fc33996672f82104",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/approval/remove-sensitive-detail/1",
+      "category": "approval",
+      "family": "approval/remove-sensitive-detail",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "d6e6d3e3352985cb3ce4e480faa0e1c53922e4657f8f8604ecbc6c651b1afea9",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/approval/remove-sensitive-detail/2",
+      "category": "approval",
+      "family": "approval/remove-sensitive-detail",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "be3aa850149873499600aa97e506753b5060908865bbcc09e744cc0c576a3129",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/approval/remove-sensitive-detail/3",
+      "category": "approval",
+      "family": "approval/remove-sensitive-detail",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "56288f77d1d408644939d703aee80882bdc1bca8348c6fa76dc453cf257bbc2b",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/approval/remove-sensitive-detail/4",
+      "category": "approval",
+      "family": "approval/remove-sensitive-detail",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "9a9189a55c25f2fc1a99f1960ef6509c4bae6a284f48e3369c4cf1fb0193ee9a",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/approval/unicode-draft/1",
+      "category": "approval",
+      "family": "approval/unicode-draft",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "25e92ce6bd26885664d492d3f39b30ae55c27e1d5b24767894177df8ce158d19",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/approval/unicode-draft/2",
+      "category": "approval",
+      "family": "approval/unicode-draft",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "aa122fad9a71f7a239e2bcbce1809c6a4cecaa8273af57cd8565d25cf6e54c09",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/approval/unicode-draft/3",
+      "category": "approval",
+      "family": "approval/unicode-draft",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "ad8048eb38b2cf91903ef64fdedf79a3ec115514742b3ac4dd3061f21f60ada9",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/approval/unicode-draft/4",
+      "category": "approval",
+      "family": "approval/unicode-draft",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "1badc9aa82dc5ea8b91cba3b22802152c4daddf0cdd358a0d66a32a7de0a7376",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/interruption/approve-reopened-card/1",
+      "category": "interruption",
+      "family": "interruption/approve-reopened-card",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "bae1e4468b74fc14549a7858a6bc1095c26e7681c6c77bdbe1f1ded6a2f4590b",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/interruption/approve-reopened-card/2",
+      "category": "interruption",
+      "family": "interruption/approve-reopened-card",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "b15ada7007e8c3c6fd7b266a7706a5a65b7f596766a4778161032e590d9fb2bb",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/interruption/approve-reopened-card/3",
+      "category": "interruption",
+      "family": "interruption/approve-reopened-card",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "bf9d67717b8167d119916b7b9c6adfdac92d0b1106dd2793bc7b0eb2eaa54306",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/interruption/approve-reopened-card/4",
+      "category": "interruption",
+      "family": "interruption/approve-reopened-card",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "31e381a1293af4fffd93d7b900bca8767cab1015d87f437bd1b70fb93efb0d58",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/interruption/recall-after-approved-card/1",
+      "category": "interruption",
+      "family": "interruption/recall-after-approved-card",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "edcb9e92f4037418ac6f1a74631f870284f91e01d412179f3aedc88de6e9d814",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/interruption/recall-after-approved-card/2",
+      "category": "interruption",
+      "family": "interruption/recall-after-approved-card",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "1bd6c7830bf7ed5c2f98bc8580c59b8df17036d5938c982ef93400e282de3161",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/interruption/recall-after-approved-card/3",
+      "category": "interruption",
+      "family": "interruption/recall-after-approved-card",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "fc35fab088742ed630b682f9656fd5516c29fb424b856f8573fc42c61430730f",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/interruption/recall-after-approved-card/4",
+      "category": "interruption",
+      "family": "interruption/recall-after-approved-card",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "f0f401a24591515376cff67d654f655b31eed16f95e5bbe934ffc78fdcb7ff96",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/interruption/no-replay-followup/1",
+      "category": "interruption",
+      "family": "interruption/no-replay-followup",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "d715e85b8268f08df02d47bc5f6d62af08097672b5fb5a566498546ec1892121",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/interruption/no-replay-followup/2",
+      "category": "interruption",
+      "family": "interruption/no-replay-followup",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "ec602f0dbe6591e4ef0399d293d0bd42e956b37974f2f8051a783f736e507a32",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/interruption/no-replay-followup/3",
+      "category": "interruption",
+      "family": "interruption/no-replay-followup",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "ba25d8fd9b8327dc688838fd46428e210433fc7511ca43917a4ddcda97518852",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/interruption/no-replay-followup/4",
+      "category": "interruption",
+      "family": "interruption/no-replay-followup",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "c787f746a2951720b47371d323b3863faca67af0e3c1b7f0cdc40ffc461abd84",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/topic/finish-then-recall/1",
+      "category": "topic",
+      "family": "topic/finish-then-recall",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "b4d6f2864722f4694ba2f9f57de90956da28dbeb990c68f08a2440d42a5949d1",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/topic/finish-then-recall/2",
+      "category": "topic",
+      "family": "topic/finish-then-recall",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "5e7dc97242485abcb53274ec96dcf69400839e864a71b716c4acd77f86eeb58c",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/topic/finish-then-recall/3",
+      "category": "topic",
+      "family": "topic/finish-then-recall",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "2cc4a5249c6ae00da17a014e30ec7f59eadf866c07dc4909d5f0b8c7cbac7200",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/topic/finish-then-recall/4",
+      "category": "topic",
+      "family": "topic/finish-then-recall",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "1bde0384e4b44049054dc0a6c745f918229d8d5879fbfff34c4d62b8d81f90f7",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/topic/choose-between-projects/1",
+      "category": "topic",
+      "family": "topic/choose-between-projects",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "3b83e3e175c428a520d53c12419bbeb8ab36ea664b0b0226dce895bc3523966f",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/topic/choose-between-projects/2",
+      "category": "topic",
+      "family": "topic/choose-between-projects",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "c9f7eac238e7c801688cf03aab0e41f11263722aa10a5ec51c3b47abb83774b0",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/topic/choose-between-projects/3",
+      "category": "topic",
+      "family": "topic/choose-between-projects",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "3262be6bd7294e71d7ed83d64a4034b78634f46c9c1c130c1859b96b7abfbecd",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/topic/choose-between-projects/4",
+      "category": "topic",
+      "family": "topic/choose-between-projects",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "99366d35d9f6d1459232c4eb11ccaa023deb2b0e0b8ce4c954ddb49e06c62e4e",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/topic/restart-after-detour/1",
+      "category": "topic",
+      "family": "topic/restart-after-detour",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "a1024a0258f7a7049035b0bbc414ef386ba21c33c56740213533b7677bf4ff2d",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/topic/restart-after-detour/2",
+      "category": "topic",
+      "family": "topic/restart-after-detour",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "eb29d92debbe52804e73ab218988221cd53dc8b5e46d7f0949804c51dbee9189",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/topic/restart-after-detour/3",
+      "category": "topic",
+      "family": "topic/restart-after-detour",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "0e2fd28589e773581fed9f953f29119b946eb459ecd89fed74789ab341bee745",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/topic/restart-after-detour/4",
+      "category": "topic",
+      "family": "topic/restart-after-detour",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "94d6f66b6596ca1081ab28e8af001b3488331fb5cb13f15bd84a40aa74b167f2",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/long/buried-reference/1",
+      "category": "long",
+      "family": "long/buried-reference",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "ef17c07017b44d9d2717f8d5038f8f7bce038effe5743d627f339ed7d0fcc5cd",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/long/buried-reference/2",
+      "category": "long",
+      "family": "long/buried-reference",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "8289d9fc3657908321790281534661b1e6fad8d43ccaecf55a294e618fc09e2b",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/long/buried-reference/3",
+      "category": "long",
+      "family": "long/buried-reference",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "7940676fe20bba9b515e4dbd1d017621d71ea3b470b96497e754bef512a60709",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/long/buried-reference/4",
+      "category": "long",
+      "family": "long/buried-reference",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "17dc1f233ed126ad8aea4eaaa1abedb09dd4c8a5d5e4a06958e8f7cc679ad882",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/long/buried-isolation/1",
+      "category": "long",
+      "family": "long/buried-isolation",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "e1734bab2ae4f08e55ae04dbad7319311e543d21880b1f7a887abad2a5a8a538",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/long/buried-isolation/2",
+      "category": "long",
+      "family": "long/buried-isolation",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "a6c4bd63a228d6a99246276037b75cc21c84163dc3e9c8e24db9204ad0e179f8",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/long/buried-isolation/3",
+      "category": "long",
+      "family": "long/buried-isolation",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "1d1603f28a38e900fe60201712b1367094ce664b730d7d6ac16e755e3cb7e264",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/long/buried-isolation/4",
+      "category": "long",
+      "family": "long/buried-isolation",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "49725db83fe23a9f983654ac55d47a28b23578804e491ffb69be21353fae19c1",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/long/delete-buried-detail/1",
+      "category": "long",
+      "family": "long/delete-buried-detail",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "3f1520f7adc5dcaad0846e435f6df7f2084aa2b849cdab92b5f0197db9a9a24b",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/long/delete-buried-detail/2",
+      "category": "long",
+      "family": "long/delete-buried-detail",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "eb1dc7ae1de0f7c6b4b19fb1f5c5a9d73f9d78ad97cbc8aa3b4ffd571a0c2df6",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/long/delete-buried-detail/3",
+      "category": "long",
+      "family": "long/delete-buried-detail",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "3d6d1753986912fc19bae89ce6a3cf9fbf95727352f880c06b3c80d522ed1767",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/long/delete-buried-detail/4",
+      "category": "long",
+      "family": "long/delete-buried-detail",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "2b81d72803227ca2952c9e8a59b3c3e100f5ea1ffbe00603691167dd0797f571",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/source/read-useful-fact/1",
+      "category": "source",
+      "family": "source/read-useful-fact",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "916c477668ed9fc12c21508ac3174c37cce080a3a16f1fe1fee5341971696e78",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/source/read-useful-fact/2",
+      "category": "source",
+      "family": "source/read-useful-fact",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "3dc07d8302f7bf18a466072f84b53b62a84a5d273b6404ca89de1a1e1427ef0e",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/source/read-useful-fact/3",
+      "category": "source",
+      "family": "source/read-useful-fact",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "bb5acd6d7e7435300365c3e8eb5a935909b69b2b3b958d98d455bfa909debf11",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/source/read-useful-fact/4",
+      "category": "source",
+      "family": "source/read-useful-fact",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "ce0fae7b4601c3a2a7afc35bd08942c865d4bd00f47bfc7b13f2988cc88b38fb",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/source/source-role-forgery/1",
+      "category": "source",
+      "family": "source/source-role-forgery",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "a0f7df39e255e381948924f7f258fde23b09202e9ec3588c63a82f9fefa370aa",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/source/source-role-forgery/2",
+      "category": "source",
+      "family": "source/source-role-forgery",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "291e2ec97abaad2b2f57ba9894e0e4ac73e37751e9233bb040db9762b7d9811e",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/source/source-role-forgery/3",
+      "category": "source",
+      "family": "source/source-role-forgery",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "e10393be4c4e2e8a6f148f965d7f5dcead7c8b39555131d2e90ab6d712afa0f6",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/source/source-role-forgery/4",
+      "category": "source",
+      "family": "source/source-role-forgery",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "ee70421eaa457d811bcbd4909578853479abc56e4cc12e959a50d78cff7eaed6",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/source/source-false-completion/1",
+      "category": "source",
+      "family": "source/source-false-completion",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "9875f2186478ddc98443696348eb0594ef0ae0ca3dc2563a593c650c522ad9d4",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/source/source-false-completion/2",
+      "category": "source",
+      "family": "source/source-false-completion",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "d68c671aa3c60c62f8a2222df64727d296059c3780e449e3ca9d21ae5f56b290",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/source/source-false-completion/3",
+      "category": "source",
+      "family": "source/source-false-completion",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "694d33b6efb1c845b42fb9b8aa4d0134ed173b67d541a4b0e19538edeefc1ead",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/source/source-false-completion/4",
+      "category": "source",
+      "family": "source/source-false-completion",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "2b51eaa0c5caae74bd6b688e162ee50f8bf9d06ef1801f29fc765cd5a642575c",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/multilingual/french-revision/1",
+      "category": "multilingual",
+      "family": "multilingual/french-revision",
+      "language": "fr",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "00f0df1352d999b41d39cec9ee99facba01af597fdf014c02ffe98bda22169fc",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/multilingual/french-revision/2",
+      "category": "multilingual",
+      "family": "multilingual/french-revision",
+      "language": "fr",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "d576e7fbbaf00a53d71b191930b007a62839a41486157755396203237b8c9ae7",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/multilingual/french-revision/3",
+      "category": "multilingual",
+      "family": "multilingual/french-revision",
+      "language": "fr",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "43f4de6f456bf3993dd277441a49c0a8f55d7cab71882278c2da65843b864e03",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/multilingual/french-revision/4",
+      "category": "multilingual",
+      "family": "multilingual/french-revision",
+      "language": "fr",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "3fe9820efec5185a67d5aa0208b4e4a268ec34e0c5a201e2d2c35b26be6d890a",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/multilingual/german-two-fields/1",
+      "category": "multilingual",
+      "family": "multilingual/german-two-fields",
+      "language": "de",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "985b93e42a1ac50152911abbd6af26f5c2f91f48cfc27bb2532e603c31f10754",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/multilingual/german-two-fields/2",
+      "category": "multilingual",
+      "family": "multilingual/german-two-fields",
+      "language": "de",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "197e1c4f4e813ae3a59a7e8dd435d913d840dff9f49777e256d65efba40c0a22",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/multilingual/german-two-fields/3",
+      "category": "multilingual",
+      "family": "multilingual/german-two-fields",
+      "language": "de",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "743ba9431ea68bb3d49a53e53b0a4384f2242af0cbbc59c8fd99e78799ec6102",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/multilingual/german-two-fields/4",
+      "category": "multilingual",
+      "family": "multilingual/german-two-fields",
+      "language": "de",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "911702fd24924360abbeb409f9c2d6db9a9b352b6de88152fd7103a1dc2a55fc",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/multilingual/persian-revision/1",
+      "category": "multilingual",
+      "family": "multilingual/persian-revision",
+      "language": "fa",
+      "variant": 1,
+      "split": "regression-development",
+      "sha256": "e8f295c3a4b14a588d6edca471bd5f33169a3cd1317f199402caccd9e86a7f27",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/multilingual/persian-revision/2",
+      "category": "multilingual",
+      "family": "multilingual/persian-revision",
+      "language": "fa",
+      "variant": 2,
+      "split": "regression-development",
+      "sha256": "adae269ff7f825dc4f139c5a3529cfe7badc8d69bfce406487e86cba65586d33",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/multilingual/persian-revision/3",
+      "category": "multilingual",
+      "family": "multilingual/persian-revision",
+      "language": "fa",
+      "variant": 3,
+      "split": "regression-development",
+      "sha256": "c5352bdaf3c53148a6935465b681d153d10f4077c69444624d419d0d21742736",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/multilingual/persian-revision/4",
+      "category": "multilingual",
+      "family": "multilingual/persian-revision",
+      "language": "fa",
+      "variant": 4,
+      "split": "regression-development",
+      "sha256": "01a4063948f01c49b9d8a80b238d0727009414b5cb9687a44f33516dddd9b499",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/recall/equipment-label/1",
+      "category": "recall",
+      "family": "recall/equipment-label",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-prior-heldout",
+      "sha256": "8831200cbfdb0916ec7c34fe2029f953a5cdbdf113f0fc7d3f63e7d08c01d9b5",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/recall/equipment-label/2",
+      "category": "recall",
+      "family": "recall/equipment-label",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-prior-heldout",
+      "sha256": "3ebda82d822e2359c8ac420564d787e01fac41b7fbfc63752c6332c260bc250e",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/recall/equipment-label/3",
+      "category": "recall",
+      "family": "recall/equipment-label",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-prior-heldout",
+      "sha256": "a83df45ea89cc38c9b8a38414e77df2aae302b43c4c71dde9b698fa9d4032bf8",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/recall/equipment-label/4",
+      "category": "recall",
+      "family": "recall/equipment-label",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-prior-heldout",
+      "sha256": "eb5ef9015bd36035b0cb481e18d97086e9550ae96649bc6292a1cc980c0b5aad",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/recall/relative-detail/1",
+      "category": "recall",
+      "family": "recall/relative-detail",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-prior-heldout",
+      "sha256": "05f90b917179ce9d46652e34a37b043f657fcf1c130d5cdf71c1b8ecb688f32d",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/recall/relative-detail/2",
+      "category": "recall",
+      "family": "recall/relative-detail",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-prior-heldout",
+      "sha256": "b1995a4d66ba22db05223b9302f9c0183bcb3516408d8f4f37ac17f8528ae436",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/recall/relative-detail/3",
+      "category": "recall",
+      "family": "recall/relative-detail",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-prior-heldout",
+      "sha256": "682aabf8e99becba5331d5b5ca435b66f00d6e399d277af6e11de34c439a9303",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/recall/relative-detail/4",
+      "category": "recall",
+      "family": "recall/relative-detail",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-prior-heldout",
+      "sha256": "6d58a24a455eee4a4feeb0361bf305941daecf66133bd991a97dc96d967cd067",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/correction/replace-quantity/1",
+      "category": "correction",
+      "family": "correction/replace-quantity",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-prior-heldout",
+      "sha256": "3d11530366038f6bf57f981538c8fbd5c9c20dda0eb341c2c62754868db96502",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/correction/replace-quantity/2",
+      "category": "correction",
+      "family": "correction/replace-quantity",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-prior-heldout",
+      "sha256": "362b67174562c1b6b83f741e69747fe554020cd484a674d0f1f0a4dc23cf211a",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/correction/replace-quantity/3",
+      "category": "correction",
+      "family": "correction/replace-quantity",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-prior-heldout",
+      "sha256": "f8dbecde8507f1bf85604a1edcd791a02cf796343c078cc33bce80ad631e013f",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/correction/replace-quantity/4",
+      "category": "correction",
+      "family": "correction/replace-quantity",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-prior-heldout",
+      "sha256": "acc51db69d57552e97f93e775ba03af8a253580f4eadcd932e6ac17800892143",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/correction/two-revisions/1",
+      "category": "correction",
+      "family": "correction/two-revisions",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-prior-heldout",
+      "sha256": "5a3b718ac99e2d9f2482fb44d7edeb35dee731f789c4701aae5cd9409acee727",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/correction/two-revisions/2",
+      "category": "correction",
+      "family": "correction/two-revisions",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-prior-heldout",
+      "sha256": "06817fda59ca253bea967b497d632ca26a3a085947acae7a252f2c27c4ee67ff",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/correction/two-revisions/3",
+      "category": "correction",
+      "family": "correction/two-revisions",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-prior-heldout",
+      "sha256": "498a98ac781024580e0b6e1827c1df9118c78ee541d7a22044cae23c00e1a8b6",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/correction/two-revisions/4",
+      "category": "correction",
+      "family": "correction/two-revisions",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-prior-heldout",
+      "sha256": "c1ce729258e450e9d4c4d05ab00e3783784d3f4b23d6cc5b02851ecbc05c1808",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/isolation/parallel-deliveries/1",
+      "category": "isolation",
+      "family": "isolation/parallel-deliveries",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-prior-heldout",
+      "sha256": "c0ae5e0b2978ecfc9388664768c44b37466739e01dddc4d7cc2ab8daeb206015",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/isolation/parallel-deliveries/2",
+      "category": "isolation",
+      "family": "isolation/parallel-deliveries",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-prior-heldout",
+      "sha256": "f0cb4e966852ba65d7326a4e2d6766925b8d782af732998bc65c0aa889c970bf",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/isolation/parallel-deliveries/3",
+      "category": "isolation",
+      "family": "isolation/parallel-deliveries",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-prior-heldout",
+      "sha256": "acbf8cffb0b2bfb87c87c592dec2a1fb9945236c060f9d2c16f703085d4c65f6",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/isolation/parallel-deliveries/4",
+      "category": "isolation",
+      "family": "isolation/parallel-deliveries",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-prior-heldout",
+      "sha256": "96c9fd484b4408dc7b26f017a1399c593c3008bd81004d77a38b29c7e276c105",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/isolation/new-task-empty/1",
+      "category": "isolation",
+      "family": "isolation/new-task-empty",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-prior-heldout",
+      "sha256": "69dbae94a80fa76ca36bf64a838c0665c1e15eb746cb57c1551bdf9d8b0655dc",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/isolation/new-task-empty/2",
+      "category": "isolation",
+      "family": "isolation/new-task-empty",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-prior-heldout",
+      "sha256": "4a2218db686971619bda64bbb581bfd75e6c302fff010d856b6e1eff3d13e4fd",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/isolation/new-task-empty/3",
+      "category": "isolation",
+      "family": "isolation/new-task-empty",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-prior-heldout",
+      "sha256": "d347d874c8552158b6f5d5d0f61cd255e4abab79825ce41618f714a6d04167b4",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/isolation/new-task-empty/4",
+      "category": "isolation",
+      "family": "isolation/new-task-empty",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-prior-heldout",
+      "sha256": "618e6cf2188f455f62336c61ad2a0e94dd11020ed6252ebb5864d7ec0cde7e07",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/deletion/erase-correction/1",
+      "category": "deletion",
+      "family": "deletion/erase-correction",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-prior-heldout",
+      "sha256": "e07f5e6481f61ce3ae74928a514ba214e832a4457ba7b37ce72140825872bef8",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/deletion/erase-correction/2",
+      "category": "deletion",
+      "family": "deletion/erase-correction",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-prior-heldout",
+      "sha256": "22df679ff055f53ab26a650f30f4d051247b225c0921d89e972a1f39acaee0f5",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/deletion/erase-correction/3",
+      "category": "deletion",
+      "family": "deletion/erase-correction",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-prior-heldout",
+      "sha256": "5464be82ebb054584d07fe8dbfd5f65c7370c82063f9f5d8dc36e17fab2bfb42",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/deletion/erase-correction/4",
+      "category": "deletion",
+      "family": "deletion/erase-correction",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-prior-heldout",
+      "sha256": "fcdfacc0894092b144a6c11230d84f493dc37cd2e6a494bca9f8dc201b95287a",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/deletion/erase-after-reopen/1",
+      "category": "deletion",
+      "family": "deletion/erase-after-reopen",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-prior-heldout",
+      "sha256": "46e7630c0780f1094deaa7bb570a011b6b45fbed18797b3c81126d84952b3b53",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/deletion/erase-after-reopen/2",
+      "category": "deletion",
+      "family": "deletion/erase-after-reopen",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-prior-heldout",
+      "sha256": "984ae4e1108836b1c9503751770b4d9e93e7cf5bc17ccd1b7b818df296e27084",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/deletion/erase-after-reopen/3",
+      "category": "deletion",
+      "family": "deletion/erase-after-reopen",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-prior-heldout",
+      "sha256": "f2766fcee70c74b2e20e3d48238338339a6024db9cc78856b48f6f29bbb9dd97",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/deletion/erase-after-reopen/4",
+      "category": "deletion",
+      "family": "deletion/erase-after-reopen",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-prior-heldout",
+      "sha256": "0314c1329ca8f5977e5ad0bdb5a98cc0d12fd69e442bd426aec7c23dea9bee18",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/approval/exact-message/1",
+      "category": "approval",
+      "family": "approval/exact-message",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-prior-heldout",
+      "sha256": "1ac8747b4e2a5dcdf5c0e1580c197fb7fd0b8dc2459ef10f6532b12de5576012",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/approval/exact-message/2",
+      "category": "approval",
+      "family": "approval/exact-message",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-prior-heldout",
+      "sha256": "66aae0247411cf718f179bd9c8fb4dcd4b6c26d6db423af8f6d191f8ba6e9dee",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/approval/exact-message/3",
+      "category": "approval",
+      "family": "approval/exact-message",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-prior-heldout",
+      "sha256": "5e28085b8bafb3bacaef5201941713340883f23456a305d11679131674658afb",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/approval/exact-message/4",
+      "category": "approval",
+      "family": "approval/exact-message",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-prior-heldout",
+      "sha256": "de9cffe11f6cfe908e7b7f88fc70c9177faccf9da6108c1c858cc035ce713b07",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/approval/defer-until-requested/1",
+      "category": "approval",
+      "family": "approval/defer-until-requested",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-prior-heldout",
+      "sha256": "735295418dca58d05f701262d9993d44e30b2ae82a8e775af8e3fdfffa5a3ee2",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/approval/defer-until-requested/2",
+      "category": "approval",
+      "family": "approval/defer-until-requested",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-prior-heldout",
+      "sha256": "5d86315c22d94daf165b9a01a477032e7717fec985deb3d40e28ef2ba8b86222",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/approval/defer-until-requested/3",
+      "category": "approval",
+      "family": "approval/defer-until-requested",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-prior-heldout",
+      "sha256": "4fbddead330c30354ed1007c6028f08241e51c1200e4230751cd9df0b0196a39",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/approval/defer-until-requested/4",
+      "category": "approval",
+      "family": "approval/defer-until-requested",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-prior-heldout",
+      "sha256": "7ac6f2ab06f8d3d74f0587a0a3703d1f9871e91f0e8499f0ce413b6c70977bc7",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/interruption/decline-reopened-card/1",
+      "category": "interruption",
+      "family": "interruption/decline-reopened-card",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-prior-heldout",
+      "sha256": "8900881cf8c47cbdf25bbb57621e3f799430a78ff301ec0499ade60ef21d1fa8",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/interruption/decline-reopened-card/2",
+      "category": "interruption",
+      "family": "interruption/decline-reopened-card",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-prior-heldout",
+      "sha256": "a78eb89b306e11fb10dbe82a48b0f838c6442a5845f2b1298ce4900d76cd08bb",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/interruption/decline-reopened-card/3",
+      "category": "interruption",
+      "family": "interruption/decline-reopened-card",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-prior-heldout",
+      "sha256": "41cc5540e08b19a0d10a7beb8b84cc48047c224154d353939d1ac85deabd2791",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/interruption/decline-reopened-card/4",
+      "category": "interruption",
+      "family": "interruption/decline-reopened-card",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-prior-heldout",
+      "sha256": "af501f6a534012b46f470cd2e0b27c8ab59cf706865b98f1e130d4de48999bb5",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/interruption/resume-deferred-draft/1",
+      "category": "interruption",
+      "family": "interruption/resume-deferred-draft",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-prior-heldout",
+      "sha256": "52d7098a2ec31c6e27c7e8287c6ac7e2bca24c911f9cd9e755555f195892227a",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/interruption/resume-deferred-draft/2",
+      "category": "interruption",
+      "family": "interruption/resume-deferred-draft",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-prior-heldout",
+      "sha256": "37008d156be9edd37b750efc88dbb9463f034f4826f47db039b48bd29e9ce5ac",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/interruption/resume-deferred-draft/3",
+      "category": "interruption",
+      "family": "interruption/resume-deferred-draft",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-prior-heldout",
+      "sha256": "63172e9d5142368bb82e54d42f787b68ca06111b3639c56a582ea95252e27409",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/interruption/resume-deferred-draft/4",
+      "category": "interruption",
+      "family": "interruption/resume-deferred-draft",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-prior-heldout",
+      "sha256": "603fde10033252b8e193dfa1c9e496ebe096e314220701f2d0bd78f787ace2b7",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/topic/return-to-booking/1",
+      "category": "topic",
+      "family": "topic/return-to-booking",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-prior-heldout",
+      "sha256": "13c730eae858772e6f4117a57528c10b92e5fa50d266621eaad9650260be270d",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/topic/return-to-booking/2",
+      "category": "topic",
+      "family": "topic/return-to-booking",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-prior-heldout",
+      "sha256": "f20f611aa36fc42f26d09098953ef3ef4be1b9836432fc1c10f0d4e4819797f6",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/topic/return-to-booking/3",
+      "category": "topic",
+      "family": "topic/return-to-booking",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-prior-heldout",
+      "sha256": "c69355bb1f4d66aa33da26bc6f36b8d334757cec36dba82f9bc2598b2eb9800b",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/topic/return-to-booking/4",
+      "category": "topic",
+      "family": "topic/return-to-booking",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-prior-heldout",
+      "sha256": "9994473db4e5baab807feda9ecf04f5d9a09a02e1a8c0b4d787489752156c17b",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/topic/return-to-writing/1",
+      "category": "topic",
+      "family": "topic/return-to-writing",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-prior-heldout",
+      "sha256": "6bd9e3bf8d220fff0f49738b00a963b9b5a7e8aa872a0aab2cce7ce5fc303f57",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/topic/return-to-writing/2",
+      "category": "topic",
+      "family": "topic/return-to-writing",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-prior-heldout",
+      "sha256": "e3799fa3643dce8a42fdd382ed166d25fd89b9938c2dcd67dbba1672473ba951",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/topic/return-to-writing/3",
+      "category": "topic",
+      "family": "topic/return-to-writing",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-prior-heldout",
+      "sha256": "13dd5ad011f0196d181e593751a6c50bd622b22f77d05cdb01e97b2c74102c78",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/topic/return-to-writing/4",
+      "category": "topic",
+      "family": "topic/return-to-writing",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-prior-heldout",
+      "sha256": "0ef8644e9eb700a27cf72e1e9bb2939409e466a9110df2d013449e9e55365810",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/long/buried-correction/1",
+      "category": "long",
+      "family": "long/buried-correction",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-prior-heldout",
+      "sha256": "19a0bd0504f4babb2154d74ccd0ccc2eb8f7b7774c70a0fe993eb1469a7ed8b3",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/long/buried-correction/2",
+      "category": "long",
+      "family": "long/buried-correction",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-prior-heldout",
+      "sha256": "0d61aa3bf9385b32ecb4c5329e58860f6aea0c04d72b14eb8e6ade8de7aa750d",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/long/buried-correction/3",
+      "category": "long",
+      "family": "long/buried-correction",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-prior-heldout",
+      "sha256": "98a073d39cabcd3357cd16cfc77ed1111f09285b755aa1ceeace1c4aa02c54ba",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/long/buried-correction/4",
+      "category": "long",
+      "family": "long/buried-correction",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-prior-heldout",
+      "sha256": "cdbc7a3f8b8595c18983307d09e024910f5d1ead6eb08e2c6464354dc3177e7c",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/long/late-revision/1",
+      "category": "long",
+      "family": "long/late-revision",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-prior-heldout",
+      "sha256": "99f2ff1b5c71b6b9c4ac8e6d0bf30abc0c347d81c99e06a8f5c58112c5202e0e",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/long/late-revision/2",
+      "category": "long",
+      "family": "long/late-revision",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-prior-heldout",
+      "sha256": "efb1716732bb9f5cd2011150d164fb1a9789be0abd24eab75695766946bd804d",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/long/late-revision/3",
+      "category": "long",
+      "family": "long/late-revision",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-prior-heldout",
+      "sha256": "88e243cf5cc63207cc5e3af6607c0dc058fe252edaf1f85aad39fda7ac843292",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/long/late-revision/4",
+      "category": "long",
+      "family": "long/late-revision",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-prior-heldout",
+      "sha256": "b8b492a551ee65d3b583b78f4f284a0366138e4bc8a9ef9c17d1e6956289f6d4",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/source/source-exfiltration/1",
+      "category": "source",
+      "family": "source/source-exfiltration",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-prior-heldout",
+      "sha256": "9de8b66d1576d68e892f001c0df6d1047778487ef55d35140d5bbaab1dc811cd",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/source/source-exfiltration/2",
+      "category": "source",
+      "family": "source/source-exfiltration",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-prior-heldout",
+      "sha256": "9a421db4297b0907497bd7e9e10c097c95b63cfef3004a7fc5631b221d100ca9",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/source/source-exfiltration/3",
+      "category": "source",
+      "family": "source/source-exfiltration",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-prior-heldout",
+      "sha256": "19d1cb1efee9eb9076608a19be69dc276a82659678db41acfdf71ef17ff42519",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/source/source-exfiltration/4",
+      "category": "source",
+      "family": "source/source-exfiltration",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-prior-heldout",
+      "sha256": "2e0286403e4be0a2c6f1666584821477c4ecec2a0662c15f68f8760aac710471",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/source/source-to-approved-mail/1",
+      "category": "source",
+      "family": "source/source-to-approved-mail",
+      "language": "en",
+      "variant": 1,
+      "split": "regression-prior-heldout",
+      "sha256": "c4e8c36753d528852d336f3b33ca6b2bb38afa4377d2e21edeb6cdbca1b507a9",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/source/source-to-approved-mail/2",
+      "category": "source",
+      "family": "source/source-to-approved-mail",
+      "language": "en",
+      "variant": 2,
+      "split": "regression-prior-heldout",
+      "sha256": "2e992b806dfeccf3f4707db445987060f36b74350186c5bda0fe69275690f81c",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/source/source-to-approved-mail/3",
+      "category": "source",
+      "family": "source/source-to-approved-mail",
+      "language": "en",
+      "variant": 3,
+      "split": "regression-prior-heldout",
+      "sha256": "85749c80eb6da36c881a3865b5962e576bf8ebad4ed22c816e473d6f9e6d12c6",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/source/source-to-approved-mail/4",
+      "category": "source",
+      "family": "source/source-to-approved-mail",
+      "language": "en",
+      "variant": 4,
+      "split": "regression-prior-heldout",
+      "sha256": "7aca290f6598e4733ba77faddd85b2119c7adc69de3694af0d63d0bd1a73e884",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/multilingual/spanish-recall/1",
+      "category": "multilingual",
+      "family": "multilingual/spanish-recall",
+      "language": "es",
+      "variant": 1,
+      "split": "regression-prior-heldout",
+      "sha256": "59fd73722d57004f957e542b77e8eacf139443986a950369538f487708ec2419",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/multilingual/spanish-recall/2",
+      "category": "multilingual",
+      "family": "multilingual/spanish-recall",
+      "language": "es",
+      "variant": 2,
+      "split": "regression-prior-heldout",
+      "sha256": "6de94c412c362943bbba052b419323e12653fa93110087898610e9c75e555de3",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/multilingual/spanish-recall/3",
+      "category": "multilingual",
+      "family": "multilingual/spanish-recall",
+      "language": "es",
+      "variant": 3,
+      "split": "regression-prior-heldout",
+      "sha256": "c806fe996a1afb452350f6a0abab452a32c84068cf772d4a7dfc8298019ad1cc",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/multilingual/spanish-recall/4",
+      "category": "multilingual",
+      "family": "multilingual/spanish-recall",
+      "language": "es",
+      "variant": 4,
+      "split": "regression-prior-heldout",
+      "sha256": "57dce371461dff5509201629a370c8900f2609c74aba7fb5051139958a1afc56",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/multilingual/arabic-recall/1",
+      "category": "multilingual",
+      "family": "multilingual/arabic-recall",
+      "language": "ar",
+      "variant": 1,
+      "split": "regression-prior-heldout",
+      "sha256": "fa32abf432c47f4fb32457295536ec4df3cf0a4eb618fb0d587fe1a5c0737b30",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/multilingual/arabic-recall/2",
+      "category": "multilingual",
+      "family": "multilingual/arabic-recall",
+      "language": "ar",
+      "variant": 2,
+      "split": "regression-prior-heldout",
+      "sha256": "961f4b110a137bf1fa58af28d0595da1525206c29f2b0ba8c12e03a547cac8d5",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/multilingual/arabic-recall/3",
+      "category": "multilingual",
+      "family": "multilingual/arabic-recall",
+      "language": "ar",
+      "variant": 3,
+      "split": "regression-prior-heldout",
+      "sha256": "24d9ca4880c55f4cd45ea24738b30945cc39b8e6560641af7561caeca2c1d319",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "personal/multilingual/arabic-recall/4",
+      "category": "multilingual",
+      "family": "multilingual/arabic-recall",
+      "language": "ar",
+      "variant": 4,
+      "split": "regression-prior-heldout",
+      "sha256": "1b1cb98a62880c9e16b29ff92f3ffd5bdd6e653f33798697ee5a5b2679984360",
+      "origin": "reused-v2"
+    },
+    {
+      "id": "semantic-email/en-finance",
+      "category": "email",
+      "family": "semantic-email/en-finance",
+      "language": "en",
+      "variant": 1,
+      "split": "email-regression",
+      "origin": "reused-email-v2",
+      "sha256": "0b31b40c3f4108fcfc32203845756e382a9ebe1762f688d6a8b81e4edab3751e"
+    },
+    {
+      "id": "semantic-email/fr-finance",
+      "category": "email",
+      "family": "semantic-email/fr-finance",
+      "language": "fr/en",
+      "variant": 1,
+      "split": "email-regression",
+      "origin": "reused-email-v2",
+      "sha256": "96b57c8b6790cb343f0ed240d97722c41cfa4627da0e57b058d87b03c20b0e2c"
+    },
+    {
+      "id": "semantic-email/es-health",
+      "category": "email",
+      "family": "semantic-email/es-health",
+      "language": "es/en",
+      "variant": 1,
+      "split": "email-regression",
+      "origin": "reused-email-v2",
+      "sha256": "e84b1ec2eea1e83ce5b80639a94e012367ff0433375b87eb82e822d32d73c745"
+    },
+    {
+      "id": "semantic-email/fa-finance",
+      "category": "email",
+      "family": "semantic-email/fa-finance",
+      "language": "fa/en",
+      "variant": 1,
+      "split": "email-regression",
+      "origin": "reused-email-v2",
+      "sha256": "72d04ed49455fac787260ec0a4b8038706449e64a95e3104050a8c7b90d1e450"
+    },
+    {
+      "id": "semantic-email/ar-contact",
+      "category": "email",
+      "family": "semantic-email/ar-contact",
+      "language": "ar/en",
+      "variant": 1,
+      "split": "email-regression",
+      "origin": "reused-email-v2",
+      "sha256": "fa8b09c294b79f114de12dddd3170a8c664b9fc5c4b6ad7f30698f4748f9faf9"
+    },
+    {
+      "id": "semantic-email/clarify-restart",
+      "category": "email",
+      "family": "semantic-email/clarify-restart",
+      "language": "en",
+      "variant": 1,
+      "split": "email-regression",
+      "origin": "reused-email-v2",
+      "sha256": "7b873257f6387b3af23eee12a6fe2200bd42f3b71b32136bfe06feba56e6da76"
+    },
+    {
+      "id": "semantic-email/corrected-values",
+      "category": "email",
+      "family": "semantic-email/corrected-values",
+      "language": "en",
+      "variant": 1,
+      "split": "email-regression",
+      "origin": "reused-email-v2",
+      "sha256": "2c9b652acfb26d87d153373db78b53a164c5f9e114ee2b0e5f3d7ce689b841cd"
+    },
+    {
+      "id": "semantic-email/quoted-command-control",
+      "category": "email",
+      "family": "semantic-email/quoted-command-control",
+      "language": "en",
+      "variant": 1,
+      "split": "email-regression",
+      "origin": "reused-email-v2",
+      "sha256": "7f260e2f5e8f803080c62bb10afc14d409201ecc376ba7344b28e3cd699b90e6"
+    },
+    {
+      "id": "semantic-email/scoped-reinclusion",
+      "category": "email",
+      "family": "semantic-email/scoped-reinclusion",
+      "language": "en",
+      "variant": 1,
+      "split": "email-regression",
+      "origin": "reused-email-v2",
+      "sha256": "80747344679ee859b6fdba415a671c283e8a8ec91236e394098f98f367bbc1ed"
+    },
+    {
+      "id": "fresh/recall/selected-option-not-first-offer/1",
+      "category": "recall",
+      "family": "fresh/recall/selected-option-not-first-offer",
+      "language": "en",
+      "variant": 1,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "b98598255dfa487ee33f50784d4fa525cd1774032be5df6936c540c959cf5840"
+    },
+    {
+      "id": "fresh/recall/role-alias-binding/1",
+      "category": "recall",
+      "family": "fresh/recall/role-alias-binding",
+      "language": "en",
+      "variant": 1,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "4fbc6f669aa36d52d1fc924c7d92cf5db214d1cd41c5c513ecffac0f6b4eb47a"
+    },
+    {
+      "id": "fresh/correction/swap-two-labelled-values/1",
+      "category": "correction",
+      "family": "fresh/correction/swap-two-labelled-values",
+      "language": "en",
+      "variant": 1,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "f41d11e5fe02e5de7cb512a319c2ee54d72dfdd3a5279bc6a0f74370cbb7726a"
+    },
+    {
+      "id": "fresh/correction/hypothetical-is-not-confirmation/1",
+      "category": "correction",
+      "family": "fresh/correction/hypothetical-is-not-confirmation",
+      "language": "en",
+      "variant": 1,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "7d7917a8e71a43db9456f7b5cb1b8dc2ac1ca458af00c5708567ee8a85b63ca0"
+    },
+    {
+      "id": "fresh/isolation/abandoned-card-new-task/1",
+      "category": "isolation",
+      "family": "fresh/isolation/abandoned-card-new-task",
+      "language": "en",
+      "variant": 1,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "0dc1546dde8c9f39d460dec787122d4422d5fa19b78e7f64934a4148e9cbfe16"
+    },
+    {
+      "id": "fresh/isolation/return-after-conflicting-detour/1",
+      "category": "isolation",
+      "family": "fresh/isolation/return-after-conflicting-detour",
+      "language": "en",
+      "variant": 1,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "bd3b3eda7ac1b200b26e57f7867193d569d6735a6acc80ea83a141bf4179599c"
+    },
+    {
+      "id": "fresh/deletion/delete-task-with-source-history/1",
+      "category": "deletion",
+      "family": "fresh/deletion/delete-task-with-source-history",
+      "language": "en",
+      "variant": 1,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "a3b15c743463c92cd26097cdafb5f28cee3c2f4adaadab399e6dcc8b5301a52a"
+    },
+    {
+      "id": "fresh/deletion/delete-followup-retain-parent/1",
+      "category": "deletion",
+      "family": "fresh/deletion/delete-followup-retain-parent",
+      "language": "en",
+      "variant": 1,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "483eb2783741cb07db5eb256165b616f0da15606e793f7215a3baea921225332"
+    },
+    {
+      "id": "fresh/approval/french-health-narrative-redaction/1",
+      "category": "approval",
+      "family": "fresh/approval/french-health-narrative-redaction",
+      "language": "fr/en",
+      "variant": 1,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "50446ac21d7e8221b3ccacd9e194fd098a159a2019241f8aed408f80d829edd9"
+    },
+    {
+      "id": "fresh/approval/arabic-contact-revision-before-draft/1",
+      "category": "approval",
+      "family": "fresh/approval/arabic-contact-revision-before-draft",
+      "language": "ar/en",
+      "variant": 1,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "87c5906a480082c8d10bf94166f70fb099c2be3522085e576117a4b8cb6c3f6e"
+    },
+    {
+      "id": "fresh/interruption/decline-restored-then-correct/1",
+      "category": "interruption",
+      "family": "fresh/interruption/decline-restored-then-correct",
+      "language": "en",
+      "variant": 1,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "d8b074b1bcb54ea1478a45b6b2748f2dda699b5b8bddd817c2ab1677e7a44111"
+    },
+    {
+      "id": "fresh/interruption/status-after-approved-restart/1",
+      "category": "interruption",
+      "family": "fresh/interruption/status-after-approved-restart",
+      "language": "en",
+      "variant": 1,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "f3ab970e4ef73914d7df3a105f5d82293f8db44a813e75ab54a33bcaf01308d8"
+    },
+    {
+      "id": "fresh/topic/two-restored-projects-in-sequence/1",
+      "category": "topic",
+      "family": "fresh/topic/two-restored-projects-in-sequence",
+      "language": "en",
+      "variant": 1,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "752d4c552cd59accac8aa5af2d552e4b60c166d0acb3518be946317a778f4584"
+    },
+    {
+      "id": "fresh/topic/parent-exclusion-child-exception/1",
+      "category": "topic",
+      "family": "fresh/topic/parent-exclusion-child-exception",
+      "language": "en",
+      "variant": 1,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "5b317b1861a99c45da875e0d6e6dfe90b44413779715ee289ccd38f89b3177ec"
+    },
+    {
+      "id": "fresh/long/exception-after-fold-and-new-fact/1",
+      "category": "long",
+      "family": "fresh/long/exception-after-fold-and-new-fact",
+      "language": "en",
+      "variant": 1,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "c0c773634e7d3f20e104f54ac646f7ae87018b77f064bde793e2642233107420"
+    },
+    {
+      "id": "fresh/long/discard-option-retain-separate-field/1",
+      "category": "long",
+      "family": "fresh/long/discard-option-retain-separate-field",
+      "language": "en",
+      "variant": 1,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "9e85078911213e129e1ba85c1f513e12658f9f0e0a7daf1e20ddbe8464a87bde"
+    },
+    {
+      "id": "fresh/source/conflicting-pages-user-selection/1",
+      "category": "source",
+      "family": "fresh/source/conflicting-pages-user-selection",
+      "language": "en",
+      "variant": 1,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "3a6c3ae17151d522602ba703962c3342ac6d3fbbacf42cefe49a2a2d176a5992"
+    },
+    {
+      "id": "fresh/source/page-cannot-revoke-user-exclusion/1",
+      "category": "source",
+      "family": "fresh/source/page-cannot-revoke-user-exclusion",
+      "language": "en",
+      "variant": 1,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "b758f305ca47b9a7da707a1adad246a633664c4eec8c2fdc89721e34e78c22fb"
+    },
+    {
+      "id": "fresh/multilingual/spanish-retract-proposed-change/1",
+      "category": "multilingual",
+      "family": "fresh/multilingual/spanish-retract-proposed-change",
+      "language": "es",
+      "variant": 1,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "cd5d869ae04d847fbdd5b7e983b97a2d00d6ee91819b31da9af04c5a356a373d"
+    },
+    {
+      "id": "fresh/multilingual/persian-selective-private-fields/1",
+      "category": "multilingual",
+      "family": "fresh/multilingual/persian-selective-private-fields",
+      "language": "fa/en",
+      "variant": 1,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "aee4c397f808d96c0e57eb4a26b226cada36bf2fd37e37416dd2b00c2396aac5"
+    },
+    {
+      "id": "fresh/recall/selected-option-not-first-offer/2",
+      "category": "recall",
+      "family": "fresh/recall/selected-option-not-first-offer",
+      "language": "en",
+      "variant": 2,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "0d8003f113eca060141327884cfe273214ab3722c4c8a3dba0c91a14e65c56ac"
+    },
+    {
+      "id": "fresh/recall/role-alias-binding/2",
+      "category": "recall",
+      "family": "fresh/recall/role-alias-binding",
+      "language": "en",
+      "variant": 2,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "97d15db252445462ab7c9e109df44e72ff57b81f2f6340c0ee3b592f6f874a1b"
+    },
+    {
+      "id": "fresh/correction/swap-two-labelled-values/2",
+      "category": "correction",
+      "family": "fresh/correction/swap-two-labelled-values",
+      "language": "en",
+      "variant": 2,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "e097e5226b4612916fb13ea0faa4ab801b01c039bc5842d63b5151cb9b7d527b"
+    },
+    {
+      "id": "fresh/correction/hypothetical-is-not-confirmation/2",
+      "category": "correction",
+      "family": "fresh/correction/hypothetical-is-not-confirmation",
+      "language": "en",
+      "variant": 2,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "35c19b22ee4507b02ff369382bae5b0c3eee4a23495a5b4cb668d9000432e5de"
+    },
+    {
+      "id": "fresh/isolation/abandoned-card-new-task/2",
+      "category": "isolation",
+      "family": "fresh/isolation/abandoned-card-new-task",
+      "language": "en",
+      "variant": 2,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "b13c2fcd55da2b07d82e14b551d5ecc41e3694e407c5e91fbc032acfba42677c"
+    },
+    {
+      "id": "fresh/isolation/return-after-conflicting-detour/2",
+      "category": "isolation",
+      "family": "fresh/isolation/return-after-conflicting-detour",
+      "language": "en",
+      "variant": 2,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "803852fd6a14c2cc5d6d7bcb4a7bae206df5939b2cae114e77404f18452f42db"
+    },
+    {
+      "id": "fresh/deletion/delete-task-with-source-history/2",
+      "category": "deletion",
+      "family": "fresh/deletion/delete-task-with-source-history",
+      "language": "en",
+      "variant": 2,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "60c14006802a9fb46cef84ed5df52521459c95ded2d838d7be36355806a459cb"
+    },
+    {
+      "id": "fresh/deletion/delete-followup-retain-parent/2",
+      "category": "deletion",
+      "family": "fresh/deletion/delete-followup-retain-parent",
+      "language": "en",
+      "variant": 2,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "e8fdeaef5d86c6b20bb443d6ed7bc84abf001a406385c58fac2975c0dc2868b2"
+    },
+    {
+      "id": "fresh/approval/french-health-narrative-redaction/2",
+      "category": "approval",
+      "family": "fresh/approval/french-health-narrative-redaction",
+      "language": "fr/en",
+      "variant": 2,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "372042d14d16d57921c628e3ff214c38f8e74fd41b48e56bc06eebfbf460b88b"
+    },
+    {
+      "id": "fresh/approval/arabic-contact-revision-before-draft/2",
+      "category": "approval",
+      "family": "fresh/approval/arabic-contact-revision-before-draft",
+      "language": "ar/en",
+      "variant": 2,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "96c5b08b9ed0e4072b40d37de7a461c435744c7abbef58b7f165f3976d4b13d3"
+    },
+    {
+      "id": "fresh/interruption/decline-restored-then-correct/2",
+      "category": "interruption",
+      "family": "fresh/interruption/decline-restored-then-correct",
+      "language": "en",
+      "variant": 2,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "4eda6c8fe21c561ec62b15d773c4f10fdf0a00f9dbd2c4da552fd94eafe132a0"
+    },
+    {
+      "id": "fresh/interruption/status-after-approved-restart/2",
+      "category": "interruption",
+      "family": "fresh/interruption/status-after-approved-restart",
+      "language": "en",
+      "variant": 2,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "0d4138ff9834db66a04753a18e2d0f078688cf05778b50b71b179a7e53ad587b"
+    },
+    {
+      "id": "fresh/topic/two-restored-projects-in-sequence/2",
+      "category": "topic",
+      "family": "fresh/topic/two-restored-projects-in-sequence",
+      "language": "en",
+      "variant": 2,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "670ff104b5c485b9f7e346c43d288167b6ff7ce9712a886cc107d790be5b9fdd"
+    },
+    {
+      "id": "fresh/topic/parent-exclusion-child-exception/2",
+      "category": "topic",
+      "family": "fresh/topic/parent-exclusion-child-exception",
+      "language": "en",
+      "variant": 2,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "3828eded833e590f34714cf99c0fb0d3fc6d4046e8feadc7ebf77c9697d38df7"
+    },
+    {
+      "id": "fresh/long/exception-after-fold-and-new-fact/2",
+      "category": "long",
+      "family": "fresh/long/exception-after-fold-and-new-fact",
+      "language": "en",
+      "variant": 2,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "1a0fb73bf69997f8e14b7a9ab53cacbb8392d7d34d1c6bd52050f0dafa80d7f3"
+    },
+    {
+      "id": "fresh/long/discard-option-retain-separate-field/2",
+      "category": "long",
+      "family": "fresh/long/discard-option-retain-separate-field",
+      "language": "en",
+      "variant": 2,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "de607711fd9eb6c42b370cfba25925d177029fafb1b078ce6b5468c77c6feab7"
+    },
+    {
+      "id": "fresh/source/conflicting-pages-user-selection/2",
+      "category": "source",
+      "family": "fresh/source/conflicting-pages-user-selection",
+      "language": "en",
+      "variant": 2,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "793d690a2d3822d16d017d25ffcfc9c424603e29263aecbc1d0c05867e1c50b8"
+    },
+    {
+      "id": "fresh/source/page-cannot-revoke-user-exclusion/2",
+      "category": "source",
+      "family": "fresh/source/page-cannot-revoke-user-exclusion",
+      "language": "en",
+      "variant": 2,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "85b5fb09ec663298fbf5cfd81bb2ffa1ecff821fcbb639bdd14d6a24725f2483"
+    },
+    {
+      "id": "fresh/multilingual/spanish-retract-proposed-change/2",
+      "category": "multilingual",
+      "family": "fresh/multilingual/spanish-retract-proposed-change",
+      "language": "es",
+      "variant": 2,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "a0b91da84fcb4fbd43b858c3004da39233f7efe1aebafdbb8948894f6f3d17fe"
+    },
+    {
+      "id": "fresh/multilingual/persian-selective-private-fields/2",
+      "category": "multilingual",
+      "family": "fresh/multilingual/persian-selective-private-fields",
+      "language": "fa/en",
+      "variant": 2,
+      "split": "fresh-heldout",
+      "origin": "new-family",
+      "sha256": "be76bf35a955d66b1337820c6a0f9a58fe6a5024af5b1dc183d0b558401f0ebf"
+    }
+  ],
+  "parents": {
+    "v2_manifest_sha256": "2de78f6413523348a9e0334a44e470912e6b77a1a13e7eaee5d2ce45d41fd53e",
+    "email_v2_sha256": "094f41ece7b8879f6e9585999bb5d5cd95441171b425689fa650c72339ed0828"
+  },
+  "heldout_policy": "The 200 v2 tasks and nine email cases are reused regressions. Only fresh-heldout is a new public runtime holdout: 20 new combined-transition families, two variants each. Freeze before inference. Both models and all three seeds are one evaluation. No product/prompt tuning, case selection, same-build retries, or oracle edits after results.",
+  "files": {
+    "authoring.py": "7881d75d9f80d51914456540895c480ccfbc80d92069cf09e8076934c3fdf1da",
+    "changes.json": "0bf6cc7d6d70d6c96e6ad008396ed0bb222b5aea049b212ff64a64b5e0edb462",
+    "email-regression.toml": "5b61f8c6a54ba39f59651baecc2bfd68846800998c92a9e8cf62aa6b6cb4d4ae",
+    "fresh-authoring.py": "e47171ce1bd0698cbe41bd8dc8fbd4cfecadeed775e6a06c3e94a71507bd0ddd",
+    "fresh-heldout.toml": "a2a77f9335faf6342db373b875d3ca6648de872f9c5609a873b4817af6cd89f5",
+    "regression-development.toml": "867647b29b403805615347a8244ed1d7e53d1189c02a51adf94f05593f0fd09d",
+    "regression-prior-heldout.toml": "5c04469317fa2a89d2ec1c8d58114da735212fcdd5a5f3e5bf7950aa8da5f8a0",
+    "scoring.json": "1307a6a60d08344b20cf8fb4bff4b6ee2ee85e7c810d685ebb00827ff3850557"
+  }
+}

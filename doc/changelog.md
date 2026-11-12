@@ -2,6 +2,13 @@
 
 Part of the [PR3 documentation](README.md). Newest first; each version records what changed in the design and why.
 
+## Unreleased (11 November 2026) - versioned workflow rebaseline and fresh challenges
+
+- Freeze Personal-200 v3: retain all 200 prior tasks as regressions, explicitly accept equivalent integer grouping in positive and negative checks, and clarify eight resumed-email requests without supplying their answers. Original v1/v2 data and results remain immutable.
+- Add 40 new challenges in 20 families and the nine unchanged multilingual email regressions. The declared 4B/27B, seeds 1/2/7 matrix contains 1,494 runs; fresh and reused groups remain separate.
+- Extend the frozen runner to validate all partition/model/seed combinations, distinguish absent cards from actual content disclosures, and report desktop model-turn latency separately from runtime commands. Add seven Python regressions; all 443 workspace and 33 Python tests pass. Runtime prompts, approval checks and limits are unchanged.
+- All 1,494 runs completed; fresh-held-out passes: Qwen3.5-4B-Q4_K_M: 88/120; Qwen3.8-27B-Q4_K_M: 107/120. Every failure and all 6 runtime-error task runs remain recorded. [Report and replay](../bench/personal/evidence/2026-11-11-v3-report.md). Android and the older security matrix remain separate gates.
+
 ## Unreleased (10 November 2026) - category-aware multilingual email exclusions
 
 - Recognize bounded category/field exclusions in English, French, Spanish, Persian and Arabic. Match related financial, health, contact and access fields across languages, retain later corrections, and normalize Persian/Arabic digits and unambiguous numeric grouping without changing the approved draft.

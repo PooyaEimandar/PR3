@@ -166,6 +166,9 @@ def freeze(out):
 
 def validate(path):
     manifest = json.loads((path / "manifest.json").read_text())
+    if manifest["version"] == "personal-200-v3":
+        from revision import validate as validate_revision
+        return validate_revision(path)
     if manifest["version"] not in VERSIONS or manifest["split_policy"]["salt"] != SALT:
         raise ValueError("Unknown dataset version or split policy")
     if set(manifest["files"]) != {"development.toml", "heldout.toml", "scoring.json", "authoring.py"}:

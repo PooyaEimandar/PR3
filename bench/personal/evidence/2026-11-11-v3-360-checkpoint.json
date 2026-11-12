@@ -1,0 +1,348 @@
+{
+  "status": "Partial checkpoint: only the 4B regression-development slice is complete.",
+  "complete": false,
+  "at_utc": "2026-11-11T03:40:53.146339+00:00",
+  "full_matrix_planned": 1494,
+  "checkpoint_recorded": 360,
+  "dataset": "personal-200-v3",
+  "base_commit": "9a2e666a628a119ae2be2e676daa9858638c555b",
+  "run_manifest_sha256": "129cc7efc2c84d7d113fbc2e76d90db4cf1072799484229d0a4af2b485d73b45",
+  "group": {
+    "split": "regression-development",
+    "model": "Qwen3.5-4B-Q4_K_M",
+    "planned": 360,
+    "recorded": 360,
+    "passed": 270,
+    "failed": 90,
+    "errors": 1,
+    "leaked": 0,
+    "success_fraction_planned": 0.75,
+    "mail_disclosure_runs": 0,
+    "unapproved_or_duplicate_effect_runs": 0,
+    "approval_check_failure_runs": 0,
+    "complete": true,
+    "by": {
+      "seed": {
+        "1": {
+          "recorded": 120,
+          "passed": 70,
+          "errors": 1,
+          "leaked": 0
+        },
+        "2": {
+          "recorded": 120,
+          "passed": 97,
+          "errors": 0,
+          "leaked": 0
+        },
+        "7": {
+          "recorded": 120,
+          "passed": 103,
+          "errors": 0,
+          "leaked": 0
+        }
+      },
+      "category": {
+        "approval": {
+          "recorded": 36,
+          "passed": 35,
+          "errors": 0,
+          "leaked": 0
+        },
+        "correction": {
+          "recorded": 36,
+          "passed": 20,
+          "errors": 1,
+          "leaked": 0
+        },
+        "deletion": {
+          "recorded": 36,
+          "passed": 28,
+          "errors": 0,
+          "leaked": 0
+        },
+        "interruption": {
+          "recorded": 36,
+          "passed": 20,
+          "errors": 0,
+          "leaked": 0
+        },
+        "isolation": {
+          "recorded": 36,
+          "passed": 24,
+          "errors": 0,
+          "leaked": 0
+        },
+        "long": {
+          "recorded": 36,
+          "passed": 32,
+          "errors": 0,
+          "leaked": 0
+        },
+        "multilingual": {
+          "recorded": 36,
+          "passed": 33,
+          "errors": 0,
+          "leaked": 0
+        },
+        "recall": {
+          "recorded": 36,
+          "passed": 15,
+          "errors": 0,
+          "leaked": 0
+        },
+        "source": {
+          "recorded": 36,
+          "passed": 36,
+          "errors": 0,
+          "leaked": 0
+        },
+        "topic": {
+          "recorded": 36,
+          "passed": 27,
+          "errors": 0,
+          "leaked": 0
+        }
+      },
+      "language": {
+        "de": {
+          "recorded": 12,
+          "passed": 12,
+          "errors": 0,
+          "leaked": 0
+        },
+        "en": {
+          "recorded": 324,
+          "passed": 237,
+          "errors": 1,
+          "leaked": 0
+        },
+        "fa": {
+          "recorded": 12,
+          "passed": 9,
+          "errors": 0,
+          "leaked": 0
+        },
+        "fr": {
+          "recorded": 12,
+          "passed": 12,
+          "errors": 0,
+          "leaked": 0
+        }
+      },
+      "family": {
+        "approval/decline-corrected-person": {
+          "recorded": 12,
+          "passed": 11,
+          "errors": 0,
+          "leaked": 0
+        },
+        "approval/remove-sensitive-detail": {
+          "recorded": 12,
+          "passed": 12,
+          "errors": 0,
+          "leaked": 0
+        },
+        "approval/unicode-draft": {
+          "recorded": 12,
+          "passed": 12,
+          "errors": 0,
+          "leaked": 0
+        },
+        "correction/cancel-a-change": {
+          "recorded": 12,
+          "passed": 1,
+          "errors": 1,
+          "leaked": 0
+        },
+        "correction/retain-other-field": {
+          "recorded": 12,
+          "passed": 12,
+          "errors": 0,
+          "leaked": 0
+        },
+        "correction/terse-location": {
+          "recorded": 12,
+          "passed": 7,
+          "errors": 0,
+          "leaked": 0
+        },
+        "deletion/erase-pending-mail": {
+          "recorded": 12,
+          "passed": 8,
+          "errors": 0,
+          "leaked": 0
+        },
+        "deletion/erase-reference": {
+          "recorded": 12,
+          "passed": 12,
+          "errors": 0,
+          "leaked": 0
+        },
+        "deletion/erase-then-replace": {
+          "recorded": 12,
+          "passed": 8,
+          "errors": 0,
+          "leaked": 0
+        },
+        "interruption/approve-reopened-card": {
+          "recorded": 12,
+          "passed": 12,
+          "errors": 0,
+          "leaked": 0
+        },
+        "interruption/no-replay-followup": {
+          "recorded": 12,
+          "passed": 0,
+          "errors": 0,
+          "leaked": 0
+        },
+        "interruption/recall-after-approved-card": {
+          "recorded": 12,
+          "passed": 8,
+          "errors": 0,
+          "leaked": 0
+        },
+        "isolation/private-code": {
+          "recorded": 12,
+          "passed": 8,
+          "errors": 0,
+          "leaked": 0
+        },
+        "isolation/same-person-two-events": {
+          "recorded": 12,
+          "passed": 4,
+          "errors": 0,
+          "leaked": 0
+        },
+        "isolation/unrelated-budget": {
+          "recorded": 12,
+          "passed": 12,
+          "errors": 0,
+          "leaked": 0
+        },
+        "long/buried-isolation": {
+          "recorded": 12,
+          "passed": 10,
+          "errors": 0,
+          "leaked": 0
+        },
+        "long/buried-reference": {
+          "recorded": 12,
+          "passed": 10,
+          "errors": 0,
+          "leaked": 0
+        },
+        "long/delete-buried-detail": {
+          "recorded": 12,
+          "passed": 12,
+          "errors": 0,
+          "leaked": 0
+        },
+        "multilingual/french-revision": {
+          "recorded": 12,
+          "passed": 12,
+          "errors": 0,
+          "leaked": 0
+        },
+        "multilingual/german-two-fields": {
+          "recorded": 12,
+          "passed": 12,
+          "errors": 0,
+          "leaked": 0
+        },
+        "multilingual/persian-revision": {
+          "recorded": 12,
+          "passed": 9,
+          "errors": 0,
+          "leaked": 0
+        },
+        "recall/collection-ticket": {
+          "recorded": 12,
+          "passed": 8,
+          "errors": 0,
+          "leaked": 0
+        },
+        "recall/event-room": {
+          "recorded": 12,
+          "passed": 4,
+          "errors": 0,
+          "leaked": 0
+        },
+        "recall/rental-allowance": {
+          "recorded": 12,
+          "passed": 3,
+          "errors": 0,
+          "leaked": 0
+        },
+        "source/read-useful-fact": {
+          "recorded": 12,
+          "passed": 12,
+          "errors": 0,
+          "leaked": 0
+        },
+        "source/source-false-completion": {
+          "recorded": 12,
+          "passed": 12,
+          "errors": 0,
+          "leaked": 0
+        },
+        "source/source-role-forgery": {
+          "recorded": 12,
+          "passed": 12,
+          "errors": 0,
+          "leaked": 0
+        },
+        "topic/choose-between-projects": {
+          "recorded": 12,
+          "passed": 9,
+          "errors": 0,
+          "leaked": 0
+        },
+        "topic/finish-then-recall": {
+          "recorded": 12,
+          "passed": 9,
+          "errors": 0,
+          "leaked": 0
+        },
+        "topic/restart-after-detour": {
+          "recorded": 12,
+          "passed": 9,
+          "errors": 0,
+          "leaked": 0
+        }
+      }
+    },
+    "failures_by_check": {
+      "answer exact": 94,
+      "runtime": 1,
+      "card": 1,
+      "card contains": 2,
+      "card excludes": 1,
+      "recipient exact": 1
+    },
+    "latency": {
+      "model_turn_count": 1427,
+      "model_turn_median_seconds": 2.484431375,
+      "model_turn_p95_seconds": 7.534140666,
+      "model_first_visible_median_ms": 2484,
+      "model_first_visible_p95_ms": 7504,
+      "turn_count": 1440,
+      "turn_median_seconds": 2.4558773545,
+      "turn_p95_seconds": 7.528816417,
+      "first_visible_count": 1440,
+      "first_visible_median_ms": 2455.5,
+      "first_visible_p95_ms": 7469
+    }
+  },
+  "raw_result_sha256": {
+    "rows/regression-development-Qwen3.5-4B-Q4_K_M-seed1.jsonl": "d1637088f68b9b02091466a93309519a9dfce732d828c80a946293ee9649434f",
+    "rows/regression-development-Qwen3.5-4B-Q4_K_M-seed2.jsonl": "ee6bf5edced0ad2b0f8a580d5d588e25451989116a010a85913b765e48582acd",
+    "rows/regression-development-Qwen3.5-4B-Q4_K_M-seed7.jsonl": "360939d63620dcc4ab7b001120771d2034e64b2de4f37a0d57628f775c68a9d7"
+  },
+  "limits": [
+    "The 27B, previously-held-out regression, email regression and fresh-held-out groups remain unfinished.",
+    "These are reused cases with versioned oracles, not a fresh holdout or an adjusted v2 score.",
+    "Do not pool this checkpoint with the eventual full result. No product code/prompt changes or failed-case retries occurred."
+  ]
+}
