@@ -2,6 +2,10 @@
 
 Part of the [PR3 documentation](README.md). Newest first; each version records what changed in the design and why.
 
+## Unreleased (12 November 2026) - Windows OpenSSL build prerequisites
+
+- Select native Windows Perl explicitly for vendored OpenSSL in both the installer workflow and Windows workspace CI. Check the required Perl modules and native runtime from the build shell before compilation, preventing Git Bash's incomplete MSYS Perl from breaking SQLCipher's OpenSSL dependency.
+
 ## Unreleased (11 November 2026) - versioned workflow rebaseline and fresh challenges
 
 - Freeze Personal-200 v3: retain all 200 prior tasks as regressions, explicitly accept equivalent integer grouping in positive and negative checks, and clarify eight resumed-email requests without supplying their answers. Original v1/v2 data and results remain immutable.

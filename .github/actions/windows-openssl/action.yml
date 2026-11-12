@@ -1,0 +1,28 @@
+name: Windows OpenSSL prerequisites
+description: Select native Windows Perl for the vendored OpenSSL build used by SQLCipher.
+runs:
+  using: composite
+  steps:
+    - name: Select native Perl
+      shell: pwsh
+      run: |
+        # Git Bash puts its MSYS Perl first, which is unsuitable for VC-WIN64A
+        # and can lack modules needed by OpenSSL's Configure script. Select in
+        # PowerShell and give openssl-src an absolute path, independent of PATH.
+        $candidates = Get-Command perl.exe -All -CommandType Application -ErrorAction Stop
+        foreach ($candidate in $candidates) {
+          & $candidate.Source -MLocale::Maketext::Simple -MIPC::Cmd -e 'exit($^O eq "MSWin32" ? 0 : 1)' 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            $nativePerl = $candidate.Source.Replace('\', '/')
+            "OPENSSL_SRC_PERL=$nativePerl" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            Write-Host "OpenSSL Perl: $nativePerl"
+            exit 0
+          }
+        }
+        throw 'Native Windows Perl with Locale::Maketext::Simple and IPC::Cmd is required. Install Strawberry Perl and add its perl/bin directory to PATH.'
+    - name: Check Perl from the build shell
+      shell: bash
+      run: |
+        # Exercise the same Bash-to-native boundary as cargo's build script.
+        "$OPENSSL_SRC_PERL" -MLocale::Maketext::Simple -MIPC::Cmd \
+          -e 'die "Expected native Windows Perl\n" unless $^O eq "MSWin32"; print "OpenSSL Perl prerequisites verified\n";'

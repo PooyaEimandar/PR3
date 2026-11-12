@@ -45,6 +45,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Windows OpenSSL prerequisites
+        if: runner.os == 'Windows'
+        uses: ./.github/actions/windows-openssl
       # The version rust-toolchain.toml pins, with only what this job needs: the file's
       # own install would add the iOS, Android, embedded and WebAssembly libraries too.
       - name: Pinned toolchain

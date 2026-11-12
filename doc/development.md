@@ -45,6 +45,7 @@ To run another model, change the ids under `[model]`. To change anything without
 ## Build and run
 
 - **macOS:** `cd app/pr3-app && cargo tauri dev`, or `cargo tauri build --debug --bundles app` for an app bundle.
+- **Windows:** the vendored OpenSSL build for SQLCipher needs native Windows Perl with `Locale::Maketext::Simple` and `IPC::Cmd`. [OpenSSL recommends Strawberry Perl](https://github.com/openssl/openssl/blob/openssl-3.6.0/NOTES-WINDOWS.md#perl). When building from Git Bash, set `OPENSSL_SRC_PERL` to the absolute native executable (for example, `C:/Strawberry/perl/bin/perl.exe`) so Git's MSYS Perl cannot shadow it. Both Windows CI and installer builds use the shared [prerequisite check](../.github/actions/windows-openssl/action.yml), including a probe from Bash before compiling.
 - **iOS simulator:** `cd app/pr3-app && cargo tauri ios build --debug --target aarch64-sim`, then `xcrun simctl install booted src-tauri/gen/apple/build/arm64-sim/PR3.app`. Debug builds also find models in the repository's `model/` folder.
 - **Android:** `script/build-android.sh` builds a debug APK for arm64 (it sets the ARMv8.2 dot-product flag llama.cpp needs). Install it with `adb install -r`, then download the phone model in Settings, or copy it in from the repository, which is quicker:
 
