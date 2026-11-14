@@ -1,5 +1,8 @@
 # PR3-Personal evaluations
 
+**Historical email-era benchmark (retired 2026-11-14).** The current app removes email and contacts. Frozen results/corpora remain unchanged; they do not describe the document app. New runs from this checkout are disabled. Reproduce an earlier measurement with its recorded revision/archived driver; explicit debug adapter builds use `--features legacy-email-bench`. Use [the document comparison](../documents/README.md) for new product work.
+
+
 ## Current build: Personal-200 v3 and fresh challenges (11 November 2026)
 
 V3 freezes **249 tasks / 79 scenario families**, evaluated on the installed

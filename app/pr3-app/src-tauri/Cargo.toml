@@ -19,6 +19,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [features]
 # Explicit opt-in, debug builds only. Never part of a distributed app.
+legacy-email-bench = ["pr3-tool/legacy-email-bench"]
 e2e = ["dep:tauri-plugin-wdio-webdriver"]
 
 [[bin]]
@@ -68,4 +69,4 @@ block2 = "0.6"
 
 [dev-dependencies]
 # File-backed storage failure injection, using the same bundled SQLite as production.
-rusqlite = { version = "0.40", features = ["bundled"] }
+rusqlite = { version = "0.42", features = ["bundled"] }

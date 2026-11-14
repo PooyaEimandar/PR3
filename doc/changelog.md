@@ -2,6 +2,21 @@
 
 Part of the [PR3 documentation](README.md). Newest first; each version records what changed in the design and why.
 
+## Unreleased (14 November 2026) - local documents replace email
+
+- Remove email/contacts from the shipped app: contact permissions and native plugins, sync/settings, draft planning and action registration. Ignore retired action configuration and remove the saved contact-sync flag. Keep historical adapters behind an explicit debug-only benchmark feature; frozen evidence/corpora remain unchanged and historical launchers refuse new mislabeled runs.
+- Add encrypted, explicitly imported UTF-8 text/Markdown snapshots, bounded FTS search and exact-quotation answers with fingerprinted source IDs, filenames and line ranges. Inspect sources after restart; reject invented/stale quotations. No PDF/OCR/folder watcher or document sync is claimed.
+- Document removal uses the existing red confirmation prompt, removes indexed content and dependent task/follow-up context, and refuses to race a running task. Unrelated tasks and original device files remain. Core authorization, signed approval and execution limits are unchanged.
+- Replace active email UI tests with document import/search/answer/restart/source/removal workflows; retain memory correction, storage recovery and Stop/retry checks. Add regressions for source identity, false completion, Unicode/size bounds, forged quotations and deletion beyond displayed-source/parent-chain limits.
+- Complete the [72-run matched OpenJarvis diagnostic](../bench/documents/evidence/2026-11-14-4b-report.md): factual checks 36/36 PR3 and 32/36 OpenJarvis; explicit verified-quotation workflow 36/36 and 21/36 (scorer v2). Preserve raw v1 outputs, explain the filename-attribution scorer correction, and replay all 36 PR3 traces through the final runtime with identical answers. This compares shared-tool orchestration, not overall product quality or native retrieval.
+- Validation: 356 workspace tests pass (9 opt-in tests ignored), 4 JavaScript Stop tests and 73 Python harness checks pass (4 optional security-harness tests skipped). All 6 native workflows passed earlier; the final rerun passes 5 and skips recovery-code display because the desktop session is hidden, while verifying that the code stays withheld. The native runner finishes frozen Settings animations in hidden windows without bypassing the recovery-code visibility guard. Strict Clippy, formatting, trusted-boundary/no_std checks and actionlint pass. Cargo audit reports no vulnerability errors and the same three pre-existing warnings. Android acceptance remains device testing.
+
+## Unreleased (12 November 2026) - SQLite WAL security update
+
+- Upgrade to `rusqlite 0.42.0`, `libsqlite3-sys 0.40.0` and SQLCipher 4.20.0 with embedded SQLite 3.54.1 to address [RUSTSEC-2026-0459](https://rustsec.org/advisories/RUSTSEC-2026-0459.html). The earlier 0.39 bindings fixed the plain SQLite bundle but still used affected SQLCipher sources. Preserve the platform-specific SQLCipher/OpenSSL features and SQLCipher version-4 compatibility.
+- Add a regression check against the actual linked SQLCipher engine, requiring SQLite 3.54.0 or newer. It fails with the previous dependency set, which embeds SQLite 3.51.3. The security audit remains enabled without advisory exceptions.
+- Validation: all 444 workspace tests pass (12 existing opt-in checks ignored), along with strict Clippy and formatting. `cargo audit` passes with no vulnerability findings; its three existing nonblocking warnings (`proc-macro-error`, `glib`, `rustix`) remain.
+
 ## Unreleased (12 November 2026) - Windows OpenSSL build prerequisites
 
 - Select native Windows Perl explicitly for vendored OpenSSL in both the installer workflow and Windows workspace CI. Check the required Perl modules and native runtime from the build shell before compilation, preventing Git Bash's incomplete MSYS Perl from breaking SQLCipher's OpenSSL dependency.

@@ -512,6 +512,43 @@ impl Host {
         self.tasks().map_err(|e| e.to_string())?.delete(id, now())
     }
 
+    /// Deletion is serialized with turn starts/settling, and refused while any
+    /// task is running. Remove all dependent chats, including explicit follow-ups,
+    /// before erasing the source so cached quotations cannot return after restart.
+    pub async fn remove_document(
+        &self,
+        library: &pr3_tool::documents::Library,
+        id: i64,
+    ) -> Result<(), String> {
+        let _settled = self.settling.lock().await;
+        let mut tasks = self.tasks().map_err(|e| e.to_string())?;
+        let cards = tasks.cards(now());
+        if cards.iter().any(|c| {
+            tasks
+                .view(SessionId(c.id), now())
+                .is_some_and(|v| v.running)
+        }) {
+            return Err("Stop the current task before removing a document.".into());
+        }
+        let affected = tasks.document_dependents(id);
+        for task in &affected {
+            tasks.deletable(*task)?;
+        }
+        for task in affected {
+            self.core()
+                .map_err(|e| e.to_string())?
+                .forget(task)
+                .map_err(|e| e.to_string())?;
+            tasks.delete(task, now())?;
+        }
+        library
+            .lock()
+            .map_err(|_| "Document library is unavailable")?
+            .remove_document(id)
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     /// Asks again for the call a task was waiting on when the app last closed. The
     /// trusted path takes it as a new request, with a new confirmation card streamed
     /// through `on_event`, and the task ends with what came of it; no model runs.
@@ -544,6 +581,7 @@ impl Host {
             .cancellation(id)
             .ok_or("task is no longer running")?;
         let execution_tasks = Arc::clone(&self.tasks);
+        #[cfg(feature = "legacy-email-bench")]
         let exclusions = self
             .tasks()
             .map_err(|e| e.to_string())?
@@ -552,7 +590,12 @@ impl Host {
         let (success, output) = Arc::clone(actions)
             .run_checked(
                 &call,
-                move |mail| exclusions.check(mail),
+                move |_intent| {
+                    #[cfg(feature = "legacy-email-bench")]
+                    return exclusions.check(_intent);
+                    #[cfg(not(feature = "legacy-email-bench"))]
+                    Err("This action connector has been removed.".into())
+                },
                 |request| {
                     if let Ok(mut tasks) = self.tasks.lock() {
                         tasks.waiting(id, &call, request.expires_at, now());
@@ -725,9 +768,14 @@ impl Host {
         let result = if let Some(command) = crate::memory::command(&text) {
             self.capture_memory(session, &text, command, &mut recorded)
                 .await
-        } else if self.tasks()?.email_instruction(session) {
-            self.capture_email_instruction(session, &text).await
         } else {
+            #[cfg(feature = "legacy-email-bench")]
+            if self.tasks()?.email_instruction(session) {
+                self.capture_email_instruction(session, &text).await
+            } else {
+                self.turn(session, text, utc_offset_minutes, recorded).await
+            }
+            #[cfg(not(feature = "legacy-email-bench"))]
             self.turn(session, text, utc_offset_minutes, recorded).await
         };
         let outcome = match &result {
@@ -765,6 +813,7 @@ impl Host {
     /// A standalone content correction records instructions, not permission to
     /// prepare an email. Keep the normal core turn/input/provenance boundary but
     /// acknowledge it without inference or tools, like an explicit memory command.
+    #[cfg(feature = "legacy-email-bench")]
     async fn capture_email_instruction(
         &self,
         session: SessionId,
@@ -966,6 +1015,7 @@ impl Host {
             // Confirmed memory corrections precede historical conversation excerpts.
             notes.push(context);
         }
+        #[cfg(feature = "legacy-email-bench")]
         if let Some(note) = self.tasks()?.email_exclusions(session).note() {
             notes.push(note);
         }
@@ -1095,6 +1145,9 @@ impl Host {
         F: FnMut(TurnEvent) + Send + 'static,
     {
         let mut for_ui = Vec::new();
+        let mut document_turn = utterance.starts_with("Search my documents:")
+            || self.tasks()?.has_document_sources(session);
+        let mut document_answer: Option<String> = None;
         for _ in 0..MAX_ROUND_TRIPS {
             if queue.is_empty() {
                 break;
@@ -1109,7 +1162,16 @@ impl Host {
             match action {
                 Action::Infer(request) => {
                     let id = request.id;
-                    let generated = self.infer(request, Arc::clone(&on_event)).await;
+                    let generated = if document_turn
+                        || request
+                            .tools
+                            .iter()
+                            .any(|t| t.name == pr3_tool::documents::SEARCH)
+                    {
+                        self.infer(request, Arc::new(Mutex::new(|_| {}))).await
+                    } else {
+                        self.infer(request, Arc::clone(&on_event)).await
+                    };
                     self.cancelled(session)?;
                     generated_text.push(match &generated {
                         Ok(Ok(g)) => {
@@ -1129,6 +1191,11 @@ impl Host {
                     let input = match generated {
                         Ok(Ok(mut g)) => {
                             if g.tool_calls.is_empty() {
+                                if document_turn || g.content.contains("[document:") {
+                                    g.content = document_answer
+                                        .clone()
+                                        .unwrap_or_else(|| pr3_tool::documents::NO_ANSWER.into());
+                                }
                                 if let Some(content) =
                                     self.tasks()?.completion(session, utterance, &g.content)
                                 {
@@ -1185,6 +1252,15 @@ impl Host {
                         Ok(text) => (true, text),
                         Err(error) => (false, error),
                     };
+                    if matches!(
+                        call.name.as_str(),
+                        pr3_tool::documents::SEARCH | pr3_tool::documents::ANSWER
+                    ) {
+                        document_turn = true;
+                        if call.name == pr3_tool::documents::ANSWER {
+                            document_answer = success.then(|| output.clone());
+                        }
+                    }
                     if let Ok(mut emit) = on_event.lock() {
                         emit(TurnEvent::Tool {
                             name: call.name.clone(),
@@ -1225,11 +1301,17 @@ impl Host {
                                 HostError::Host("task is no longer running".into())
                             })?;
                             let tasks = Arc::clone(&self.tasks);
+                            #[cfg(feature = "legacy-email-bench")]
                             let exclusions = self.tasks()?.email_exclusions(session);
                             Arc::clone(actions)
                                 .run_checked(
                                     &call,
-                                    move |mail| exclusions.check(mail),
+                                    move |_intent| {
+                                        #[cfg(feature = "legacy-email-bench")]
+                                        return exclusions.check(_intent);
+                                        #[cfg(not(feature = "legacy-email-bench"))]
+                                        Err("This action connector has been removed.".into())
+                                    },
                                     ask,
                                     cancel,
                                     move || {
@@ -1699,6 +1781,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "legacy-email-bench")]
     fn stop_during_approval_requires_fresh_approval_and_stop_after_execution_keeps_the_result() {
         struct MailBackend;
         impl Backend for MailBackend {
@@ -1885,7 +1968,7 @@ mod tests {
             .result
             .clone()
             .unwrap();
-        assert_eq!(result, "1 memory note corrected · No email sent");
+        assert_eq!(result, "1 memory note corrected");
         drop(second);
         drop(memory);
         drop(store);
@@ -1893,6 +1976,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "legacy-email-bench")]
     fn fabricated_completion_never_reaches_chat_history_export_or_streamed_tokens() {
         struct LyingMail {
             propose: bool,
@@ -2394,6 +2478,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "legacy-email-bench")]
     fn email_exclusions_are_acknowledged_without_inference_and_failed_saves_cannot_revoke_them() {
         let dir = std::env::temp_dir().join(format!("pr3-exclusion-ack-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
@@ -2443,6 +2528,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "legacy-email-bench")]
     fn email_exclusions_block_model_and_restored_drafts_before_approval() {
         struct Draft;
         impl Backend for Draft {
@@ -2550,6 +2636,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "legacy-email-bench")]
     fn restored_approval_keeps_corrected_task_context_without_saved_memories_or_replay() {
         use pr3_memory::MemoryStore;
         let dir = std::env::temp_dir().join(format!("pr3-restored-context-{}", std::process::id()));
@@ -2901,6 +2988,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "legacy-email-bench")]
     fn a_kept_task_asks_again_and_keeps_its_context_after_a_restart() {
         let store = Arc::new(Mutex::new(SqliteMemory::open_in_memory().unwrap()));
         let dir = std::env::temp_dir().join(format!("pr3-host-again-{}", std::process::id()));
@@ -3041,6 +3129,7 @@ mod tests {
 
     /// Exercises the complete tool -> core -> approval path without a model or network.
     #[test]
+    #[cfg(feature = "legacy-email-bench")]
     fn web_headers_cannot_bypass_the_guard_and_redirects_name_the_real_source() {
         use pr3_tool::web::{Fetch, Fetched, READ_WEB_PAGE, ReadWebPage};
         use std::collections::VecDeque;
@@ -3236,7 +3325,7 @@ mod tests {
                 .any(|e| matches!(e, TurnEvent::Token { .. } | TurnEvent::Approval { .. }))
         );
         assert!(events.contains(&TurnEvent::Result {
-            text: "1 memory note saved · No email sent".into()
+            text: "1 memory note saved".into()
         }));
         let saved = store.lock().unwrap().recent(10, now()).unwrap();
         assert_eq!(saved[0].text, "the meeting is at 14:30.");
@@ -3250,7 +3339,7 @@ mod tests {
                 matches!(result.unwrap().as_slice(), [Action::Failed { reason, .. }] if reason.starts_with("Memory was not changed:"))
             );
             assert!(events.contains(&TurnEvent::Result {
-                text: "1 memory save failed · No email sent".into()
+                text: "1 memory save failed".into()
             }));
         }
         assert_eq!(store.lock().unwrap().recent(10, now()).unwrap().len(), 1);
@@ -3283,12 +3372,14 @@ mod tests {
                 .unwrap()
                 .chat
                 .iter()
-                .any(|s| s.result.as_deref() == Some("1 memory note saved · No email sent"))
+                .any(|s| s.result.as_deref() == Some("1 memory note saved"))
         );
     }
 
+    #[cfg(feature = "legacy-email-bench")]
     struct MeetingBackend;
 
+    #[cfg(feature = "legacy-email-bench")]
     impl Backend for MeetingBackend {
         fn label(&self) -> String {
             "meeting fixture".into()
@@ -3322,6 +3413,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "legacy-email-bench")]
     fn daily_workflow_captures_restarts_resumes_and_executes_only_after_approval() {
         use pr3_core::trusted::{Contact, Directory};
         use pr3_memory::{MemoryStore, Status};
@@ -3541,7 +3633,12 @@ mod tests {
 }
 
 #[cfg(test)]
+#[cfg(feature = "legacy-email-bench")]
 mod source_tests;
 
 #[cfg(test)]
+#[cfg(feature = "legacy-email-bench")]
 mod mail_meaning_tests;
+
+#[cfg(test)]
+mod document_tests;

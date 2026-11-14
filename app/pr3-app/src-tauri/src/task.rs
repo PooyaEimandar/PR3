@@ -22,7 +22,13 @@ use tauri::ipc::Channel;
 use crate::host::{Host, TurnEvent};
 
 pub mod export;
+#[cfg(feature = "legacy-email-bench")]
+#[path = "../../../../bench/legacy-email/task/mail.rs"]
 pub(crate) mod mail;
+#[cfg(feature = "legacy-email-bench")]
+#[path = "../../../../bench/legacy-email/task/result.rs"]
+mod result;
+#[cfg(not(feature = "legacy-email-bench"))]
 mod result;
 mod source;
 mod word;
@@ -37,7 +43,8 @@ const SAVE_STOPPED: &str =
     "This turn stopped because saving failed. Review the recorded results before continuing.";
 const CLOSED: &str = "PR3 closed before it finished";
 pub(crate) const STOPPED: &str = "Stopped by you. Review the recorded results before retrying.";
-pub(crate) const UNKNOWN: &str = "Outcome unknown: the email action result was not recorded. Check your email app (or the sandbox outbox for a test run) before continuing.";
+pub(crate) const UNKNOWN: &str =
+    "Outcome unknown: the action result was not recorded. Check its destination before continuing.";
 
 // Earlier checkpoints used this wording. Preserve their no-retry boundary when an
 // upgraded app opens a task that might already have executed.
@@ -692,6 +699,7 @@ impl Tasks {
             .unwrap_or_default()
     }
 
+    #[cfg(feature = "legacy-email-bench")]
     pub(crate) fn email_exclusions(&self, id: SessionId) -> mail::Exclusions {
         match self.email_messages(id) {
             Some(messages) => mail::Exclusions::from_messages(&messages),
@@ -699,11 +707,13 @@ impl Tasks {
         }
     }
 
+    #[cfg(feature = "legacy-email-bench")]
     pub(crate) fn email_instruction(&self, id: SessionId) -> bool {
         self.email_messages(id)
             .is_some_and(|messages| mail::command_in(&messages))
     }
 
+    #[cfg(feature = "legacy-email-bench")]
     fn email_messages(&self, id: SessionId) -> Option<Vec<String>> {
         // Explicit follow-ups inherit retained user restrictions, never a model's
         // summary of them. New task has no parent and therefore no inherited rules.
@@ -1912,6 +1922,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "legacy-email-bench")]
     fn failed_result_write_keeps_unknown_checkpoint_until_all_records_are_saved() {
         let (dir, store, injector) = disk_store("result-write");
         let mut tasks = Tasks::load(store.clone(), 30, at(0)).unwrap();
@@ -2419,6 +2430,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "legacy-email-bench")]
     fn email_exclusions_follow_explicit_parent_links_and_user_reinclusion_is_local() {
         let store = store();
         let mut tasks = Tasks::load(store.clone(), 30, at(0)).unwrap();
@@ -2449,6 +2461,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "legacy-email-bench")]
     fn email_exclusions_survive_folds_and_restart_but_not_task_deletion_or_new_task() {
         let (dir, store, injector) = disk_store("email-exclusions");
         let mut tasks = Tasks::load(store.clone(), 30, at(0)).unwrap();
@@ -2537,6 +2550,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "legacy-email-bench")]
     fn semantic_exclusions_survive_fold_reopen_and_followup_without_crossing_tasks() {
         let (dir, store, injector) = disk_store("semantic-email-exclusions");
         let mut tasks = Tasks::load(store.clone(), 30, at(0)).unwrap();
@@ -3271,6 +3285,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "legacy-email-bench")]
     fn task_results_survive_restart_and_do_not_copy_generated_claims() {
         let store = store();
         let mut tasks = Tasks::load(store.clone(), 30, at(0)).unwrap();

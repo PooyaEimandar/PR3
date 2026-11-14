@@ -25,7 +25,6 @@ interface ApprovalRequest {
   operation: string;
   provider: string;
   risk: "low" | "high";
-  mail: { to: { name: string; address: string }[]; subject: string; body: string };
   /** Milliseconds since the epoch. */
   expires_at: number;
 }
@@ -259,13 +258,6 @@ const toolLines = new ResizeObserver((lines) => {
 
 const memoryChoices = new Set<HTMLButtonElement>();
 function toolNode(t: { name: string; arguments: string; output: string; success: boolean }, taskId: number | null = currentTask): HTMLElement {
-  if (t.name === "send_email") {
-    const card = el("div", undefined, "msg email-result");
-    const opened = t.success && t.output.startsWith("Email draft opened in your email app");
-    card.append(el("h3", opened ? "Draft opened" : t.success ? "Email result" : "Email needs your attention"),
-      el("p", t.output));
-    return card;
-  }
   if (t.name === "review_memory" && t.success) {
     try {
       const review: { fact: string; candidates: { id: number; text: string }[]; notice?: string } = JSON.parse(t.arguments);
@@ -322,93 +314,10 @@ function toolNode(t: { name: string; arguments: string; output: string; success:
   return line;
 }
 
-// The confirmation card for a consequential action. What it shows comes from the
-// validated intent — the contacts' real addresses and the exact text that will be
-// sent — never from the model's reply. Nothing is sent unless the user taps Send. When
-// the model has read web pages, the card names their sites: a page may have asked for
-// this.
+// No consequential connector is installed. Old cards cannot grant new authority.
 const pendingApprovals = new Set<(text: string) => void>();
-function showApproval(request: ApprovalRequest, before: Node, sources: string[] = []): void {
-  const { mail } = request;
-  const card = document.createElement("div");
-  card.className = "msg approval";
-
-  const title = document.createElement("h2");
-  title.textContent = request.provider === "mail:sandbox"
-    ? "Add this email to the sandbox outbox?"
-    : request.provider === "mail:device" ? "Open this draft in your email app?"
-    : mail.to.length > 1 ? `Send this email to ${mail.to.length} people?` : "Send this email?";
-
-  const fields = document.createElement("dl");
-  const field = (label: string, value: string) => {
-    const dt = document.createElement("dt");
-    dt.textContent = label;
-    const dd = document.createElement("dd");
-    dd.textContent = value;
-    fields.append(dt, dd);
-  };
-  field("To", mail.to.map((c) => `${c.name} <${c.address}>`).join(", "));
-  field("Subject", mail.subject);
-
-  const body = document.createElement("div");
-  body.className = "body";
-  body.textContent = mail.body;
-
-  const meta = document.createElement("p");
-  meta.className = "meta";
-  const where = request.provider === "mail:sandbox" ? "sandbox outbox" : request.provider === "mail:device" ? "Your email app" : request.provider;
-
-  const choices = document.createElement("div");
-  choices.className = "choices";
-  const decline = document.createElement("button");
-  decline.type = "button";
-  decline.className = "secondary";
-  decline.textContent = "Decline";
-  const approve = document.createElement("button");
-  approve.type = "button";
-  approve.textContent = request.provider === "mail:device" ? "Open email app" : "Approve";
-  choices.append(decline, approve);
-
-  let timer: number | undefined;
-  const finish = (text: string, keepPending = false) => {
-    if (!keepPending) pendingApprovals.delete(finish);
-    clearInterval(timer);
-    choices.remove();
-    meta.textContent = text;
-    card.classList.add("answered");
-  };
-  pendingApprovals.add(finish);
-  const answer = (yes: boolean) => {
-    decline.disabled = approve.disabled = true;
-    invoke("answer_approval", { request: request.request, approve: yes })
-      .then(() => finish(yes
-        ? answering ? "Approval received. Waiting for the device check and action result." : "Approval received. Review the recorded result below."
-        : "Declined: nothing was sent", yes && answering))
-      .catch((err) => finish(String(err)));
-  };
-  approve.addEventListener("click", () => answer(true));
-  decline.addEventListener("click", () => answer(false));
-
-  const tick = () => {
-    const left = Math.max(0, Math.round((request.expires_at - Date.now()) / 1000));
-    if (left === 0) {
-      finish("Expired: nothing was sent");
-      return;
-    }
-    const clock = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
-    meta.textContent = `${where} · ${request.risk} risk · expires in ${clock}`;
-  };
-  card.append(title);
-  if (request.provider === "mail:sandbox") card.append(el("p", "This saves a local test email. Nothing is sent externally.", "meta"));
-  if (request.provider === "mail:device") card.append(el("p", "Review the draft and press Send in your email app. PR3 cannot verify sending or delivery. You can prepare it offline; delivery needs an internet connection.", "meta"));
-  if (sources.length) {
-    const from = sources.join(", ");
-    card.append(el("p", `This conversation includes text from ${from}. Check that this is what you asked for.`, "sources"));
-  }
-  card.append(fields, body, meta, choices);
-  log.insertBefore(card, before);
-  tick();
-  if (choices.isConnected) timer = setInterval(tick, 1000);
+function showApproval(_request: ApprovalRequest, before: Node, _sources: string[] = []): void {
+  log.insertBefore(el("div", "This action connector has been removed. Nothing was executed.", "msg error"), before);
 }
 
 let answering = false;
@@ -554,6 +463,7 @@ async function send(text: string, retryId?: number): Promise<void> {
       // The final reply is canonical; it replaces whatever was streamed.
       if (action.type === "reply") {
         bubble.replaceChildren(markdown(action.content));
+        documentSources(bubble, action.content);
         timed(bubble);
         follow();
         replyToSpeak = plain(action.content);
@@ -1671,67 +1581,90 @@ async function renderWeb(problem?: string): Promise<void> {
   );
 }
 
-const emailPane = find("#email", HTMLElement);
-const removeContactsDialog = find("#remove-contacts-dialog", HTMLDialogElement);
-removeContactsDialog.addEventListener("click", ({ target }) => {
-  if (target === removeContactsDialog) removeContactsDialog.close();
-});
-interface ContactsInfo {
-  on: boolean;
-  permission: "not_determined" | "granted" | "limited" | "denied" | "restricted" | "unavailable";
-  count: number;
-  problem: string | null;
+const documentsPane = find("#documents", HTMLElement);
+interface LocalDocument { id: number; name: string; bytes: number }
+interface DocumentPassage { source: string; document: number; name: string; first_line: number; last_line: number; text: string }
+const sourceDialog = find("#document-source-dialog", HTMLDialogElement);
+sourceDialog.addEventListener("click", ({ target }) => { if (target === sourceDialog) sourceDialog.close(); });
+function passageNode(hit: DocumentPassage): HTMLElement {
+  const card = el("article", undefined, "document-passage");
+  card.append(el("h3", `${hit.name} · lines ${hit.first_line}–${hit.last_line}`), el("pre", hit.text));
+  return card;
 }
-let contactsBusy = false;
-
-async function renderEmail(problem?: string, supplied?: ContactsInfo): Promise<void> {
-  let info: ContactsInfo;
-  try { info = supplied ?? await invoke<ContactsInfo>("contacts_info"); }
-  catch (err) { emailPane.replaceChildren(el("h2", "Contacts"), el("p", String(err), "error-text")); return; }
-  emailPane.replaceChildren(el("h2", "Contacts"));
-  const toggle = el("label", undefined, "toggle contacts-toggle");
-  const box = el("input");
-  box.type = "checkbox";
-  box.checked = info.on;
-  box.disabled = contactsBusy || info.permission === "unavailable";
-  box.setAttribute("role", "switch");
-  toggle.append(el("span", "Sync address book contacts"), box);
-  const status = el("p", undefined, "meta");
-  status.setAttribute("role", "status");
-  status.hidden = true;
-  const perform = async (command: string, args?: Record<string, unknown>) => {
-    if (contactsBusy) return;
-    contactsBusy = true;
-    emailPane.querySelectorAll<HTMLButtonElement | HTMLInputElement>("button, input").forEach((c) => { c.disabled = true; });
-    status.hidden = false;
-    status.textContent = command === "set_contact_sync" && args?.on ? "Waiting for contact access and syncing…" : "Removing contacts from PR3…";
-    try { const next = await invoke<ContactsInfo>(command, args); contactsBusy = false; await renderEmail(undefined, next); }
-    catch (err) { contactsBusy = false; await renderEmail(String(err)); }
-  };
-  box.addEventListener("change", () => { void perform("set_contact_sync", { on: box.checked }); });
-  const remove = makeButton("Remove all contacts", async () => {
-    if (contactsBusy || removeContactsDialog.open) return;
-    removeContactsDialog.returnValue = "";
-    removeContactsDialog.showModal();
-    await new Promise((closed) => removeContactsDialog.addEventListener("close", closed, { once: true }));
-    if (removeContactsDialog.returnValue === "remove") await perform("remove_all_contacts");
+function documentSources(into: HTMLElement, text: string): void {
+  const ids = [...new Set(text.match(/document:[1-9][0-9]*:[1-9][0-9]*:[0-9a-f]{32}/g) ?? [])].slice(0, 12);
+  for (const source of ids) into.append(makeButton(`View source ${source.split(":").slice(0, 3).join(":")}`, async () => {
+    const body = find("#document-source-body", HTMLElement);
+    body.replaceChildren(el("p", "Loading source…", "meta"));
+    if (!sourceDialog.open) sourceDialog.showModal();
+    try { body.replaceChildren(passageNode(await invoke<DocumentPassage>("document_source", { source }))); }
+    catch (err) { body.replaceChildren(el("p", String(err), "error-text")); }
+  }, "secondary small"));
+}
+async function renderDocuments(problem?: string): Promise<void> {
+  documentsPane.replaceChildren(el("h2", "Documents"), el("p", "Search files you choose. PR3 keeps an encrypted snapshot on this device. Import the file again when it changes. Text and Markdown, up to 512 KiB per file.", "meta"));
+  const status = el("p", problem ?? "", problem ? "error-text" : "meta");
+  const picker = el("input"); picker.type = "file"; picker.accept = ".txt,.md,.markdown,text/plain,text/markdown"; picker.multiple = true;
+  picker.setAttribute("aria-label", "Add documents");
+  picker.addEventListener("change", async () => {
+    const files = Array.from(picker.files ?? []); picker.disabled = true;
+    let imported = 0;
+    try {
+      for (const file of files) {
+        if (file.size > 512 * 1024) throw new Error(`${file.name}: maximum file size is 512 KiB`);
+        const text = new TextDecoder("utf-8", { fatal: true }).decode(await file.arrayBuffer());
+        await invoke("import_document", { name: file.name, text }); imported++;
+      }
+      await renderDocuments();
+    } catch (err) { status.textContent = `${imported} imported. ${String(err)}`; status.className = "error-text"; picker.disabled = false; }
   });
-  remove.className = "secondary danger";
-  remove.disabled = contactsBusy || (!info.on && info.count === 0 && !info.problem);
-  remove.title = "Clear contacts from PR3 and turn sync off. Your device contacts stay unchanged.";
-  emailPane.append(toggle, remove, status);
-  if (info.permission === "denied" || info.permission === "restricted") emailPane.append(el("p", "Contact access is blocked. Allow Contacts for PR3 in your device’s Settings, then enable sync here.", "error-text"));
-  if (info.permission === "unavailable") emailPane.append(el("p", "Device contact sync is available on Android, iOS and macOS.", "meta"));
-  if (problem || info.problem) emailPane.append(el("p", problem ?? info.problem ?? "", "error-text"));
-  if (info.on && info.count === 0 && !info.problem) emailPane.append(el("p", "No email contacts found. Add an email address in your device’s Contacts app.", "meta"));
+  const search = el("form", undefined, "document-search");
+  const query = el("input"); query.type = "search"; query.placeholder = "Search your documents"; query.setAttribute("aria-label", "Search documents"); query.maxLength = 512;
+  const submit = el("button", "Search"); submit.type = "submit";
+  const answer = makeButton("Ask PR3", async () => {
+    if (!query.value.trim() || answering) return;
+    showSettings(false);
+    await send(`Search my documents: ${query.value.trim()}`);
+  }, "secondary");
+  const results = el("div"); results.setAttribute("aria-live", "polite");
+  search.append(query, submit, answer);
+  search.addEventListener("submit", async (event) => {
+    event.preventDefault(); submit.disabled = true;
+    try {
+      const hits = await invoke<DocumentPassage[]>("search_documents", { query: query.value });
+      results.replaceChildren(...(hits.length ? hits.map(passageNode) : [el("p", "No matching passages. Try different keywords.", "meta")]));
+    } catch (err) { results.replaceChildren(el("p", String(err), "error-text")); }
+    finally { submit.disabled = false; }
+  });
+  documentsPane.append(picker, status, search, results);
+  try {
+    const docs = await invoke<LocalDocument[]>("list_documents");
+    documentsPane.append(el("p", `${docs.length} document${docs.length === 1 ? "" : "s"}`, "meta"));
+    for (const doc of docs) {
+      const row = el("div", undefined, "document-row");
+      const remove = makeButton("Remove", async () => {
+        if (!(await confirmItemRemoval("Remove document?", `Remove ${doc.name} and PR3 conversations that used it, including follow-ups? Your original file stays unchanged. Exported copies are not removed.`, "Remove"))) return;
+        remove.disabled = true;
+        try {
+          await invoke("remove_document", { id: doc.id });
+          // A dependent chat may have disappeared; do not leave its quotations visible.
+          log.replaceChildren(); currentTask = null;
+          await restoreConversation();
+          await renderDocuments(); await renderTasks();
+        } catch (err) { status.textContent = String(err); status.className = "error-text"; remove.disabled = false; }
+      }, "danger small");
+      remove.disabled = answering;
+      row.append(el("span", `${doc.name} · ${Math.ceil(doc.bytes / 1024)} KiB`), remove); documentsPane.append(row);
+    }
+  } catch (err) { status.textContent = String(err); status.className = "error-text"; }
 }
 
-// Settings: models, voice, memory, pairing, email and the web, opened from
+// Settings: models, voice, memory, pairing, documents and the web, opened from
 // the button beside the composer.
 const settings = find("#settings", HTMLElement);
 const settingsButton = find("#settings-button", HTMLButtonElement);
 const tabs = [...settings.querySelectorAll<HTMLButtonElement>("[role=tab]")];
-const TABS = ["models", "voice", "memory", "devices", "email", "web", "storage"] as const;
+const TABS = ["models", "voice", "memory", "devices", "documents", "web", "storage"] as const;
 type Tab = (typeof TABS)[number];
 const isTab = (name: string | null | undefined): name is Tab => TABS.some((t) => t === name);
 const panes: Record<Tab, HTMLElement> = {
@@ -1740,7 +1673,7 @@ const panes: Record<Tab, HTMLElement> = {
   memory: memoryPanel,
   devices: panel,
   web: webPane,
-  email: emailPane,
+  documents: documentsPane,
   storage: find("#storage", HTMLElement),
 };
 let tab: Tab = ((): Tab => {
@@ -1763,7 +1696,7 @@ function openTab(name: Tab): void {
   else if (name === "memory") renderMemory();
   else if (name === "devices") renderDevices();
   else if (name === "web") renderWeb();
-  else if (name === "email") renderEmail();
+  else if (name === "documents") renderDocuments();
   else if (name === "storage") void renderStorage();
 }
 
@@ -1832,10 +1765,6 @@ async function renderStorage(): Promise<void> {
     pane.append(form);
   }
 }
-
-document.addEventListener("visibilitychange", () => {
-  if (!document.hidden && showing("email") && !contactsBusy) void renderEmail();
-});
 
 // Settings slides in from the left over the whole screen and back out when closed.
 function showSettings(open: boolean): void {
@@ -1997,6 +1926,7 @@ function entryNode(entry: Entry, taskId: number | null = currentTask): HTMLEleme
     case "reply": {
       const reply = el("div", undefined, "msg assistant");
       reply.append(markdown(entry.text));
+      documentSources(reply, entry.text);
       if (entry.result) reply.append(resultNode(entry.result));
       return timed(reply, entry.at);
     }

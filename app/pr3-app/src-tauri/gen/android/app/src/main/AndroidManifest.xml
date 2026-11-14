@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.READ_CONTACTS" />
     <!-- Push-to-talk voice notes, recognized on the phone (SpeechPlugin.kt). -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Whether the phone is on mobile data, before downloading a model (NetworkPlugin.kt). -->

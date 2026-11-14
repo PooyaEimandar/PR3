@@ -116,7 +116,7 @@ jobs:
 
   workflows:
     # A real native Tauri webview, IPC, Host, approval gate and SQLite; only model,
-    # contacts and mail adapters are fixtures. No multi-gigabyte weights in CI.
+    # model, file selection and storage key are fixtures. No model weights in CI.
     runs-on: macos-15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -161,6 +161,8 @@ jobs:
         working-directory: bench/agentdojo
       - name: Full matrix completeness and error accounting
         run: python -m unittest discover -s bench/rebaseline -p 'test_*.py'
+      - name: Document corpus freeze and matched-comparison scoring
+        run: python -m unittest discover -s bench/documents -p 'test_*.py'
       - name: Personal-200 frozen split, scoring and resume checks
         run: python -m unittest discover -s bench/personal -p 'test_*.py'
 

@@ -614,6 +614,7 @@ mod tests {
 }
 
 #[cfg(test)]
+#[path = "mail/resume_tests.rs"]
 mod resume_tests;
 
 #[cfg(test)]

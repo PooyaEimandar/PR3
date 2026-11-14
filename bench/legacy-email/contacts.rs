@@ -2,6 +2,7 @@
 //! is persisted: the device already stores contacts for offline use. Imported rows
 //! live in memory and are refreshed before every email approval and handoff.
 
+#[path = "contacts/native.rs"]
 mod native;
 
 use std::collections::BTreeMap;
@@ -317,4 +318,5 @@ pub async fn remove_all_contacts(app: tauri::AppHandle) -> Result<Info, String> 
 pub use native::plugin;
 
 #[cfg(test)]
+#[path = "contacts/tests.rs"]
 mod tests;

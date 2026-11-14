@@ -22,6 +22,8 @@ Key creation and migration are serialized across app processes. The database has
 
 For an existing plaintext database, PR3 persists the new key first, takes an exclusive SQLite lock, checkpoints any WAL, and exports all tables/indexes into a private encrypted staging file. It preserves `user_version`, verifies the copy with SQLite integrity and SQLCipher HMAC checks, syncs the file, then atomically replaces the original. An interrupted copy leaves the original canonical and is retried on the next launch. Failure before replacement leaves the source intact. SQLCipher compatibility is fixed to version 4, temporary tables stay in memory, and a missing cipher engine is an error rather than an ignored `PRAGMA key`.
 
+The linked SQLCipher engine must embed SQLite **3.54.0 or newer** for the mismatched-WAL page-size fix in [RUSTSEC-2026-0459](https://rustsec.org/advisories/RUSTSEC-2026-0459.html). The lockfile selects SQLCipher 4.20.0 / SQLite 3.54.1 through `rusqlite 0.42`. An encrypted-storage regression checks the runtime SQLite version: an audit-clean version of the plain SQLite bundle alone does not establish that the SQLCipher build contains the fix.
+
 Migration removes the live plaintext file; it cannot erase old filesystem snapshots, backups, or physical remnants on flash storage. Existing plaintext diagnostic traces and explicitly exported chats are outside database encryption. Tracing remains opt-in. Contacts are held in memory and reread from the device address book; this change does not add a persistent contacts database. Pairing credentials and approval/audit files are separate from the database and retain their existing protection.
 
 ## Acceptance on Android

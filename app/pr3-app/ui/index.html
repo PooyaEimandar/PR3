@@ -30,7 +30,7 @@
         <button type="button" role="tab" data-tab="voice" class="secondary small">Voice</button>
         <button type="button" role="tab" data-tab="memory" class="secondary small">Memory</button>
         <button type="button" role="tab" data-tab="devices" class="secondary small">Devices</button>
-        <button type="button" role="tab" data-tab="email" class="secondary small">Contacts</button>
+        <button type="button" role="tab" data-tab="documents" class="secondary small">Documents</button>
         <button type="button" role="tab" data-tab="web" class="secondary small">Web</button>
         <button type="button" role="tab" data-tab="storage" class="secondary small">Storage</button>
       </div>
@@ -49,7 +49,7 @@
       </div>
       <div id="memory" class="pane" role="tabpanel" hidden></div>
       <div id="devices" class="pane" role="tabpanel" hidden></div>
-      <div id="email" class="pane" role="tabpanel" hidden></div>
+      <div id="documents" class="pane" role="tabpanel" hidden></div>
       <div id="web" class="pane" role="tabpanel" hidden></div>
       <div id="storage" class="pane" role="tabpanel" hidden></div>
     </section>
@@ -100,15 +100,10 @@
         </div>
       </form>
     </dialog>
-    <dialog id="remove-contacts-dialog" class="confirm-dialog" aria-labelledby="remove-contacts-title" aria-describedby="remove-contacts-description">
-      <form method="dialog">
-        <h2 id="remove-contacts-title">Remove all contacts?</h2>
-        <p id="remove-contacts-description">This will remove all contacts from PR3 and turn off sync. Your device's address book stays unchanged.</p>
-        <div class="choices">
-          <button type="submit" value="cancel" class="secondary" autofocus>Cancel</button>
-          <button type="submit" value="remove" class="danger">Remove all</button>
-        </div>
-      </form>
+    <dialog id="document-source-dialog" class="confirm-dialog" aria-labelledby="document-source-title">
+      <h2 id="document-source-title">Source passage</h2>
+      <div id="document-source-body"></div>
+      <form method="dialog"><button type="submit" class="secondary" autofocus>Close</button></form>
     </dialog>
     <dialog id="remove-item-dialog" class="confirm-dialog" aria-labelledby="remove-item-title" aria-describedby="remove-item-description">
       <form method="dialog">

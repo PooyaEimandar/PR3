@@ -48,6 +48,11 @@ That planning build passed all nine email/restart cases across seeds 1/2/7 and a
 
 **3 November development check — device email workflow.** The current Qwen3.5-4B implementation passed capture → explicit correction → database reopen → approve → exact draft handoff at seeds 1, 2 and 7. Each run required the corrected 15:00 time, rejected the retired 14:00 time, checked the recipient and byte-for-byte approval/handoff equality, and kept delivery unverified and the task open. Email-turn times on this Darwin/arm64 development machine were 5.99, 6.83 and 6.98 seconds. [Recorded measurements and limitations](../bench/task/evidence/device-email-2026-11-03.json). Contacts, vault and mail app were fixtures; no real email was sent. These three runs are not a full workflow/AgentDojo rebaseline, held-out accuracy, native-app acceptance or phone latency. The existing tables below remain historical until their suites are rerun; [Android device checks](android-email-checklist.md) remain to be performed.
 
+**14 November product pivot.** Email/contact functionality is removed from the shipped app. Historical email-centric reports below retain their original build scope. The active [document comparison](../bench/documents/README.md) uses real upstream OpenJarvis with PR3's identical local inference engine and document tools. It measures agent orchestration on a small development corpus, not native retrieval parity or an overall winner.
+
+**Completed document comparison:** 72 runs, Qwen3.5-4B-Q4_K_M, seeds 1/2/7. Factual/abstention checks: PR3 36/36, OpenJarvis 32/36. Explicit verified-quotation workflow: PR3 36/36, OpenJarvis 21/36 under versioned scorer v2. Shared retrieval isolates agent orchestration; this is a small development diagnostic, not native-RAG parity or an overall ranking. [Full report, scoring correction, source hashes and limits](../bench/documents/evidence/2026-11-14-4b-report.md).
+
+
 ## 8. Benchmarking
 
 A good comparative program needs two separate leaderboards: **agent-system quality** and **underlying model intelligence**. Using the same Qwen weights in PR3 and OpenJarvis tests the system; changing models simultaneously confounds the comparison.
@@ -70,7 +75,7 @@ Required comparison configurations:
 | PR3 + model X vs other model X harnesses | Reproducibility and model orchestration |
 | **PR3 vs ZeroClaw, same local model behind the same endpoint, tool-reliability and security scenarios** | Schema-valid tool calls, argument correctness, prompt-injection resistance, approval-gate behavior. Not task quality or energy - ZeroClaw has no comparable evaluation harness, so OpenJarvis remains the baseline there (new in v1.2) |
 
-PR3 ships no HTTP-provider backend, so matched comparisons against HTTP-based harnesses (ZeroClaw, and OpenJarvis's llama.cpp server bridge) run PR3 through a **benchmark-only OpenAI-compatible backend** in `bench/`, pointed at the same server. That isolates agent behavior from the inference engine; in-process versus server efficiency is reported as a separate comparison. The benchmark backend is never part of a shipped build.
+PR3 ships no HTTP-provider backend. The first implemented document comparison uses a **benchmark-only stdio adapter**: upstream OpenJarvis runs its own NativeReActAgent, while both arms call the same Rust llama.cpp engine and document tools. Agent prompts and output policies remain their respective implementations. A future comparison of native retrieval or HTTP-provider efficiency must be a separate experiment; it is not implemented by this adapter.
 
 ### 8.2 Evaluation dimensions
 

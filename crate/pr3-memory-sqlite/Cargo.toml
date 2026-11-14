@@ -18,14 +18,15 @@ pr3-core.workspace = true
 pr3-protocol = { workspace = true, features = ["std"] }
 serde.workspace = true
 serde_json.workspace = true
-rusqlite = { version = "0.40" }
+# 0.42 also updates SQLCipher's embedded SQLite (RUSTSEC-2026-0459).
+rusqlite = { version = "0.42" }
 getrandom = "0.3"
 zeroize = "1"
 
 # SQLCipher also supports unkeyed databases for synthetic tests/benchmarks. The app
 # always calls open_encrypted; encryption never falls back to ordinary SQLite.
 [target.'cfg(target_vendor = "apple")'.dependencies]
-rusqlite = { version = "0.40", features = ["bundled-sqlcipher"] }
+rusqlite = { version = "0.42", features = ["bundled-sqlcipher"] }
 
 [target.'cfg(not(target_vendor = "apple"))'.dependencies]
-rusqlite = { version = "0.40", features = ["bundled-sqlcipher-vendored-openssl"] }
+rusqlite = { version = "0.42", features = ["bundled-sqlcipher-vendored-openssl"] }

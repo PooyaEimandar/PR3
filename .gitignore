@@ -53,3 +53,5 @@ fuzz/coverage/
 # compiler
 /app/pr3-app/ui/*.js
 node_modules/
+
+bench/documents/result/

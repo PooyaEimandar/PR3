@@ -1,0 +1,18 @@
+[package]
+name = "pr3-bench-documents"
+description = "Matched document tool benchmark; JSON-lines adapter for real OpenJarvis"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+[lints]
+workspace = true
+[dependencies]
+pr3-app = { path = "../../app/pr3-app/src-tauri" }
+pr3-core = { workspace = true, features = ["std"] }
+pr3-llamacpp = { path = "../../crate/pr3-llamacpp" }
+pr3-memory-sqlite = { path = "../../crate/pr3-memory-sqlite" }
+pr3-tool = { path = "../../crate/pr3-tool" }
+serde_json = { workspace = true, features = ["std"] }

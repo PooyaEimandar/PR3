@@ -12,6 +12,7 @@
 #![cfg_attr(test, allow(clippy::disallowed_macros))] // tests may assert (clippy.toml)
 
 pub mod continuity;
+pub mod documents;
 pub mod encryption;
 mod task;
 
@@ -196,6 +197,15 @@ const MIGRATIONS: &[&str] = &[
     // preserves the distinction between legacy/ordinary results and an untrusted
     // result whose source list is known to be empty. No approvals are restored.
     "ALTER TABLE messages ADD COLUMN sources TEXT;",
+    // v9: explicitly imported document snapshots, separate from user memories and
+    // continuity. FTS secure-delete plus the encrypted database protect removal.
+    "CREATE TABLE documents(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, text TEXT NOT NULL);
+    CREATE TABLE document_passages(id INTEGER PRIMARY KEY AUTOINCREMENT, document INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE, ordinal INTEGER NOT NULL, first_line INTEGER NOT NULL, last_line INTEGER NOT NULL, text TEXT NOT NULL, UNIQUE(document,ordinal));
+    CREATE VIRTUAL TABLE document_fts USING fts5(text, content='document_passages', content_rowid='id', tokenize='unicode61');
+    INSERT INTO document_fts(document_fts,rank) VALUES('secure-delete',1);
+    CREATE TRIGGER document_insert AFTER INSERT ON document_passages BEGIN INSERT INTO document_fts(rowid,text) VALUES(new.id,new.text); END;
+    CREATE TRIGGER document_delete AFTER DELETE ON document_passages BEGIN INSERT INTO document_fts(document_fts,rowid,text) VALUES('delete',old.id,old.text); END;",
+
 ];
 
 const COLUMNS: &str = "m.id, m.text, m.status, m.principal, m.created_at, m.valid_at,
@@ -788,7 +798,7 @@ mod tests {
         }
         for _ in 0..2 {
             let db = SqliteMemory::open(&path).unwrap();
-            assert_eq!(db.schema_version().unwrap(), 8);
+            assert_eq!(db.schema_version().unwrap(), MIGRATIONS.len());
             let tasks = db.tasks().unwrap();
             assert_eq!(
                 tasks[0].record.state,

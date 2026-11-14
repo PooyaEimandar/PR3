@@ -1,14 +1,11 @@
 //! PR3's configuration (config/pr3.toml): which model each kind of device runs, the
-//! pinned models it can choose from, and the limits on consequential actions. The
+//! pinned models it can choose from. The
 //! repository's file is built into the app; a `pr3.toml` in the app's data folder
 //! replaces it at runtime.
 
 use std::collections::BTreeMap;
 use std::path::Path;
 
-#[cfg(test)]
-use pr3_core::trusted::Directory;
-use pr3_core::trusted::{Contact, Limits};
 use serde::Deserialize;
 
 const BUILT_IN: &str = include_str!("../../../../config/pr3.toml");
@@ -23,8 +20,10 @@ pub struct Config {
     pub traces: Traces,
     #[serde(default)]
     pub tasks: Tasks,
-    #[serde(default)]
-    pub actions: Actions,
+    // Older user configurations may contain this retired table. It is ignored,
+    // cannot register tools, and does not retain an address book in memory.
+    #[serde(default, rename = "actions")]
+    pub _retired_actions: Option<serde::de::IgnoredAny>,
     #[serde(default)]
     pub node: Node,
     #[serde(default)]
@@ -50,69 +49,6 @@ impl Default for Node {
             serve: true,
             listen: format!("127.0.0.1:{}", pr3_hybrid::DEFAULT_PORT),
         }
-    }
-}
-
-/// Consequential actions (docs Sec. 4.6) and the user's limits on them (Sec. 9.1).
-#[derive(Debug, Clone, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct Actions {
-    /// The kill switch: false refuses every consequential action.
-    pub enabled: bool,
-    pub max_recipients: usize,
-    pub max_per_day: usize,
-    /// How long the confirmation card waits for the user's answer.
-    pub approval_seconds: u64,
-    /// The sandbox address book: the only people PR3 can email.
-    pub contacts: Vec<Contact>,
-}
-
-impl Default for Actions {
-    fn default() -> Self {
-        let limits = Limits::default();
-        Self {
-            enabled: limits.enabled,
-            max_recipients: limits.max_recipients,
-            max_per_day: limits.max_per_day,
-            approval_seconds: limits.approval_ms / 1000,
-            contacts: Vec::new(),
-        }
-    }
-}
-
-impl Actions {
-    pub fn limits(&self) -> Limits {
-        Limits {
-            enabled: self.enabled,
-            max_recipients: self.max_recipients,
-            max_per_day: self.max_per_day,
-            approval_ms: self.approval_seconds.saturating_mul(1000),
-            ..Limits::default()
-        }
-    }
-
-    #[cfg(test)]
-    pub fn directory(&self) -> Directory {
-        Directory {
-            contacts: self.contacts.clone(),
-        }
-    }
-
-    fn check(&self) -> Result<(), String> {
-        for contact in &self.contacts {
-            let address = &contact.address;
-            let plausible = address.split('@').count() == 2
-                && !address.starts_with('@')
-                && !address.ends_with('@')
-                && !address.chars().any(|c| c.is_whitespace() || c.is_control());
-            if contact.name.trim().is_empty() || contact.name.contains(',') || !plausible {
-                return Err(format!(
-                    "[[actions.contacts]] '{}' <{address}> needs a name without commas and one address",
-                    contact.name
-                ));
-            }
-        }
-        Ok(())
     }
 }
 
@@ -263,7 +199,7 @@ impl Config {
     /// The data folder's `pr3.toml` if there is one, otherwise the built-in config. A
     /// broken override still lets the app start, on the built-in config, but closed:
     /// whatever the user turned off or kept there may be what failed to read, so
-    /// actions and web reading are off, no task is erased, and [`Config::problem`] says why.
+    /// web reading is off, no task is erased, and [`Config::problem`] says why.
     pub fn load(data_dir: Option<&Path>) -> Result<Self, String> {
         let path = data_dir.map(|dir| dir.join(FILE_NAME));
         if let Some(path) = path.filter(|p| p.is_file()) {
@@ -275,12 +211,11 @@ impl Config {
                 Err(e) => {
                     eprintln!("PR3: ignoring {}: {e}", path.display());
                     let mut config = Self::built_in()?;
-                    config.actions.enabled = false;
                     config.web.enabled = false;
                     config.tasks.keep_days = u64::MAX;
                     config.problem = Some(format!(
                         "{} could not be read, so PR3 runs on its built-in settings with \
-                         actions turned off, web reading disabled and no task erased: {e}",
+                         web reading disabled and no task erased: {e}",
                         path.display()
                     ));
                     return Ok(config);
@@ -306,7 +241,6 @@ impl Config {
         for (id, entry) in &config.models {
             entry.check(id)?;
         }
-        config.actions.check()?;
         Ok(config)
     }
 
@@ -442,15 +376,9 @@ mod tests {
     }
 
     #[test]
-    fn built_in_actions_have_limits_and_no_sample_contacts() {
-        let actions = Config::built_in().unwrap().actions;
-        assert!(actions.enabled);
-        assert_eq!(actions.limits().approval_ms, 120_000);
-        assert!(actions.directory().contacts.is_empty());
-        let bad = format!(
-            "{BUILT_IN}\n[[actions.contacts]]\nname = \"Alex Rivera\"\naddress = \"alex example.com\"\n"
-        );
-        assert!(Config::parse(&bad).unwrap_err().contains("Alex Rivera"));
+    fn retired_action_settings_are_ignored_without_breaking_model_selection() {
+        assert!(Config::parse(&format!("{BUILT_IN}\n[actions]\nenabled = true\n[[actions.contacts]]\nname = \"Old contact\"\naddress = \"old@example.com\"\n")).is_ok());
+        assert!(!BUILT_IN.contains("[actions]"));
     }
 
     #[test]
@@ -474,7 +402,7 @@ mod tests {
             "qwen3.8-27b-q8"
         );
 
-        assert!(config.actions.enabled && config.problem.is_none());
+        assert!(config.problem.is_none());
 
         // A typo, such as `enable` for `enabled`, must not turn actions back on.
         for broken in [
@@ -491,14 +419,13 @@ mod tests {
                     .0,
                 "qwen3.8-27b"
             );
-            assert!(!config.actions.enabled, "{broken}");
             assert!(!config.web.enabled, "{broken}");
             assert_eq!(config.tasks.keep_days, u64::MAX);
             assert!(
                 config
                     .problem
                     .as_deref()
-                    .is_some_and(|p| p.contains("actions turned off"))
+                    .is_some_and(|p| p.contains("web reading disabled"))
             );
         }
         let _ = std::fs::remove_dir_all(dir);

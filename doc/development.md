@@ -115,7 +115,7 @@ Everything lives in [`config/pr3.toml`](../config/pr3.toml):
 | `[model]`, `[models.*]` | The model per device class, and the pinned models PR3 knows |
 | `[traces]` | OpenJarvis-format traces of every turn; off by default, rotated at `max_mb` |
 | `[tasks]` | `keep_days`: how long finished tasks are kept, 30 by default ([Tasks](#tasks)) |
-| `[actions]` | The kill switch, limits and sandbox address book for consequential actions ([Sec. 4.6](architecture.md#46-structured-intent-and-execution-sequence)) |
+| Legacy `[actions]` | Ignored for backward compatibility; no consequential connector is installed |
 | `[node]` | Whether a computer lends its model to paired phones, and where it listens ([Sec. 6.3](deployment.md#63-private-hybrid-mobile--desktop)) |
 | `[web]` | Whether PR3 offers to read web pages you link; on by default ([Reading web pages](#reading-web-pages)) |
 
@@ -125,24 +125,15 @@ The production app uses SQLCipher for `memory.sqlite` and stores its key separat
 
 The native suite also exercises encryption, missing-key lockout, wrong-code rejection and recovery through the production UI/IPC. Only that scenario uses a debug-only temporary key-store fixture; it never opens the real platform vault. Other fault-injection scenarios retain synthetic unkeyed databases so the runner can inject SQLite write failures.
 
-## Preparing email
+## Local documents
 
-PR3 prepares drafts for your device's email app using opt-in device contacts. Each draft waits for your approval and then Face ID, Touch ID, a fingerprint or the passcode before handoff. The approval key lives in the Secure Enclave or Android Keystore; set a screen lock on Android first. Review and press Send in the email app. PR3 records the handoff in its verified hash-chained `audit.jsonl`, but cannot verify delivery. See [Device contacts and email](#device-contacts-and-email). Benchmark hosts still use the sandbox connector and `outbox.jsonl`, with no external delivery.
+Settings → **Documents** imports user-selected UTF-8 `.txt`, `.md` and `.markdown` files through the system file chooser. The Rust API accepts file contents, never an arbitrary filesystem path. Files stay local in the same encrypted database as memory; no indexing service or cloud upload is involved. The initial limits are 512 KiB per file, 200 files and 16 MiB per library. Imports are snapshots; selecting an identical name/content twice deduplicates it. Different contents create a separate snapshot; remove obsolete snapshots explicitly. PDF, DOCX, OCR, recursive folder indexing and automatic updates are not implemented yet.
 
-Direct English requests to prepare, draft, compose, write or send an email use one constrained planning generation when the email tool is available. It yields an unapproved draft with nonempty recipient, subject and body, an offered read-only lookup, or a fixed clarification. Exact supplied body text remains the model's responsibility and is checked in regression tests. The drafting policy requires requested permitted facts in the body, honors explicit field reinclusion while keeping other exclusions, and forbids substituting invented attachments for supplied details. The decoder rejects malformed/empty/mixed responses and never streams draft JSON. All proposals still pass through core validation, exclusions, contact resolution, approval, signing and execution limits. After an email attempt in the current turn, the adapter offers no further tools and uses the existing protected answer pass to report the result. This applies to success, decline, failure and an uncertain outcome; another draft requires a new user message. The original core and approval checks still govern every proposal. Other wording uses the existing planner. A chat claim alone cannot mark a direct email request completed; status comes from this turn's recorded results.
+**Search** returns exact passages without requiring a model. **Ask PR3** searches and selects up to three quotations. The runtime checks each quote against its live source before showing an answer with filename and line range. It suppresses unchecked model text for document turns. **View source** opens the full passage, including after restart. These are extractive answers: quote authenticity is verified, while relevance and completeness still depend on retrieval/model selection. Source instructions never grant action authority.
 
-Immediate follow-ups such as `Now email Alex the reference from that notice.` and `Now, please draft an email to Alex.` select that same structured planner and runtime status path, including after restart. The bounded recognizer accepts up to two supported introductory phrases; leading `Now` does not turn quoted source text, a deferral or a prior message into a current request. The planner can use details retained in the conversation, while needed lookups and explicit refreshes remain available. A turn that reads a source still cannot propose consequential actions; a later user request and fresh approval are required. This routing change does not replay source bodies or tool history, add a planning pass, or alter the initial planning instructions or execution budgets.
+**Remove** uses the red confirmation dialog. It removes the snapshot, its search index and dependent local conversations/follow-ups, so retained chat/summary text cannot resurrect it. Removal is refused while a task is running; original device files and previously exported copies are unchanged. Explicit diagnostic trace exports are separate plaintext copies and remain subject to their own retention. Document IDs include a content fingerprint, so a task shared with another device cannot silently resolve to an unrelated file with the same local row number. Document snapshots themselves are not synchronized.
 
-Explicit email exclusions are reconstructed from the task's original user messages after restart or summarization, including retained parent tasks chosen through **Follow up**. For example, `Remove the private reference from the email.` resolves a previously supplied field, and `Omit "PRIVATE-821" from the email.` excludes that literal. A recognized standalone correction gets a runtime acknowledgement without inference or email preparation; request the draft when ready. The host checks the resolved recipients, subject and body before showing an approval card, including a restored card. A rejected draft cannot open the email app; a corrected draft still needs fresh approval and is handed off exactly as approved. No text is silently removed after approval.
-
-Category exclusions now connect financial, health, contact and access details to a defined set of related fields and aliases in English, French, Spanish, Persian and Arabic. For example, `Keep my financial details out of the email.` excludes supplied salary/income, bank/card and tax fields. Corrections to those fields remain excluded; `Include my income in the email.` permits that field while retaining restrictions on the others. The latest explicitly re-included values also enter the bounded task planning note after restart, so an older broad exclusion does not hide a newly permitted fact. Superseded values are not highlighted; separate remaining exclusions take precedence. This context never approves an action. Matching uses original user facts and a local vocabulary, with no additional inference, storage schema or execution allowance. The existing 128-value bound counts distinct values: repeated facts cannot crowd out a later correction or unnecessarily exhaust it. Persian/Arabic digits and unambiguous three-digit grouping separators compare consistently; the draft itself is never rewritten.
-
-A recognized exclusion with no resolvable value asks the user to quote the exact text. `By that I mean "PRIVATE-482".` clarifies one pending exclusion; `By the missing field I mean "PRIVATE-482".` can identify one of several. A clarification cannot silently discard a category's other restrictions, and incomplete quoted field data continues to block approval. Outside a pending email exclusion, a clarification remains ordinary conversation. Category/field checks also reject recognized field statements in a draft even when the value has been reformatted. Exact absence statements such as `My salary was omitted.` do not disclose a field value.
-
-This is bounded category-aware matching, not unrestricted semantic redaction: unsupported phrasing, unlabelled narratives, arbitrary translations/paraphrases of private values and additional languages need broader evaluation and implementation. Explicit literal exclusions remain available. Broad-category exceptions use a named field or category; including a literal alone does not override a category rule. Recognized ambiguity fails closed, and all existing pre-approval, signing and execution checks remain in force.
-
-
-The deterministic check recognizes the bounded standalone command forms and categories above, along with quoted literals or labeled values. Matching ignores letter case and whitespace differences; unsupported wording still needs broader semantic handling. Unresolved recognized exclusions ask for exact quoted text rather than allowing an unchecked draft. Other wording still depends on model interpretation and your review. Replies, summaries and tool output cannot revoke restrictions. **New task** starts without inherited restrictions; deleting task history removes that source. Explicit `Include "PRIVATE-821" in the email.` changes that task's restriction, subject to normal approval. Removing a detail from an email does not delete it from local task history or independently saved memory.
+Email and contact sync are retired. Their tools, native permission declarations, Settings panel and handoff plugins are absent from the shipped app. Legacy `[actions]` configuration is ignored; it cannot restore a connector. Historical adapters and evidence live under [bench/legacy-email](../bench/legacy-email/README.md).
 
 ## Reading web pages
 
@@ -164,10 +155,10 @@ PR3 groups the conversation into tasks ([Sec. 4.8](architecture.md#48-tasks-and-
 - A follow-up starts from a summary of the task it follows, which the model writes as soon as you choose **Follow up** or say "carry on with" a finished task, if that task has none yet, and then reads, so that on a phone the follow-up's first answer starts within about a second. A long task is summed up too: once what the model would read again passes about 1,800 tokens, its older exchanges are folded into the summary right after PR3 answers, while you read the answer, and the last two stay as they were. On a phone with the 4B a summary takes about 15 seconds for a short task and a fold, or a long task's summary, a minute or more; a message sent before it is written waits for the rest. After every answer PR3 also reads the conversation ahead of your next message, so on that phone the next answer starts within about two seconds, unless the model looks something up first. Forgetting a memory in Settings erases every summary; each is written again from its task's chat when next needed.
 - **New task** saves an empty conversation selection before clearing the screen. It stays empty across restarts until you send a message or explicitly return to a task; old tasks remain in Tasks. A failed selection write reports an error and leaves the conversation selected so you can retry.
 - When PR3 opens again, the selected conversation comes back if its 10 minutes have not run out or it has a waiting approval; an explicitly chosen follow-up also survives restart. Deleting the selected task leaves an empty conversation rather than selecting another task. A confirmation card that was waiting in a selected task is shown again, to approve afresh; if it ran out while PR3 was closed, nothing was sent and the task is on Done as expired. An unselected waiting task remains available in Tasks. A turn cut off by closing is on To Do as not finished.
-- Say or type, as the whole message: "what is still open?" to list To Do and Doing; "carry on with the email to Alex" (or "back to", "resume", "pick up") to go back to that task, or to follow it up if it is finished; "what happened with the trip?" to see where it stands; "export the trip" to export it. PR3 matches the words against each task's title and first message, and offers a choice when several unfinished tasks match. Words that name no task go to the model as usual.
+- Say or type, as the whole message: "what is still open?" to list To Do and Doing; "carry on with the document review" (or "back to", "resume", "pick up") to go back to that task, or to follow it up if it is finished; "what happened with the trip?" to see where it stands; "export the trip" to export it. PR3 matches the words against each task's title and first message, and offers a choice when several unfinished tasks match. Words that name no task go to the model as usual.
 - To finish from a message, say "finish this task", "finish task about the trip", or "mark the trip as done". "This task" means the task open in Tasks, or the current conversation. Several matches are offered for you to choose; an unknown name reports that no task matched. These commands never go to the model. An explicitly finished task stays finished after restart; **Follow up** opens a new linked task.
-- Replies and task histories show a **Recorded result** from actual tool outcomes, also kept in exports: memory saved, memory saved for review, or email draft opened (sandbox outbox in tests). A model reply alone is **Reply ready** in the task list, never proof of execution. Approval acknowledges the choice; the device check and execution still have to succeed.
-- For a turn that runs a memory write or email action, the runtime composes the final completion message from those results. It replaces model claims before the reply enters chat, core history, exports or speech. With write-capable tools, generated prose is held until the final answer is checked, so it cannot stream an unverified “sent” claim while approval is pending. Read-only configurations retain streaming. Common English action requests and unsupported completion phrases also get a no-action result when no operation was recorded; this fallback is bounded, not a general multilingual fact checker. Ordinary factual answers still come from the model.
+- Replies and task histories show a **Recorded result** derived from runtime memory operations. Document answers carry verified quotation/source labels. A model assertion cannot establish a saved or completed action.
+- Memory-operation completion messages come from actual results. Document answers are assembled from validated quotations, not the model’s unverified final prose.
 - **Stop** replaces Send during a turn and is also available in the running task's More menu. It requests cancellation, closes any pending approval, and waits for an in-flight operation to report its actual result. A model/backend that cannot cancel promptly, a web read or a device check may take time to return. Stop does not undo saved memory or an action that already executed.
 - Failed and stopped tasks show **Needs attention** in To Do even when they are the current conversation. **Retry last request** reruns that request in the same task with fresh validation and approval. It is unavailable after a successful or uncertain consequential effect; inspect the recorded result and continue with a new message instead. Finishing a task remains a separate choice.
 - A declined/failed operation, or a recognized action request with no recorded operation, also remains in **Needs attention**. A model reply does not move it to Done. **Finish task** is the user's way to close it when no further action is wanted.
@@ -207,23 +198,7 @@ Settings, **Memory**, shows what PR3 remembers. Memories the model proposed from
 
 For an explicit capture, type or say "Remember that the project meeting is at 14:30.", "Remember: …", or "Save to memory: …" as the whole message. PR3 preserves your wording, checks for related memories as described above, and reports a confirmed save only after the write succeeds. Possible updates wait for your choice; without a local model, the disclosed wording check remains available. Empty notes and notes over 500 characters are refused. Ordinary requests and questions still go to the model.
 
-A repeatable daily workflow is: capture meeting details with **Remember that…**; correct them if needed; return with **resume meeting** after restarting; ask PR3 to email the details to a synced contact; review the confirmation and choose **Open email app**; review and send in that app; finish the task from **More**. PR3 records a successful draft handoff, never a provider-delivery claim. Sandbox delivery remains only in benchmark/test hosts.
-
-## Device contacts and email
-
-Settings → **Contacts** → **Sync address book contacts** requests device contact permission when enabled. Android uses the Contacts Provider's email rows and read-only `READ_CONTACTS`; macOS/iOS use Contacts.framework, with `NSContactsUsageDescription` and support for limited access. Only names and email addresses are imported. The list is held in memory, refreshed when the panel opens or an email is prepared, and rechecked after approval. Native contacts remain available offline. Only the `contacts-sync` preference is stored in PR3's data folder; no address-book database or remote sync is added.
-
-The red **Remove all contacts** button clears the imported list and disables sync. Turning the switch off does the same. Neither changes the OS permission setting or deletes the device's contacts. Already prepared drafts and prior chat/approval history remain. OS revocation, changed/removed recipients, provider errors and a late permission response after removal cannot authorize a stale recipient. Duplicate names or multiple email addresses get distinct `[email N]` references; the runtime asks for a choice instead of selecting the first address. Contacts without usable names/email addresses are omitted.
-
-After the confirmation card and device check, `mail:device` opens an encoded `mailto:` draft using Android `ACTION_SENDTO`, macOS `NSWorkspace`, or iOS `UIApplication`. The default mail app (or OS app chooser) owns the account, sending and any offline outbox. PR3's result is **draft opened; sending and delivery unverified**, and the task stays open until the user finishes it. A failed launch is an error; an uncertain launch is not automatically retried. PR3 does not need SMTP credentials or OAuth access to a mailbox. The production app ignores legacy `[actions.contacts]` entries, so upgrading cannot restore the sample contacts; the configuration field remains readable for older configurations.
-
-See the [Android test checklist](android-email-checklist.md) for device verification. Regression tests use synthetic contact sources and a recording launcher, never the developer's real address book or an external send. The installed-model workflow check captures, corrects, reopens the database and approves one exact draft at seeds 1, 2 and 7, checking both the current value and absence of the retired value:
-
-```bash
-cargo test -p pr3-app --lib contacts::tests::installed_model_captures_corrects_resumes_and_opens_the_approved_draft -- --ignored --nocapture --test-threads=1
-```
-
-Native API references: [Android contact access](https://developer.android.com/identity/providers/contacts-provider), [Android email intents](https://developer.android.com/guide/components/intents-common#Email), [Apple contact authorization](https://developer.apple.com/documentation/contacts/accessing-the-contact-store), [mailto encoding](https://www.rfc-editor.org/rfc/rfc6068).
+A repeatable daily workflow is: choose a document; search or ask a question; inspect the quoted passage; remember a user-confirmed detail; correct it later; resume after restart; remove the source when it is no longer needed.
 
 ## Pairing a phone with a computer
 
@@ -259,30 +234,17 @@ CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) builds and tests 
 
 ### Automated native workflows
 
-From `app/pr3-app`, run `npm ci --ignore-scripts`, `npm test`, `npm run test:e2e:build`, then `npm run test:e2e`. The unit tests cover turn-scoped Stop requests, including late registration and rejected-stop retry. The native suite drives a Tauri webview through WebDriver, using the production IPC handlers, Host, approval gate and SQLite. It exercises correction and process restart, exact draft approval, decline/failure, interrupted approval recovery, Stop/Retry, saving an action result after storage failure, memory deletion and contact removal. Test-only event-delivery barriers reproduce early Stop clicks for new and existing tasks; they do not replace command results or cancellation behavior. Actions use visible controls; read-only assertions also inspect runtime state. CI runs the native suite on macOS and retains failure screenshots, DOM and app logs under `test-results/`.
+From `app/pr3-app`, run `npm ci --ignore-scripts`, `npm test`, `npm run test:e2e:build`, then `npm run test:e2e`. Native WebDriver tests cover encrypted recovery, memory correction/forgetting after restart, early Stop and explicit Retry, plus document import, search, verified answer, source inspection and red removal confirmation. They exercise real IPC/Host/SQLite. File selection and model output are fixtures; OS picker behavior and latency need physical-device testing. CI retains failure screenshots, DOM and app logs.
 
-`pr3-e2e` is a distinct debug-only binary, requires the `e2e` feature and a marked temporary directory, and uses a separate application identity. Its model, contact source, software key and mail-app adapter are fixtures. It cannot be compiled with the feature in release mode. Normal builds exclude the WebDriver server. This catches native UI/runtime wiring regressions but does not measure model intelligence or device permissions. The [Android email](android-email-checklist.md) and [continuity](continuity-checklist.md) checks remain physical-device work. The driver follows [Tauri's native WebDriver support](https://v2.tauri.app/develop/tests/webdriver/).
+`pr3-e2e` is a separate debug-only binary and application identity. It requires the `e2e` feature and a marked temporary directory. Normal/release builds exclude its WebDriver and fixtures. Use the [Android document checklist](android-documents-checklist.md) and [continuity checklist](continuity-checklist.md) for device acceptance.
 
-### Focused email regressions
+### Historical email regressions (retired)
 
-The focused email-exclusion regressions use the production Host and approval gate,
-with process restarts and sandbox email effects:
+Historical frozen corpora, reports and binaries remain inspectable. The archived Rust adapters compile only with the explicit debug-only `legacy-email-bench` feature. To reproduce an old performance result, check out its recorded source revision or replay its archived evidence. The current app cannot deliver or prepare email. New product evaluation uses the [document comparison](../bench/documents/README.md).
 
-```bash
-cargo test -p pr3-app --lib email_exclusions --locked
-cargo test -p pr3-app --lib task::mail --locked
-cargo run --release -p pr3-bench-task --locked -- run \
-  --model model/Qwen3.5-4B-Q4_K_M.gguf \
-  --corpus bench/task/email-exclusions.toml --seed 1 \
-  --out bench/task/result/email-exclusions-4b-seed1.jsonl
-```
+### Full reproducible rebaseline (historical)
 
-Use a new output path after changing the build or corpus. The supplementary cases
-cover quoted text, labeled fields and independent New tasks. They are development
-regressions, separate from the frozen Personal-200 corpus; physical Android
-handoff still requires the device checklist.
-
-### Full reproducible rebaseline
+The following commands describe pre-pivot builds. New email-centric runs are disabled in this checkout to prevent stale release binaries from being mislabeled as current. Existing frozen runs can still be reported/resumed with their archived driver and inputs. Use `bench/documents` for new product evaluation.
 
 After installing the pinned AgentDojo environment below, from the repository root:
 
@@ -301,7 +263,9 @@ To refresh a stopped run's report without inference, add `--report-only`. Stop t
 
 Harness regressions: `python3 -m unittest discover -s bench/rebaseline -p 'test_*.py'`, `cargo test -p pr3-bench-task`, and the AgentDojo Python tests below. Historical single-seed tables in `benchmarks.md` stay labeled historical until the new matrix finishes.
 
-### Frozen Personal-200 evaluation
+### Frozen Personal-200 evaluation (historical)
+
+These corpora and scores remain immutable history. For a new run, use the recorded pre-pivot revision; the current app has removed the connector many of these tasks require. Current document evaluation has a separate corpus and denominator.
 
 [`bench/personal`](../bench/personal/README.md) contains 200 synthetic desktop
 workflows in ten categories. V2 freezes 120 development tasks and 80 held-out

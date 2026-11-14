@@ -7,8 +7,6 @@
 -->
 <plist version="1.0">
 <dict>
-  <key>NSContactsUsageDescription</key>
-  <string>PR3 uses contact names and email addresses to prepare emails you review and send in your email app. Contact sync is optional.</string>
   <key>NSMicrophoneUsageDescription</key>
   <string>PR3 listens while you hold the talk button, to turn your voice note into text on this Mac.</string>
   <key>NSSpeechRecognitionUsageDescription</key>

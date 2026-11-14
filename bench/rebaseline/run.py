@@ -72,6 +72,8 @@ def source_files():
 
 
 def prepare(out):
+    if "legacy-email-bench" in (ROOT / "bench/task/Cargo.toml").read_text():
+        raise ValueError("Email workflows are retired. Use the frozen run/evidence or its recorded source revision; new evaluation lives in bench/documents.")
     import tomllib
     from agentdojo.task_suite.load_suites import get_suite
 

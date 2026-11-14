@@ -345,6 +345,24 @@ mod tests {
     }
 
     #[test]
+    fn encrypted_storage_links_sqlite_with_the_wal_disclosure_fix() {
+        let temp = Temp::new();
+        let key = DatabaseKey::generate().unwrap();
+        let store = SqliteMemory::open_encrypted(&temp.db(), &key).unwrap();
+        let sqlite: String = store
+            .conn
+            .query_row("SELECT sqlite_version()", [], |r| r.get(0))
+            .unwrap();
+        // RUSTSEC-2026-0459: upgrading the plain SQLite bundle alone is not
+        // enough. The SQLCipher engine actually linked by each platform must
+        // include SQLite 3.54.0's mismatched-WAL page-size fix too.
+        assert!(
+            rusqlite::version_number() >= 3_054_000,
+            "SQLCipher still embeds vulnerable SQLite {sqlite}"
+        );
+    }
+
+    #[test]
     fn encrypted_round_trip_wrong_key_and_recovery_preserve_data() {
         let temp = Temp::new();
         let key = DatabaseKey::generate().unwrap();

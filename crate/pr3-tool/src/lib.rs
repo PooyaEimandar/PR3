@@ -11,6 +11,8 @@
 
 pub mod calculator;
 pub mod clock;
+pub mod documents;
+#[cfg(feature = "legacy-email-bench")]
 pub mod mail;
 pub mod memory;
 pub mod web;

@@ -2,6 +2,8 @@
 
 Part of the [PR3 documentation](README.md). Section numbers are stable; code comments cite them as “docs Sec. N”.
 
+**Current product direction (14 November 2026):** make personal documents useful offline: select files, retrieve evidence, inspect source-backed quotations, retain/correct user-confirmed details, and resume tasks across the user's devices. Email/contact features are retired. Private cross-device continuity and measured usefulness are the intended differentiators; superiority to OpenJarvis remains a hypothesis to test. [Implementation and priorities](roadmap.md#implementation-status-and-next-work-2026-11-14).
+
 ## 1. Executive Summary
 
 **PR3** is an open-source, privacy-first, portable personal AI runtime designed to work **independently and offline on mobile and desktop**, or **cooperatively in a private hybrid configuration**. It is intended as an embeddable intelligence engine rather than another cloud-dependent chat wrapper. The same core should be integrable into personal applications, OEM software, automotive infotainment, game engines, and constrained devices when their operating-system and model-runtime capabilities permit - and where they do not, those hosts speak PR3's protocol to a PR3 runtime that runs elsewhere.

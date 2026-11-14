@@ -926,42 +926,16 @@ button.danger {
   color: #2b0505;
 }
 
-.email-result h3 { margin: 0 0 8px; font-size: 14px; color: var(--accent); }
-.email-result p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-
-.pane .contacts-toggle { justify-content: space-between; gap: 16px; width: 100%; min-height: 48px; cursor: pointer; }
-.pane .contacts-toggle > span { min-width: 0; }
-.pane .contacts-toggle input {
-  appearance: none;
-  -webkit-appearance: none;
-  position: relative;
-  flex: 0 0 52px;
-  width: 52px;
-  height: 32px;
-  margin: 0;
-  border: 2px solid var(--line);
-  border-radius: 999px;
-  background: var(--panel);
-  cursor: pointer;
-  transition: background 150ms, border-color 150ms;
-}
-.pane .contacts-toggle input::before {
-  content: "";
-  position: absolute;
-  width: 18px;
-  height: 18px;
-  inset: 5px auto auto 5px;
-  border-radius: 50%;
-  background: var(--muted);
-  transition: transform 150ms, background 150ms;
-}
-.pane .contacts-toggle input:checked { background: var(--accent); border-color: var(--accent); }
-.pane .contacts-toggle input:checked::before { transform: translateX(20px); background: var(--bg); }
-.pane .contacts-toggle input:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
-.pane .contacts-toggle input:disabled { opacity: .5; cursor: wait; }
-@media (prefers-reduced-motion: reduce) {
-  .pane .contacts-toggle input, .pane .contacts-toggle input::before { transition: none; }
-}
+#documents > input[type="file"] { flex: none; width: 100%; }
+#documents input[type="file"]::file-selector-button { font: inherit; font-weight: 700; color: var(--accent); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-right: 10px; cursor: pointer; }
+.document-search { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0; }
+.document-search input { flex: 1 1 180px; min-width: 0; }
+.document-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.document-row span { overflow-wrap: anywhere; min-width: 0; }
+.document-passage { border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin: 12px 0; }
+.document-passage h3 { color: var(--accent); font-size: 14px; overflow-wrap: anywhere; }
+.document-passage pre { font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
+#document-source-dialog { width: min(640px, 90vw); max-height: 85dvh; overflow: auto; }
 
 /* A task's Back and Settings' Close: icons, drawn like the composer's icon buttons. */
 #task-detail button.icon,

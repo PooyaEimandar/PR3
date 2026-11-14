@@ -1,0 +1,31 @@
+{
+  "archive": "2026-11-14-4b.tar.gz",
+  "sha256": "067b522d9cee50cb50758190fac1e294d5b42bde8c832cfae0366d709a6132cc",
+  "rows": 72,
+  "models": [
+    "Qwen3.5-4B-Q4_K_M"
+  ],
+  "seeds": [
+    1,
+    2,
+    7
+  ],
+  "score_version": 2,
+  "summary": {
+    "pr3": {
+      "runs": 36,
+      "success": 36,
+      "factual": 36,
+      "sourced": 36,
+      "forbidden": 0
+    },
+    "openjarvis": {
+      "runs": 36,
+      "success": 21,
+      "factual": 32,
+      "sourced": 21,
+      "forbidden": 0
+    }
+  },
+  "replayed_final_runtime": 36
+}

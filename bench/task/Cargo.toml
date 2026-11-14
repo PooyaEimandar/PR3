@@ -11,6 +11,14 @@ publish = false
 [lints]
 workspace = true
 
+[features]
+legacy-email-bench = ["pr3-app/legacy-email-bench", "pr3-tool/legacy-email-bench"]
+
+[[bin]]
+name = "pr3-bench-task"
+path = "src/main.rs"
+required-features = ["legacy-email-bench"]
+
 [dependencies]
 pr3-app = { path = "../../app/pr3-app/src-tauri" }
 pr3-core = { workspace = true, features = ["std"] }

@@ -60,6 +60,8 @@ def split_sizes(dataset):
 
 
 def prepare(out, data, models, seeds):
+    if "legacy-email-bench" in (ROOT / "bench/task/Cargo.toml").read_text():
+        raise ValueError("Email workflows are retired. Use the frozen run/evidence or its recorded source revision; new evaluation lives in bench/documents.")
     dataset = validate(data)
     if out.exists():
         raise ValueError("Output already exists without a run manifest; inspect partial setup")

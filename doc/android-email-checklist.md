@@ -1,4 +1,6 @@
-# Android email acceptance
+# Historical Android email acceptance
+
+**Retired 2026-11-14.** Email and contacts are removed from the current app. Do not use this checklist for current acceptance. Use [Android documents](android-documents-checklist.md). The steps below describe older builds only.
 
 This verifies the device flow; automated tests do not prove that a particular phone or mail app handles permissions and drafts correctly. Use a contact you control. PR3 never presses Send in the email app.
 

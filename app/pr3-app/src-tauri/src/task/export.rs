@@ -278,9 +278,7 @@ mod tests {
         assert_eq!(export.stem, "pr3-email-alex-the-plan");
         let md = &export.markdown;
         assert!(
-            md.starts_with(
-                "# Email Alex the plan\n\nDone · No new memory saved · 1 email added to sandbox outbox; nothing sent externally · 2026-10-20 19:48\n"
-            ),
+            md.starts_with("# Email Alex the plan\n\nDone · Reply ready · 2026-10-20 19:48\n"),
             "{md}"
         );
         assert!(md.contains("\nFollows up: Plan the trip\n"), "{md}");

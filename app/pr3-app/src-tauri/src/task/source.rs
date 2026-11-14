@@ -10,6 +10,46 @@ const UNKNOWN: &str = "a web result whose source was not saved";
 const MORE: &str = "additional sources in this task's retained history";
 
 impl Tasks {
+    // Runtime answer checks must not inherit the display's source/ancestor caps.
+    pub(crate) fn has_document_sources(&self, id: SessionId) -> bool {
+        let mut seen = Vec::new();
+        let mut next = self.get(id);
+        while let Some(task) = next {
+            if seen.contains(&task.id) {
+                break;
+            }
+            seen.push(task.id);
+            if task.chat.iter().any(|(_, entry)| {
+                matches!(entry,
+                Entry::Tool { sources: Some(sources), .. }
+                if sources.iter().any(|s| s.starts_with("document:")))
+            }) {
+                return true;
+            }
+            next = task.parent.and_then(|parent| self.get(parent));
+        }
+        false
+    }
+
+    // Privacy deletion must not use the bounded UI source list. Scan every retained
+    // result and then all descendants, including chains longer than PARENTS.
+    pub(crate) fn document_dependents(&self, document: i64) -> Vec<SessionId> {
+        let prefix = format!("document:{document}:");
+        let mut ids: Vec<_> = self.tasks.iter().filter(|task| task.chat.iter().any(|(_,entry)| matches!(entry, Entry::Tool { sources: Some(sources), .. } if sources.iter().any(|s| s.starts_with(&prefix))))).map(|task| task.id).collect();
+        loop {
+            let before = ids.len();
+            for task in &self.tasks {
+                if task.parent.is_some_and(|p| ids.contains(&p)) && !ids.contains(&task.id) {
+                    ids.push(task.id);
+                }
+            }
+            if ids.len() == before {
+                break;
+            }
+        }
+        ids
+    }
+
     pub(crate) fn sources(&self, id: SessionId) -> Vec<String> {
         let mut chain = Vec::new();
         let mut next = self.get(id);
@@ -96,6 +136,37 @@ mod tests {
             at(n),
         );
     }
+    #[test]
+    fn document_deletion_covers_sources_beyond_ui_limits_and_all_descendants() {
+        let db = Arc::new(Mutex::new(SqliteMemory::open_in_memory().unwrap()));
+        let mut tasks = Tasks::load(db, 30, at(0)).unwrap();
+        let (root, _) = tasks.begin("Read documents", at(1));
+        for n in 0..70 {
+            read(&mut tasks, root, &format!("site{n}.example"), 2);
+        }
+        read(&mut tasks, root, "document:42:1:trusted-fingerprint", 2);
+        tasks.end(root, Ok("Read".into()), at(3));
+        let mut parent = root;
+        for n in 0..20 {
+            tasks.follow_up(parent, at(4 + n)).unwrap();
+            let (child, _) = tasks.begin("Continue", at(4 + n));
+            tasks.end(child, Ok("Read".into()), at(4 + n));
+            parent = child;
+        }
+        assert!(
+            !tasks
+                .sources(root)
+                .iter()
+                .any(|s| s.starts_with("document:"))
+        );
+        assert_eq!(tasks.document_dependents(42).len(), 21);
+        assert!(tasks.has_document_sources(root));
+        assert!(tasks.has_document_sources(parent));
+        tasks.new_topic(at(40)).unwrap();
+        let (unrelated, _) = tasks.begin("Unrelated", at(40));
+        assert!(!tasks.has_document_sources(unrelated));
+    }
+
     #[test]
     fn source_metadata_survives_folding_restart_and_explicit_followups_but_not_deletion() {
         let path =

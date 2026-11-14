@@ -13,6 +13,7 @@ members = [
     "app/pr3-app/src-tauri",
     "bench/agentdojo/bridge",
     "bench/task",
+    "bench/documents",
 ]
 
 [workspace.package]

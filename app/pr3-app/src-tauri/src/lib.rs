@@ -2,16 +2,27 @@
 
 #![cfg_attr(test, allow(clippy::disallowed_macros))] // tests may assert (clippy.toml)
 
+#[cfg(feature = "legacy-email-bench")]
+#[path = "../../../../bench/legacy-email/actions.rs"]
 mod actions;
+#[cfg(not(feature = "legacy-email-bench"))]
+mod actions;
+#[cfg(all(feature = "legacy-email-bench", not(debug_assertions)))]
+compile_error!("Historical email fixtures must never be compiled into release builds");
 #[cfg(target_os = "android")]
 mod android_speech;
 #[cfg(target_os = "android")]
 mod android_vault;
 mod backup;
 mod config;
+#[cfg(feature = "legacy-email-bench")]
+#[path = "../../../../bench/legacy-email/contacts.rs"]
 mod contacts;
 mod continuity;
+#[cfg(feature = "legacy-email-bench")]
+#[path = "../../../../bench/legacy-email/device_mail.rs"]
 mod device_mail;
+mod documents;
 #[cfg(feature = "e2e")]
 mod e2e;
 #[cfg(all(feature = "e2e", not(debug_assertions)))]
@@ -29,7 +40,6 @@ mod task;
 mod trace_export;
 mod web;
 
-use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -257,62 +267,9 @@ fn set_backend(app: &tauri::AppHandle, backend: Arc<dyn Backend>) {
     let _ = app.emit(MODEL_CHANGED, label);
 }
 
-/// This device's approval key: in the Secure Enclave on Apple devices, in the Keystore
-/// on Android, signing only after Face ID, Touch ID, a fingerprint or the passcode.
-fn platform_vault(app: &tauri::AppHandle, dir: &Path) -> Result<Box<dyn pr3_vault::Vault>, String> {
-    #[cfg(target_os = "android")]
-    {
-        let plugin = app
-            .try_state::<android_vault::VaultHandle>()
-            .ok_or("the vault plugin is not loaded")?;
-        let vault = android_vault::KeystoreVault::open(plugin.0.clone())
-            .map_err(|e| format!("{e} (set a screen lock to approve actions)"))?;
-        // A software key from earlier builds is no longer needed.
-        match std::fs::remove_file(dir.join(pr3_vault::SOFTWARE_KEY_FILE)) {
-            Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e.to_string()),
-            _ => {}
-        }
-        Ok(Box::new(vault))
-    }
-    #[cfg(not(target_os = "android"))]
-    {
-        let _ = app;
-        pr3_vault::open_platform(dir).map_err(|e| e.to_string())
-    }
-}
-
-/// The trusted path for consequential actions, with its vault, outbox and audit log
-/// in the app's data folder. Without it PR3 runs, but cannot act.
-fn open_actions(app: &tauri::AppHandle, settings: &config::Actions) -> Option<Arc<Actions>> {
-    let opened = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| e.to_string())
-        .and_then(|dir| {
-            let vault = platform_vault(app, &dir)?;
-            let book = app.state::<contacts::Handle>().0.clone();
-            let app = app.clone();
-            Actions::with_device(
-                &dir,
-                settings.limits(),
-                vault,
-                book,
-                Box::new(move |mail| device_mail::open(&app, mail)),
-            )
-        });
-    match opened {
-        Ok(actions) => Some(Arc::new(actions)),
-        Err(e) => {
-            eprintln!("PR3: actions unavailable: {e}");
-            None
-        }
-    }
-}
-
 /// The app's host, on the memory store and trusted path in its data folder.
 fn host(
     app: &tauri::AppHandle,
-    actions: Option<&config::Actions>,
     tasks: config::Tasks,
     web: Option<Box<dyn pr3_tool::web::Fetch>>,
 ) -> Result<Host, host::HostError> {
@@ -321,6 +278,7 @@ fn host(
         let memory: pr3_tool::SharedMemory = store.clone();
         // The panel where the user reviews what PR3 remembers uses the same store.
         app.manage(memory::MemoryHandle(memory));
+        app.manage(documents::Library(store.clone()));
         match app
             .path()
             .app_data_dir()
@@ -345,15 +303,10 @@ fn host(
             Err(e) => eprintln!("PR3 continuity unavailable: {e}"),
         }
     }
-    let actions = if store.is_some() {
-        actions.and_then(|settings| open_actions(app, settings))
-    } else {
-        None
-    };
     compose_host(
         Arc::new(MockBackend::default()),
         store,
-        actions,
+        None,
         tasks.keep_days,
         web,
     )
@@ -378,6 +331,7 @@ pub fn compose_host(
         Some(store) => {
             let memory: pr3_tool::SharedMemory = store.clone();
             tools.extend(pr3_tool::memory_tools(Arc::clone(&memory)));
+            tools.extend(pr3_tool::documents::tools(store.clone()));
             Host::new(backend, tools)?
                 .with_memory(memory)
                 .with_tasks(store, keep_days)?
@@ -452,6 +406,13 @@ fn prepare_data_dir(app: &tauri::AppHandle) {
     if let Err(e) = ready {
         eprintln!("PR3: data folder {}: {e}", dir.display());
     }
+    // Retire the old opt-in flag; no address book is read by this build.
+    match std::fs::remove_file(dir.join("contacts-sync")) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+            eprintln!("PR3: could not remove retired contact-sync flag: {e}")
+        }
+        _ => {}
+    }
     // Earlier builds kept models in `models/`; the folder is `model/` now.
     let (old, new) = (dir.join("models"), dir.join("model"));
     if old.is_dir()
@@ -476,9 +437,7 @@ pub fn run() {
         .plugin(android_vault::plugin())
         .plugin(android_speech::plugin())
         .plugin(network::plugin())
-        .plugin(share::plugin())
-        .plugin(contacts::plugin())
-        .plugin(device_mail::plugin());
+        .plugin(share::plugin());
     let context = tauri::generate_context!();
     #[cfg(feature = "e2e")]
     let context = {
@@ -498,18 +457,12 @@ pub fn run() {
                 task::export::clear(&dir);
             }
             let data_dir = app.path().app_data_dir().ok();
-            let contacts_dir = app.path().app_data_dir()?;
-            app.manage(contacts::Handle(contacts::open(
-                app.handle(),
-                &contacts_dir,
-            )));
             let config = config::Config::load(data_dir.as_deref());
-            let actions = config.as_ref().ok().map(|c| &c.actions);
             let tasks = config.as_ref().map(|c| c.tasks).unwrap_or_default();
             let reading = config.as_ref().map(|c| c.web).unwrap_or_default();
             let (web, fetcher) = web::open(data_dir.as_deref(), reading.enabled);
             app.manage(web);
-            app.manage(host(app.handle(), actions, tasks, fetcher)?);
+            app.manage(host(app.handle(), tasks, fetcher)?);
             let node = config.as_ref().map(|c| c.node.clone()).unwrap_or_default();
             start_hybrid(app.handle(), &node);
             start_tracing(
@@ -529,12 +482,14 @@ pub fn run() {
             continuity::sync_continuity,
             continuity::share_item,
             continuity::recover_item,
+            documents::list_documents,
+            documents::import_document,
+            documents::search_documents,
+            documents::document_source,
+            documents::remove_document,
             platform_info,
             send_message,
             answer_approval,
-            contacts::contacts_info,
-            contacts::set_contact_sync,
-            contacts::remove_all_contacts,
             devices_info,
             start_pairing,
             forget_phone,

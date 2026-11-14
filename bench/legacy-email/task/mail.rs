@@ -6,6 +6,7 @@
 
 use pr3_core::trusted::Mail;
 
+#[path = "mail/meaning.rs"]
 mod meaning;
 
 const MAX_RULES: usize = 32;
@@ -684,4 +685,5 @@ mod tests {
 }
 
 #[cfg(test)]
+#[path = "mail/meaning_tests.rs"]
 mod meaning_tests;

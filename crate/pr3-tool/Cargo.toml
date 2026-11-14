@@ -1,6 +1,6 @@
 [package]
 name = "pr3-tool"
-description = "Built-in tools for PR3: calculator, clock, memory, a sandbox mail connector and reading linked web pages"
+description = "Built-in tools for PR3: calculator, clock, memory and reading linked web pages"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -11,7 +11,11 @@ publish = false
 [lints]
 workspace = true
 
+[features]
+legacy-email-bench = []
+
 [dependencies]
+pr3-memory-sqlite = { path = "../pr3-memory-sqlite" }
 pr3-core = { workspace = true, features = ["std"] }
 pr3-memory = { workspace = true, features = ["std"] }
 serde_json = { workspace = true, features = ["std"] }
