@@ -57,7 +57,9 @@ llama.cpp's CMake step does not reconfigure an existing build: after changing a 
 
 The Android library is linked for 16 KB memory pages (`-z max-page-size=16384`, in `app/pr3-app/src-tauri/build.rs`), which Google Play requires and without which Android warns on opening the app that it is not 16 KB-compatible; CI checks every library in the APK.
 
-The webview's script is TypeScript, in `app/pr3-app/src`, checked in strict mode. The Tauri CLI compiles it into `ui/main.js` before every build, and `cargo tauri dev` recompiles it as you edit; `npm run check` in `app/pr3-app` only type-checks it. The source keeps to types a compiler can simply erase, so tools that strip types without checking them (esbuild, swc, Node, Deno, Bun) build the same script.
+Author frontend code and Node test runners only in TypeScript. The webview source lives in `app/pr3-app/src`, and the active tests live in `app/pr3-app/test`. `npm run check` strictly type-checks both, including the archived email fixture. Use Node 24 or newer for the test runners; `npm test` and `npm run test:e2e` type-check before running the `.test.ts` files through Node's native type stripping. The test configuration skips dependency declaration checking because WebdriverIO's declarations overlap the DOM library; all project test source remains checked in strict mode.
+
+The Tauri CLI compiles the frontend into `ui/main.js` before each build, and `cargo tauri dev` recompiles it as you edit. Source imports use `.ts`; the compiler rewrites them to `.js` for the webview. Generated JavaScript is ignored by Git and should never be edited by hand. The source keeps to types a compiler can simply erase, with no enums, namespaces or parameter properties.
 
 ## Dev builds
 
@@ -234,7 +236,7 @@ CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) builds and tests 
 
 ### Automated native workflows
 
-From `app/pr3-app`, run `npm ci --ignore-scripts`, `npm test`, `npm run test:e2e:build`, then `npm run test:e2e`. Native WebDriver tests cover encrypted recovery, memory correction/forgetting after restart, early Stop and explicit Retry, plus document import, search, verified answer, source inspection and red removal confirmation. They exercise real IPC/Host/SQLite. File selection and model output are fixtures; OS picker behavior and latency need physical-device testing. CI retains failure screenshots, DOM and app logs.
+From `app/pr3-app`, run `npm ci --ignore-scripts`, `npm test`, `npm run test:e2e:build`, then `npm run test:e2e`. The TypeScript native WebDriver tests cover encrypted recovery, memory correction/forgetting after restart, early Stop and explicit Retry, plus document/research import, source-backed answers, source inspection and red removal confirmation. They exercise real IPC/Host/SQLite. File selection and model output are fixtures; OS picker behavior and latency need physical-device testing. CI retains failure screenshots, DOM and app logs.
 
 `pr3-e2e` is a separate debug-only binary and application identity. It requires the `e2e` feature and a marked temporary directory. Normal/release builds exclude its WebDriver and fixtures. Use the [Android document checklist](android-documents-checklist.md) and [continuity checklist](continuity-checklist.md) for device acceptance.
 

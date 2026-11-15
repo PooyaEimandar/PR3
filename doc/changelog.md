@@ -2,6 +2,13 @@
 
 Part of the [PR3 documentation](README.md). Newest first; each version records what changed in the design and why.
 
+## Unreleased (15 November 2026) - TypeScript test runners
+
+- Convert the active Stop/native workflow tests and the archived email UI fixture to TypeScript with typed IPC responses, process/session handles and explicit nullable-state checks. No handwritten JavaScript source files remain.
+- Make `npm run check`, `npm test` and `npm run test:e2e` type-check test sources in strict mode. Pin the existing Node type dependency explicitly and require Node 24+ for native TypeScript execution.
+- Use `.ts` imports in frontend source and rewrite them to `.js` only during compilation. Generated webview JavaScript stays outside source control.
+- Validation: strict frontend/test checks, the frontend and native builds, all 4 Stop tests and all 7 native workflows pass.
+
 ## Unreleased (14 November 2026) - bounded multi-source research
 
 - Add a Research entry point for explicit local or online topics, task-owned evidence, multi-source findings, exact checked quotations, readable source references, missing-evidence disclosures and saved-source inspection. Return the validated report directly; unchecked model prose cannot replace it.

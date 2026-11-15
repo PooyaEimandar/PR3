@@ -4,7 +4,7 @@ import { turnStop } from '../src/turn-stop.ts';
 
 for (const early of [true, false]) {
   test(`Stop is delivered once to the acknowledged turn (${early ? 'early' : 'registered'} click)`, () => {
-    const calls = [];
+    const calls: number[] = [];
     let notices = 0;
     const control = turnStop(() => notices++, id => calls.push(id));
     if (!early) control.started(42);
@@ -17,7 +17,7 @@ for (const early of [true, false]) {
 }
 
 test('a delayed start from a finished turn cannot cancel the next turn', () => {
-  const calls = [];
+  const calls: number[] = [];
   const old = turnStop(() => {}, id => calls.push(id));
   old.request(); old.finish();
   const next = turnStop(() => {}, id => calls.push(id));
@@ -29,7 +29,7 @@ test('a delayed start from a finished turn cannot cancel the next turn', () => {
 });
 
 test('a rejected Stop can be explicitly retried without automatic resubmission', () => {
-  const calls = [];
+  const calls: number[] = [];
   const control = turnStop(() => {}, id => calls.push(id));
   control.started(42); control.request(); control.failed();
   assert.deepEqual(calls, [42]);

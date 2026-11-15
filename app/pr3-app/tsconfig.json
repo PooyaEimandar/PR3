@@ -14,6 +14,7 @@
     "moduleResolution": "bundler",
     "moduleDetection": "force",
     "verbatimModuleSyntax": true,
+    "rewriteRelativeImportExtensions": true,
     "erasableSyntaxOnly": true,
     "isolatedModules": true,
     "rootDir": "src",

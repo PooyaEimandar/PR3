@@ -1,7 +1,7 @@
 // The webview only renders. All decisions live in the Rust runtime, and the types below
 // mirror what its commands send (src-tauri/src).
-import { markdown, plain } from "./markdown.js";
-import { turnStop } from "./turn-stop.js";
+import { markdown, plain } from "./markdown.ts";
+import { turnStop } from "./turn-stop.ts";
 
 const { invoke, Channel } = window.__TAURI__.core;
 

@@ -6,14 +6,19 @@
   "scripts": {
     "build": "tsc",
     "watch": "tsc --watch --preserveWatchOutput",
-    "check": "tsc --noEmit",
-    "test": "node --test test/turn-stop.test.mjs",
+    "check": "tsc --noEmit && npm run check:test",
+    "test": "npm run check:test && node --test test/turn-stop.test.ts",
     "test:e2e:build": "npm run build && cargo build -p pr3-app --features e2e --locked",
-    "test:e2e": "node --test --test-concurrency=1 test/workflow.test.mjs"
+    "test:e2e": "npm run check:test && node --test --test-concurrency=1 test/workflow.test.ts",
+    "check:test": "tsc -p tsconfig.test.json"
   },
   "devDependencies": {
     "@tauri-apps/api": "2.11.1",
+    "@types/node": "22.20.5",
     "typescript": "7.0.2",
     "webdriverio": "10.1.0"
+  },
+  "engines": {
+    "node": ">=24.0.0"
   }
 }
