@@ -2,7 +2,7 @@
 
 Part of the [PR3 documentation](README.md). Section numbers are stable; code comments cite them as “docs Sec. N”.
 
-**Current product direction (14 November 2026):** make personal documents useful offline: select files, retrieve evidence, inspect source-backed quotations, retain/correct user-confirmed details, and resume tasks across the user's devices. Email/contact features are retired. Private cross-device continuity and measured usefulness are the intended differentiators; superiority to OpenJarvis remains a hypothesis to test. [Implementation and priorities](roadmap.md#implementation-status-and-next-work-2026-11-14).
+**Current product direction (14 November 2026):** make personal documents useful offline: select files, retrieve evidence, inspect source-backed quotations, retain/correct user-confirmed details, and resume tasks across the user's devices. Email/contact features are retired. Private cross-device continuity and measured usefulness are the intended differentiators; superiority to OpenJarvis remains a hypothesis to test. [Implementation and priorities](roadmap.md#implementation-status-and-next-work-2026-11-15).
 
 ## 1. Executive Summary
 

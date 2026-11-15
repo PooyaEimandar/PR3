@@ -35,6 +35,7 @@ fuzz_target!(|data: &[u8]| {
         n => output.chunks(n).map(<[u8]>::to_vec).collect(),
     };
     let tools = [ToolDef {
+        report: false,
         read_only: false,
         name: "lookup".to_string(),
         description: "Looks something up".to_string(),

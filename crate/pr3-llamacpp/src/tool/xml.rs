@@ -184,6 +184,7 @@ mod tests {
 
     fn tool(name: &str, parameters: &str) -> ToolDef {
         ToolDef {
+            report: false,
             read_only: true,
             name: name.to_string(),
             description: String::new(),

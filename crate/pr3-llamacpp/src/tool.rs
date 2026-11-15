@@ -14,6 +14,10 @@ pub struct ToolDef {
     /// Trusted caller metadata; false for actions or unknown effects. Never inferred
     /// from a name, description, model output or source text.
     pub read_only: bool,
+    /// Trusted caller metadata: this tool's arguments form a user-facing report.
+    /// Apply the source-data answer boundary while planning its arguments too.
+    /// This changes prompting only; it grants no permission or execution budget.
+    pub report: bool,
     pub name: String,
     pub description: String,
     /// JSON Schema for the arguments object, as text.
@@ -107,6 +111,7 @@ mod tests {
     #[test]
     fn tool_json_matches_the_template_layout() {
         let tool = ToolDef {
+            report: false,
             read_only: true,
             name: "get_time".to_string(),
             description: "Current time".to_string(),

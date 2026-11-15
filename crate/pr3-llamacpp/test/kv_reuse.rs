@@ -26,6 +26,7 @@ const MODELS: [&str; 4] = [
 
 fn calculator() -> ToolDef {
     ToolDef {
+        report: false,
         read_only: true,
         name: "calculate".to_string(),
         description: "Evaluate an arithmetic expression exactly.".to_string(),

@@ -69,6 +69,7 @@ mod tests {
 
     fn calc() -> ToolDef {
         ToolDef {
+            report: false,
             read_only: true,
             name: "calculate".to_string(),
             description: "Evaluate arithmetic".to_string(),

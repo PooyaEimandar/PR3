@@ -2,6 +2,13 @@
 
 Part of the [PR3 documentation](README.md). Newest first; each version records what changed in the design and why.
 
+## Unreleased (15 November 2026) - research quotation relevance
+
+- Apply the shared untrusted-source boundary while the model proposes research report arguments, where findings and quotations become visible. Host-owned metadata selects this path; source text cannot enable it. Preserve useful facts, source IDs and explicitly requested instruction quotations while guiding the model to omit unrelated instructions from findings, quotations and gaps.
+- Clarify that every finding needs citations and missing evidence belongs in gaps. Keep retrieval guidance active and expose bounded candidate URLs so the planner can identify supplied links even when automatic search is unavailable; reads still require task-owned candidate IDs. Source snapshots, exact-quotation checks, approval policy and execution limits are unchanged.
+- Add prompt-boundary and report regressions, plus six live-model development cases covering adjacent/same-sentence instructions, Spanish text, offline restart, requested instruction quotations and relevant manual instructions. The diagnostic checks required text inside evidence quotations, counts distinct cited sources, excludes citation metadata from fact checks and supports different resumed-turn expectations. Frozen earlier corpora and results remain unchanged.
+- Validation: 378 Rust tests pass (9 existing opt-in tests ignored), all 4 TypeScript Stop tests pass, and strict type/lint/format/trusted-boundary checks pass. The [4B evaluation](../bench/research/evidence/2026-11-15-quotation-4b-report.md) passes 18/18 original cases and 18/18 new cases (48/48 turns) at seeds 1/2/7, including all three original failures. All intermediate traces are retained. These development checks do not establish complete synthesis; the report records remaining conflict-explanation limitations and the need for fresh held-out evaluation.
+
 ## Unreleased (15 November 2026) - TypeScript test runners
 
 - Convert the active Stop/native workflow tests and the archived email UI fixture to TypeScript with typed IPC responses, process/session handles and explicit nullable-state checks. No handwritten JavaScript source files remain.

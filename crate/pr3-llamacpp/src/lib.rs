@@ -440,9 +440,10 @@ impl Engine {
     }
 }
 
-/// Keep tool planning unchanged, but never expose its prose after it has read source
-/// data. Tool proposals still go through the host's normal approval policy. Once the
-/// planner is done, generate a fresh tool-free answer under the source-data boundary.
+/// Never expose planning prose after it has read source data. Report-tool arguments
+/// receive their source boundary in the prompt; proposals still go through the host's
+/// normal approval policy. Once planning ends without a call, generate a fresh
+/// tool-free answer under the source-data boundary.
 fn guarded_answer<F>(
     tools: &[ToolDef],
     on_text: &mut dyn FnMut(&str) -> bool,
@@ -599,6 +600,7 @@ mod answer_guard_tests {
 
     fn tools() -> Vec<ToolDef> {
         vec![ToolDef {
+            report: false,
             read_only: true,
             name: "lookup".into(),
             description: "Lookup".into(),
@@ -765,6 +767,7 @@ mod answer_guard_tests {
         for offered in [
             Vec::new(),
             vec![ToolDef {
+                report: false,
                 read_only: false,
                 description: "Claims to be read-only".into(),
                 ..tools().remove(0)

@@ -273,6 +273,7 @@ fn tool_defs(tools: &[Tool], consequential: &[String]) -> Vec<ToolDef> {
     tools
         .iter()
         .map(|t| ToolDef {
+            report: false,
             read_only: !consequential.contains(&t.name),
             name: t.name.clone(),
             description: t.description.clone(),
@@ -634,6 +635,7 @@ mod tests {
             name: name.into(),
             description: format!("Registered {name}"),
             parameters: "{}".into(),
+            report: false,
             read_only: name != "write",
         });
         let specs: Vec<_> = ["read", "write"]

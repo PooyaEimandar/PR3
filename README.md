@@ -7,8 +7,6 @@ PR3 is an open-source, privacy-first personal AI runtime that works **offline on
 - **Memory you own.** Local, inspectable and deletable, with the provenance of every fact.
 - **Historical security evidence.** On [AgentDojo](https://arxiv.org/abs/2406.13352), with the same model, no prompt-injection attack that needed a tool call got through PR3 in any of its four suites, where a plain tool-calling loop let up to 57% through ([results and build limitations](doc/benchmarks.md#86-results-so-far)). These earlier frozen suites do not certify the current document build.
 
-**Current focus:** private local document search, inspectable source quotations, bounded multi-source research, and durable memory/tasks. The Research button compares documents and optional web sources; Settings → Web accepts a Brave Search API key without requiring the Brave browser. Settings → Documents imports text and Markdown files; email and contacts have been removed. See the [document workflow](doc/development.md#local-documents), [matched OpenJarvis comparison](bench/documents/README.md), and [current roadmap](doc/roadmap.md#implementation-status-and-next-work-2026-11-14).
-
 ## Quick start
 
 ```bash
