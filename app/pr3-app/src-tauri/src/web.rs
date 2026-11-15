@@ -102,6 +102,92 @@ struct Fetcher {
     on: Arc<AtomicBool>,
 }
 
+/// Optional official search API. No Brave browser dependency, no model-supplied
+/// endpoint/headers, and no redirects that could forward the subscription token.
+pub(crate) struct Search {
+    agent: ureq::Agent,
+    library: pr3_tool::documents::Library,
+    fetch: Arc<dyn Fetch>,
+}
+impl Search {
+    pub fn new(library: pr3_tool::documents::Library, fetch: Arc<dyn Fetch>) -> Self {
+        let config = ureq::Agent::config_builder()
+            .https_only(true)
+            .http_status_as_error(false)
+            .proxy(None)
+            .max_redirects(0)
+            .timeout_connect(Some(CONNECT))
+            .timeout_global(Some(WHOLE))
+            .build();
+        Self {
+            agent: ureq::Agent::with_parts(config, DefaultConnector::new(), PublicOnly::default()),
+            library,
+            fetch,
+        }
+    }
+}
+impl pr3_tool::research::SearchWeb for Search {
+    fn search(&self, user_topic: &str) -> Result<Vec<pr3_tool::research::SearchHit>, String> {
+        self.fetch.check_enabled()?;
+        let key=zeroize::Zeroizing::new(self.library.lock().map_err(|_|"Research storage is unavailable")?
+            .research_search_key().map_err(|e|e.to_string())?.ok_or("Add a Brave Search API key in Settings → Web for automatic search. Provided links still work.")?);
+        let mut response = self
+            .agent
+            .get("https://api.search.brave.com/res/v1/web/search")
+            .query("q", user_topic)
+            .query("count", "5")
+            .query("text_decorations", "false")
+            .header("Accept", "application/json")
+            .header("X-Subscription-Token", key.as_str())
+            .call()
+            .map_err(|_| "Search could not connect securely within its time limit".to_string())?;
+        if !response.status().is_success() {
+            return Err(format!(
+                "Search provider returned HTTP {}. Check the API key, quota and connection.",
+                response.status().as_u16()
+            ));
+        }
+        let bytes = response
+            .body_mut()
+            .with_config()
+            .limit(512 * 1024)
+            .read_to_vec()
+            .map_err(|_| "Search response could not be read within its size/time limit")?;
+        self.fetch.check_enabled()?;
+        parse_search(&bytes)
+    }
+}
+fn parse_search(bytes: &[u8]) -> Result<Vec<pr3_tool::research::SearchHit>, String> {
+    let body: serde_json::Value =
+        serde_json::from_slice(bytes).map_err(|_| "Search provider returned invalid JSON")?;
+    let rows = body
+        .pointer("/web/results")
+        .and_then(serde_json::Value::as_array)
+        .ok_or("Search provider returned no valid web-results list")?;
+    rows.iter()
+        .take(5)
+        .map(|row| {
+            Ok(pr3_tool::research::SearchHit {
+                url: row
+                    .get("url")
+                    .and_then(serde_json::Value::as_str)
+                    .ok_or("Search result has no URL")?
+                    .into(),
+                title: row
+                    .get("title")
+                    .and_then(serde_json::Value::as_str)
+                    .ok_or("Search result has no title")?
+                    .into(),
+                snippet: row
+                    .get("description")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or("")
+                    .into(),
+            })
+        })
+        .collect()
+}
+
 impl Fetcher {
     fn new(on: Arc<AtomicBool>) -> Self {
         let config = ureq::Agent::config_builder()
@@ -292,6 +378,41 @@ fn public_v6(ip: Ipv6Addr) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn search_responses_distinguish_empty_results_from_provider_errors() {
+        assert!(
+            parse_search(br#"{"web":{"results":[]}}"#)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(parse_search(br#"{"error":"quota exhausted"}"#).is_err());
+        assert!(parse_search(b"<html>challenge</html>").is_err());
+        assert!(parse_search(br#"{"web":{"results":[{"invalid":true}]}}"#).is_err());
+        let hits=parse_search(br#"{"web":{"results":[{"title":"Plan","url":"https://example.org/","description":"Cost 40"}]}}"#).unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].url, "https://example.org/");
+        assert_eq!(hits[0].snippet, "Cost 40");
+    }
+
+    #[test]
+    fn search_without_a_key_or_with_web_off_fails_before_network() {
+        use pr3_tool::research::SearchWeb;
+        let db = Arc::new(std::sync::Mutex::new(
+            pr3_memory_sqlite::SqliteMemory::open_in_memory().unwrap(),
+        ));
+        let on = Arc::new(AtomicBool::new(true));
+        let search = Search::new(db, Arc::new(Fetcher::new(on.clone())));
+        assert!(
+            search
+                .search("public topic")
+                .err()
+                .unwrap()
+                .contains("API key")
+        );
+        on.store(false, Ordering::Relaxed);
+        assert_eq!(search.search("public topic").err().unwrap(), IS_OFF);
+    }
 
     fn fetcher() -> Fetcher {
         Fetcher::new(Arc::new(AtomicBool::new(true)))

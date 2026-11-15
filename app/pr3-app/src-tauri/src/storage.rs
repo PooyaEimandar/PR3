@@ -25,6 +25,19 @@ pub struct Info {
     problem: Option<String>,
 }
 
+pub(crate) fn require_encrypted(app: &AppHandle) -> Result<(), String> {
+    use tauri::Manager;
+    require_ready(app)?;
+    if app
+        .try_state::<State>()
+        .is_some_and(|state| state.key.is_some())
+    {
+        Ok(())
+    } else {
+        Err("Search credentials require encrypted storage on this device".into())
+    }
+}
+
 trait KeyStore {
     fn load(&self) -> Result<Option<String>, String>;
     fn save(&self, key: &str) -> Result<(), String>;

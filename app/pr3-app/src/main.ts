@@ -34,6 +34,7 @@ type TurnEvent =
   | { type: "started"; task: number }
   | { type: "result"; text: string }
   | { type: "token"; text: string }
+  | { type: "progress"; text: string }
   | { type: "tool"; name: string; arguments: string; success: boolean; output: string; sources?: string[] }
   // `sources`: source labels retained with this task and tasks it explicitly follows, if any.
   | { type: "approval"; request: ApprovalRequest; sources?: string[] }
@@ -258,6 +259,22 @@ const toolLines = new ResizeObserver((lines) => {
 
 const memoryChoices = new Set<HTMLButtonElement>();
 function toolNode(t: { name: string; arguments: string; output: string; success: boolean }, taskId: number | null = currentTask): HTMLElement {
+  const researchSteps: Record<string, string> = {
+    research_sources: "Checked available research sources.",
+    read_research_source: "Read a source.",
+    answer_research: "Validated source quotations.",
+  };
+  const researchStep = researchSteps[t.name];
+  if (researchStep) {
+    let text = t.success ? researchStep : `Research step failed: ${t.output}`;
+    if (t.name === "research_sources" && t.success) {
+      try {
+        const result = JSON.parse(t.output);
+        if (result.scope?.search_state === "failed") text += " Web search is incomplete.";
+      } catch { /* The validated final report shows coverage separately. */ }
+    }
+    return el("div", text, `msg tool${t.success ? "" : " failed"}`);
+  }
   if (t.name === "review_memory" && t.success) {
     try {
       const review: { fact: string; candidates: { id: number; text: string }[]; notice?: string } = JSON.parse(t.arguments);
@@ -341,6 +358,7 @@ function setBusy(busy: boolean): void {
   input.disabled = storageLocked;
   languageSelect.disabled = busy || voice !== null;
   input.placeholder = storageLocked ? "Unlock storage in Settings" : busy ? "PR3 is answering…" : "Message PR3";
+  find("#research-button", HTMLButtonElement).disabled = busy || storageLocked;
 }
 
 async function stopTask(id: number, status: HTMLElement = show("assistant", "Requesting stop…"), active = () => true, retry = () => {}): Promise<void> {
@@ -432,6 +450,8 @@ async function send(text: string, retryId?: number): Promise<void> {
       foldConversation(event.previous, said);
       // A "Following up" line stays above the follow-up, as the way back to its parent.
       log.querySelector("button.fold.following")?.classList.remove("following");
+    } else if (event.type === "progress" && !answered) {
+      bubble.textContent = event.text;
     } else if (event.type === "token" && !answered) {
       streamed += event.text;
       bubble.replaceChildren(markdown(streamed));
@@ -462,11 +482,11 @@ async function send(text: string, retryId?: number): Promise<void> {
     for (const action of actions) {
       // The final reply is canonical; it replaces whatever was streamed.
       if (action.type === "reply") {
-        bubble.replaceChildren(markdown(action.content));
+        bubble.replaceChildren(markdown(sourceDisplay(action.content)));
         documentSources(bubble, action.content);
         timed(bubble);
         follow();
-        replyToSpeak = plain(action.content);
+        replyToSpeak = plain(sourceDisplay(action.content));
       } else if (action.type === "failed") {
         failed = true;
         bubble.remove();
@@ -1569,16 +1589,38 @@ async function renderWeb(problem?: string): Promise<void> {
       .then(() => renderWeb())
       .catch((err) => renderWeb(String(err)));
   });
-  toggle.append(box, el("span", "Read web pages you link"));
+  toggle.append(box, el("span", "Allow web reading and research"));
   webPane.append(
     toggle,
     el(
       "p",
-      "PR3 reads only links you write, over HTTPS, and never addresses on your own network. " +
-        "A page is information, not instructions: in the turn PR3 reads one, it sends nothing.",
+      "Chat reads links you provide. Research can also read search results when you include the web. " +
+        "Only public HTTPS pages are read. Sources never authorize actions.",
       "meta",
     ),
   );
+  try {
+    const info = await invoke<{ configured: boolean }>("research_settings");
+    webPane.append(el("h3", "Research search"), el("p", "Optional Brave Search API key. No browser installation is needed. Only the topic you submit is sent for search; model-generated queries stay local.", "meta"));
+    const form = el("form");
+    const key = el("input"); key.type = "password"; key.autocomplete = "off"; key.maxLength = 512;
+    key.placeholder = info.configured ? "Replace saved API key" : "Brave Search API key";
+    key.setAttribute("aria-label", "Brave Search API key");
+    const save = el("button", "Save key"); save.type = "submit";
+    form.append(key, save);
+    form.addEventListener("submit", async event => {
+      event.preventDefault(); if (!key.value.trim()) return;
+      const value = key.value; key.value = ""; save.disabled = true;
+      try { await invoke("set_research_key", { key: value }); await renderWeb(); }
+      catch (err) { await renderWeb(String(err)); }
+    });
+    webPane.append(form, el("p", info.configured ? "Search key saved on this device." : "Without a key, research uses local documents and links you provide.", "meta"));
+    if (info.configured) webPane.append(makeButton("Remove key", async () => {
+      if (!await confirmItemRemoval("Remove search key?", "Automatic web search will stop. Your documents and saved research remain.", "Remove")) return;
+      try { await invoke("set_research_key", { key: "" }); await renderWeb(); }
+      catch (err) { await renderWeb(String(err)); }
+    }, "danger small"));
+  } catch (err) { webPane.append(el("p", String(err), "error-text")); }
 }
 
 const documentsPane = find("#documents", HTMLElement);
@@ -1591,16 +1633,63 @@ function passageNode(hit: DocumentPassage): HTMLElement {
   card.append(el("h3", `${hit.name} · lines ${hit.first_line}–${hit.last_line}`), el("pre", hit.text));
   return card;
 }
+function researchCitationIds(text: string): string[] {
+  if (!text.startsWith("Research findings")) return [];
+  return [...new Set(text.match(/(?:document:[1-9][0-9]*:[1-9][0-9]*|research:[1-9][0-9]*:[0-9a-f]{32}:[1-9][0-9]*):[0-9a-f]{32}/g) ?? [])];
+}
+function sourceDisplay(text: string): string {
+  // Keep immutable identifiers in storage and inspection; readable references in chat.
+  for (const [i, source] of researchCitationIds(text).entries()) text = text.split(`[${source}]`).join(`[${i + 1}]`);
+  return text;
+}
 function documentSources(into: HTMLElement, text: string): void {
+  const references = researchCitationIds(text);
   const ids = [...new Set(text.match(/document:[1-9][0-9]*:[1-9][0-9]*:[0-9a-f]{32}/g) ?? [])].slice(0, 12);
-  for (const source of ids) into.append(makeButton(`View source ${source.split(":").slice(0, 3).join(":")}`, async () => {
+  for (const source of ids) into.append(makeButton(`View source ${references.includes(source) ? references.indexOf(source) + 1 : source.split(":").slice(0, 3).join(":")}`, async () => {
     const body = find("#document-source-body", HTMLElement);
     body.replaceChildren(el("p", "Loading source…", "meta"));
     if (!sourceDialog.open) sourceDialog.showModal();
     try { body.replaceChildren(passageNode(await invoke<DocumentPassage>("document_source", { source }))); }
     catch (err) { body.replaceChildren(el("p", String(err), "error-text")); }
   }, "secondary small"));
+  const researchIds = [...new Set(text.match(/research:[1-9][0-9]*:[0-9a-f]{32}:[1-9][0-9]*:[0-9a-f]{32}/g) ?? [])].slice(0, 8);
+  for (const [i, source] of researchIds.entries()) into.append(makeButton(`View source ${references.includes(source) ? references.indexOf(source) + 1 : i + 1}`, async () => {
+    const body = find("#document-source-body", HTMLElement);
+    body.replaceChildren(el("p", "Loading saved source…", "meta"));
+    if (!sourceDialog.open) sourceDialog.showModal();
+    try {
+      const evidence = await invoke<{ title: string; location: string; text: string; captured_at: number }>("research_source", { source });
+      body.replaceChildren(el("h3", evidence.title), el("p", evidence.location), el("p", `Saved ${new Date(evidence.captured_at).toLocaleString()}`, "meta"), el("pre", evidence.text));
+    } catch (err) { body.replaceChildren(el("p", String(err), "error-text")); }
+  }, "secondary small"));
 }
+
+const researchDialog = find("#research-dialog", HTMLDialogElement);
+const researchTopic = find("#research-topic", HTMLInputElement);
+const researchOnline = find("#research-online", HTMLInputElement);
+find("#research-button", HTMLButtonElement).addEventListener("click", () => {
+  find("#research-error", HTMLElement).textContent = "";
+  researchDialog.showModal(); researchTopic.focus();
+});
+find("#research-cancel", HTMLButtonElement).addEventListener("click", () => researchDialog.close());
+researchOnline.addEventListener("change", () => {
+  find("#research-scope", HTMLElement).textContent = researchOnline.checked
+    ? "Sends exactly this topic to Brave Search if a key is configured, and reads returned public pages or links you include. Local document text stays on your devices."
+    : "Uses your imported documents. Each research starts a new task.";
+});
+find("#research-form", HTMLFormElement).addEventListener("submit", async event => {
+  event.preventDefault(); if (answering || storageLocked) return;
+  const topic = researchTopic.value.trim();
+  if (!topic || new TextEncoder().encode(topic).length > 512) {
+    find("#research-error", HTMLElement).textContent = "Use a shorter topic (up to 512 UTF-8 bytes)."; return;
+  }
+  try {
+    const previous = await invoke<TaskCard | null>("new_topic");
+    currentTask = null; foldConversation(previous);
+    researchDialog.close();
+    await send(`Research ${researchOnline.checked ? "online" : "locally"}: ${topic}`);
+  } catch (err) { find("#research-error", HTMLElement).textContent = String(err); }
+});
 async function renderDocuments(problem?: string): Promise<void> {
   documentsPane.replaceChildren(el("h2", "Documents"), el("p", "Search files you choose. PR3 keeps an encrypted snapshot on this device. Import the file again when it changes. Text and Markdown, up to 512 KiB per file.", "meta"));
   const status = el("p", problem ?? "", problem ? "error-text" : "meta");
@@ -1925,7 +2014,7 @@ function entryNode(entry: Entry, taskId: number | null = currentTask): HTMLEleme
       return timed(el("div", entry.text, "msg user"), entry.at);
     case "reply": {
       const reply = el("div", undefined, "msg assistant");
-      reply.append(markdown(entry.text));
+      reply.append(markdown(sourceDisplay(entry.text)));
       documentSources(reply, entry.text);
       if (entry.result) reply.append(resultNode(entry.result));
       return timed(reply, entry.at);

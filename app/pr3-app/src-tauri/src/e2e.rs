@@ -62,7 +62,33 @@ impl Backend for ScriptedModel {
         let asked = last.rsplit("\n\n").next().unwrap_or(last);
         let mut result = Generation::default();
         let last_tool = request.messages.iter().rev().find(|m| m.role == Role::Tool);
-        if asked.starts_with("Search my documents:") {
+        if asked.starts_with("Research locally:") {
+            if last_tool.is_none() {
+                result.tool_calls.push(ProposedToolCall {
+                    name: "research_sources".into(),
+                    arguments: r#"{"query":"price"}"#.into(),
+                });
+            } else if !request
+                .messages
+                .iter()
+                .any(|m| m.tool_calls.iter().any(|t| t.name == "answer_research"))
+            {
+                let findings = last_tool.into_iter().flat_map(|m| {
+                    m.content.split("document:").skip(1).map(|tail|format!("document:{}",tail.chars().take_while(|c|c.is_ascii_hexdigit()||*c==':').collect::<String>()))
+                }).filter(|id|id.starts_with("document:1:")||id.starts_with("document:2:")).take(2).map(|source| {
+                    let quote=if source.starts_with("document:1:"){ "Alpha price is 25." }else{"Beta price is 40."};
+                    serde_json::json!({"text":quote,"citations":[{"source":source,"quote":quote}]})
+                }).collect::<Vec<_>>();
+                result.tool_calls.push(ProposedToolCall {
+                    name: "answer_research".into(),
+                    arguments:
+                        serde_json::json!({"findings":findings,"gaps":"No availability evidence."})
+                            .to_string(),
+                });
+            } else {
+                result.content = "INVENTED: I sent your files!".into();
+            }
+        } else if asked.starts_with("Search my documents:") {
             if last_tool.is_none() {
                 result.tool_calls.push(ProposedToolCall {
                     name: "search_documents".into(),

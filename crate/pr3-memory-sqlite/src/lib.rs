@@ -14,6 +14,7 @@
 pub mod continuity;
 pub mod documents;
 pub mod encryption;
+pub mod research;
 mod task;
 
 use std::path::Path;
@@ -206,6 +207,7 @@ const MIGRATIONS: &[&str] = &[
     CREATE TRIGGER document_insert AFTER INSERT ON document_passages BEGIN INSERT INTO document_fts(rowid,text) VALUES(new.id,new.text); END;
     CREATE TRIGGER document_delete AFTER DELETE ON document_passages BEGIN INSERT INTO document_fts(document_fts,rowid,text) VALUES('delete',old.id,old.text); END;",
 
+    research::MIGRATION,
 ];
 
 const COLUMNS: &str = "m.id, m.text, m.status, m.principal, m.created_at, m.valid_at,

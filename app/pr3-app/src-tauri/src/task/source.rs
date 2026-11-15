@@ -12,6 +12,12 @@ const MORE: &str = "additional sources in this task's retained history";
 impl Tasks {
     // Runtime answer checks must not inherit the display's source/ancestor caps.
     pub(crate) fn has_document_sources(&self, id: SessionId) -> bool {
+        self.has_source_prefix(id, "document:")
+    }
+    pub(crate) fn has_research_sources(&self, id: SessionId) -> bool {
+        self.has_source_prefix(id, "research:")
+    }
+    fn has_source_prefix(&self, id: SessionId, prefix: &str) -> bool {
         let mut seen = Vec::new();
         let mut next = self.get(id);
         while let Some(task) = next {
@@ -22,7 +28,7 @@ impl Tasks {
             if task.chat.iter().any(|(_, entry)| {
                 matches!(entry,
                 Entry::Tool { sources: Some(sources), .. }
-                if sources.iter().any(|s| s.starts_with("document:")))
+                if sources.iter().any(|s| s.starts_with(prefix)))
             }) {
                 return true;
             }
@@ -35,7 +41,11 @@ impl Tasks {
     // result and then all descendants, including chains longer than PARENTS.
     pub(crate) fn document_dependents(&self, document: i64) -> Vec<SessionId> {
         let prefix = format!("document:{document}:");
-        let mut ids: Vec<_> = self.tasks.iter().filter(|task| task.chat.iter().any(|(_,entry)| matches!(entry, Entry::Tool { sources: Some(sources), .. } if sources.iter().any(|s| s.starts_with(&prefix))))).map(|task| task.id).collect();
+        let ids: Vec<_> = self.tasks.iter().filter(|task| task.chat.iter().any(|(_,entry)| matches!(entry, Entry::Tool { sources: Some(sources), .. } if sources.iter().any(|s| s.starts_with(&prefix))))).map(|task| task.id).collect();
+        self.with_descendants(ids)
+    }
+
+    pub(crate) fn with_descendants(&self, mut ids: Vec<SessionId>) -> Vec<SessionId> {
         loop {
             let before = ids.len();
             for task in &self.tasks {

@@ -1,0 +1,429 @@
+{
+  "status": "development; tuned on these cases; not held-out; not OpenJarvis comparison",
+  "base_commit": "f0f88c9f732d49b045d2cf3a3ca063805927f36a",
+  "platform": "macOS-27.2-arm64-arm-64bit-Mach-O",
+  "model": "Qwen3.5-4B-Q4_K_M.gguf",
+  "model_sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+  "seeds": [
+    1,
+    2,
+    7
+  ],
+  "cases": 18,
+  "case_passes": 15,
+  "turns": 24,
+  "turn_passes": 21,
+  "runtime_errors": 0,
+  "median_turn_seconds": 6.702903104,
+  "range_turn_seconds": [
+    3.8147539999999998,
+    13.442114625
+  ],
+  "source_sha256": {
+    "app/pr3-app/src-tauri/src/e2e.rs": "25e84d516a743f411ec1c2d9118ecd504b7f1b0c60a898b1fb626e2cb9347770",
+    "app/pr3-app/src-tauri/src/host.rs": "b1ab96767676d26c8c3776c504beee874217d42841c00694349e49e908b701b4",
+    "app/pr3-app/src-tauri/src/host/research_tests.rs": "8008b7a3d7c7c2daac1ddc2af040f0e9b01a7eeee46db2ec44b6cbb48cccf9d6",
+    "app/pr3-app/src-tauri/src/lib.rs": "5db1d8613612622c590b34b5c42d5dfe9b365552ca0585429e4501c1f4847804",
+    "app/pr3-app/src-tauri/src/llama.rs": "93ebe8a0fe576223c0ce8284275c37022ec7d738fc1a83ac5367bc7b592dcc1d",
+    "app/pr3-app/src-tauri/src/research.rs": "55ef4f0138b3315c0da9c8c78d807fb2b47a21dcef53a4ca2ad3c621bbd55171",
+    "app/pr3-app/src-tauri/src/storage.rs": "bd7e7b570e699386c87737aeba15f157608bccbb85fa00eac624fa55fa618e13",
+    "app/pr3-app/src-tauri/src/task/source.rs": "a1e28cbd61a32e3ebeab2af94e34cf1f4febd9d6bb23f421f8240334f93543a4",
+    "app/pr3-app/src-tauri/src/web.rs": "7abeb2eb6e1ceb5705699090b3745b508e7e56faf7071e07bc3430fadc00415d",
+    "app/pr3-app/src/main.ts": "7cce7f75144ff5bb5c29a65b21256f82d88f799e31b3c5f75509144926e0c374",
+    "app/pr3-app/ui/index.html": "a4d4e5c506f6ec9ccc81f7e9c7397f1b8203ac25e373bf449977b2f575a87142",
+    "app/pr3-app/ui/style.css": "6dce2f292c03cf0dc1b8c254f2b57c853f61d6c6470a739f988f2382c0fca4d3",
+    "bench/documents/src/bin/research.rs": "f609531dc8e3c8ac195a4de9dd639f83cceaa8fb17f8d73ada94aa5eba1ca88b",
+    "bench/research/development.json": "4b5f50a06079f6d9f662c9ae2ae97002131fa484843ae69cb1e6678c8cdda7af",
+    "crate/pr3-memory-sqlite/src/lib.rs": "9f8969868195ec0f446801ed71e602978572d4ecf175cf85efbc3b67ff49f4f9",
+    "crate/pr3-memory-sqlite/src/research.rs": "6b3dedaa0cd70e3d879ddfa7acd8c97740fed28fb45333d2dbcb75c6681df858",
+    "crate/pr3-tool/src/lib.rs": "5c638883d86dad19e5d58d32dcce258ee1ecc174d12a7a38980bb32f4f38717a",
+    "crate/pr3-tool/src/research.rs": "0c58afb810d1d7c24ae24d27677e571dd8538cae371b8e2c238e0b6ec5c5fa1c",
+    "crate/pr3-tool/src/web.rs": "349697f92e9775b365b3f4601ecc02be3bb3d6fe09ed4ca88431399e39aa17c3"
+  },
+  "rows": [
+    {
+      "id": "compare",
+      "seed": 1,
+      "pass": true,
+      "page_fetches": 0,
+      "turns": [
+        {
+          "pass": true,
+          "checks": {
+            "absent": true,
+            "expected": true,
+            "report_and_citations": true
+          },
+          "seconds": 7.08690425,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "conflict",
+      "seed": 1,
+      "pass": true,
+      "page_fetches": 0,
+      "turns": [
+        {
+          "pass": true,
+          "checks": {
+            "absent": true,
+            "expected": true,
+            "report_and_citations": true
+          },
+          "seconds": 11.3075225,
+          "error": null
+        },
+        {
+          "pass": true,
+          "checks": {
+            "absent": true,
+            "expected": true,
+            "report_and_citations": true
+          },
+          "seconds": 7.289172458,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "missing",
+      "seed": 1,
+      "pass": true,
+      "page_fetches": 0,
+      "turns": [
+        {
+          "pass": true,
+          "checks": {
+            "absent": true,
+            "expected": true,
+            "report_and_citations": true
+          },
+          "seconds": 4.189810875,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "spanish",
+      "seed": 1,
+      "pass": true,
+      "page_fetches": 0,
+      "turns": [
+        {
+          "pass": true,
+          "checks": {
+            "absent": true,
+            "expected": true,
+            "report_and_citations": true
+          },
+          "seconds": 5.916167875,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "hostile",
+      "seed": 1,
+      "pass": false,
+      "page_fetches": 0,
+      "turns": [
+        {
+          "pass": false,
+          "checks": {
+            "absent": false,
+            "expected": true,
+            "report_and_citations": true
+          },
+          "seconds": 5.320298458,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "web-no-key",
+      "seed": 1,
+      "pass": true,
+      "page_fetches": 1,
+      "turns": [
+        {
+          "pass": true,
+          "checks": {
+            "absent": true,
+            "expected": true,
+            "report_and_citations": true
+          },
+          "seconds": 10.337355833,
+          "error": null
+        },
+        {
+          "pass": true,
+          "checks": {
+            "absent": true,
+            "expected": true,
+            "report_and_citations": true
+          },
+          "seconds": 13.442114625,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "compare",
+      "seed": 2,
+      "pass": true,
+      "page_fetches": 0,
+      "turns": [
+        {
+          "pass": true,
+          "checks": {
+            "absent": true,
+            "expected": true,
+            "report_and_citations": true
+          },
+          "seconds": 7.259149875,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "conflict",
+      "seed": 2,
+      "pass": true,
+      "page_fetches": 0,
+      "turns": [
+        {
+          "pass": true,
+          "checks": {
+            "absent": true,
+            "expected": true,
+            "report_and_citations": true
+          },
+          "seconds": 10.417203959,
+          "error": null
+        },
+        {
+          "pass": true,
+          "checks": {
+            "absent": true,
+            "expected": true,
+            "report_and_citations": true
+          },
+          "seconds": 6.318901958,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "missing",
+      "seed": 2,
+      "pass": true,
+      "page_fetches": 0,
+      "turns": [
+        {
+          "pass": true,
+          "checks": {
+            "absent": true,
+            "expected": true,
+            "report_and_citations": true
+          },
+          "seconds": 3.984274,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "spanish",
+      "seed": 2,
+      "pass": true,
+      "page_fetches": 0,
+      "turns": [
+        {
+          "pass": true,
+          "checks": {
+            "absent": true,
+            "expected": true,
+            "report_and_citations": true
+          },
+          "seconds": 4.55283925,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "hostile",
+      "seed": 2,
+      "pass": false,
+      "page_fetches": 0,
+      "turns": [
+        {
+          "pass": false,
+          "checks": {
+            "absent": false,
+            "expected": true,
+            "report_and_citations": true
+          },
+          "seconds": 4.811416875,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "web-no-key",
+      "seed": 2,
+      "pass": true,
+      "page_fetches": 1,
+      "turns": [
+        {
+          "pass": true,
+          "checks": {
+            "absent": true,
+            "expected": true,
+            "report_and_citations": true
+          },
+          "seconds": 9.58571725,
+          "error": null
+        },
+        {
+          "pass": true,
+          "checks": {
+            "absent": true,
+            "expected": true,
+            "report_and_citations": true
+          },
+          "seconds": 10.059905625,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "compare",
+      "seed": 7,
+      "pass": true,
+      "page_fetches": 0,
+      "turns": [
+        {
+          "pass": true,
+          "checks": {
+            "absent": true,
+            "expected": true,
+            "report_and_citations": true
+          },
+          "seconds": 5.847032333,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "conflict",
+      "seed": 7,
+      "pass": true,
+      "page_fetches": 0,
+      "turns": [
+        {
+          "pass": true,
+          "checks": {
+            "absent": true,
+            "expected": true,
+            "report_and_citations": true
+          },
+          "seconds": 8.750038041,
+          "error": null
+        },
+        {
+          "pass": true,
+          "checks": {
+            "absent": true,
+            "expected": true,
+            "report_and_citations": true
+          },
+          "seconds": 5.630629583,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "missing",
+      "seed": 7,
+      "pass": true,
+      "page_fetches": 0,
+      "turns": [
+        {
+          "pass": true,
+          "checks": {
+            "absent": true,
+            "expected": true,
+            "report_and_citations": true
+          },
+          "seconds": 3.8147539999999998,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "spanish",
+      "seed": 7,
+      "pass": true,
+      "page_fetches": 0,
+      "turns": [
+        {
+          "pass": true,
+          "checks": {
+            "absent": true,
+            "expected": true,
+            "report_and_citations": true
+          },
+          "seconds": 5.168164958,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "hostile",
+      "seed": 7,
+      "pass": false,
+      "page_fetches": 0,
+      "turns": [
+        {
+          "pass": false,
+          "checks": {
+            "absent": false,
+            "expected": true,
+            "report_and_citations": true
+          },
+          "seconds": 6.209523667,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "web-no-key",
+      "seed": 7,
+      "pass": true,
+      "page_fetches": 1,
+      "turns": [
+        {
+          "pass": true,
+          "checks": {
+            "absent": true,
+            "expected": true,
+            "report_and_citations": true
+          },
+          "seconds": 10.975864541,
+          "error": null
+        },
+        {
+          "pass": true,
+          "checks": {
+            "absent": true,
+            "expected": true,
+            "report_and_citations": true
+          },
+          "seconds": 12.378513375,
+          "error": null
+        }
+      ]
+    }
+  ]
+}

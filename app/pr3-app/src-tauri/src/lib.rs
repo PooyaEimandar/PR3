@@ -25,6 +25,7 @@ mod device_mail;
 mod documents;
 #[cfg(feature = "e2e")]
 mod e2e;
+mod research;
 #[cfg(all(feature = "e2e", not(debug_assertions)))]
 compile_error!("The e2e driver and fixtures must never be compiled into a release build");
 mod host;
@@ -324,14 +325,23 @@ pub fn compose_host(
     web: Option<Box<dyn pr3_tool::web::Fetch>>,
 ) -> Result<Host, host::HostError> {
     let mut tools = pr3_tool::builtin();
-    if let Some(fetch) = web {
-        tools.push(Box::new(pr3_tool::web::ReadWebPage::new(fetch)));
+    let web: Option<Arc<dyn pr3_tool::web::Fetch>> = web.map(Arc::from);
+    if let Some(fetch) = &web {
+        tools.push(Box::new(pr3_tool::web::ReadWebPage::shared(fetch.clone())));
     }
     let host = match store {
         Some(store) => {
             let memory: pr3_tool::SharedMemory = store.clone();
             tools.extend(pr3_tool::memory_tools(Arc::clone(&memory)));
             tools.extend(pr3_tool::documents::tools(store.clone()));
+            tools.extend(pr3_tool::research::tools(
+                store.clone(),
+                web.clone(),
+                web.as_ref().map(|fetch| {
+                    Arc::new(crate::web::Search::new(store.clone(), fetch.clone()))
+                        as Arc<dyn pr3_tool::research::SearchWeb>
+                }),
+            ));
             Host::new(backend, tools)?
                 .with_memory(memory)
                 .with_tasks(store, keep_days)?
@@ -487,6 +497,9 @@ pub fn run() {
             documents::search_documents,
             documents::document_source,
             documents::remove_document,
+            research::research_source,
+            research::research_settings,
+            research::set_research_key,
             platform_info,
             send_message,
             answer_approval,

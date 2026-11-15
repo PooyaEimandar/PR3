@@ -15,6 +15,7 @@ pub mod documents;
 #[cfg(feature = "legacy-email-bench")]
 pub mod mail;
 pub mod memory;
+pub mod research;
 pub mod web;
 
 use pr3_core::{SessionId, Timestamp, ToolSpec};

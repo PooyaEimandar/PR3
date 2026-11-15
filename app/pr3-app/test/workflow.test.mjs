@@ -299,3 +299,31 @@ test('documents search, verified answer, restart, source inspection and deletion
   assert.deepEqual(await invoke('list_documents'), []);
   assert.doesNotMatch(await driver.$('#log').getText(), /JN-371/);
 });
+
+test('research compares sources, restores the report and removes dependent tasks', { timeout: 90000 }, async () => {
+  await addDocument('alpha.md', 'Alpha price is 25.');
+  await addDocument('beta.md', 'Beta price is 40.');
+  await click('#settings-close');
+  await click('#research-button');
+  assert.equal(await driver.$('#research-online').isSelected(), false);
+  await driver.$('#research-topic').setValue('Compare prices');
+  await click('#research-form button[type=submit]'); await idle();
+  await textIncludes('#log', 'Research findings');
+  await textIncludes('#log', 'Alpha price is 25.');
+  await textIncludes('#log', 'Beta price is 40.');
+  assert.doesNotMatch(await driver.$('#log').getText(), /INVENTED|sent your files/);
+  assert.equal((await invoke('list_tasks')).length, 1);
+  await driver.saveScreenshot(resolve(artifacts, 'research.png'));
+  await stop(); await launch();
+  await textIncludes('#log', 'Research findings');
+  await click('#log button=View source 2');
+  await textIncludes('#document-source-body', 'Beta price is 40.');
+  await click('#document-source-dialog button=Close');
+  await settings('documents');
+  await click('#documents .document-row:last-child button=Remove');
+  await click('#remove-item-action');
+  await driver.waitUntil(async () => (await invoke('list_documents')).length === 1);
+  assert.deepEqual(await invoke('list_tasks'), []);
+  await stop(); await launch();
+  assert.doesNotMatch(await driver.$('#log').getText(), /Alpha price|Beta price/);
+});

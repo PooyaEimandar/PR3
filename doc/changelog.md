@@ -2,6 +2,14 @@
 
 Part of the [PR3 documentation](README.md). Newest first; each version records what changed in the design and why.
 
+## Unreleased (14 November 2026) - bounded multi-source research
+
+- Add a Research entry point for explicit local or online topics, task-owned evidence, multi-source findings, exact checked quotations, readable source references, missing-evidence disclosures and saved-source inspection. Return the validated report directly; unchecked model prose cannot replace it.
+- Add optional Brave Search API configuration in Settings → Web. No browser installation is required. Keep credentials in encrypted local storage, send only the original user-submitted topic, and restrict page reads to host-owned candidates or supplied links through the existing public-HTTPS reader. Missing keys, provider failures and disabled web access remain visible; supplied links work without a search key.
+- Persist research scope and source snapshots across restart. Keep New task isolated, Stop/explicit Retry intact and deletion cascading through dependent local research, including snapshots saved before a stopped tool event was recorded. Existing approval and execution limits remain unchanged. Research snapshots do not automatically sync between devices.
+- Add storage, tool, host and native UI regressions for citation forgery, malformed citation objects, snippets, egress, failure status, bounded output, task isolation, cancellation, restart and deletion. Validation: 369 Rust tests pass (9 opt-in ignored), 7 native workflows pass, 4 JavaScript checks and 73 Python harness checks pass (4 optional checks skipped). Strict Clippy, formatting, trusted-boundary checks and the real public-link reader smoke test pass.
+- Preserve the [4B research development diagnostic](../bench/research/evidence/2026-11-14-development-4b-report.md): 15/18 cases and 21/24 turns pass across seeds 1/2/7, zero runtime errors. The remaining three failures quote irrelevant source instructions alongside accurate facts; no unrelated tool proposals occurred. These are development cases, not held-out or OpenJarvis research-parity evidence. Live keyed Brave search and physical Android acceptance remain outstanding.
+
 ## Unreleased (14 November 2026) - local documents replace email
 
 - Remove email/contacts from the shipped app: contact permissions and native plugins, sync/settings, draft planning and action registration. Ignore retired action configuration and remove the saved contact-sync flag. Keep historical adapters behind an explicit debug-only benchmark feature; frozen evidence/corpora remain unchanged and historical launchers refuse new mislabeled runs.

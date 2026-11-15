@@ -13,3 +13,13 @@ Record the phone model, Android version, PR3 build, chosen model, and whether in
 9. Measure import time, search time, and time to the **verified final answer** separately. Record warm/cold runs, battery/power state and model/backend. Do not compare desktop timings to phone latency.
 
 Current formats: `.txt`, `.md`, `.markdown`; maximum 512 KiB per file, 200 documents / 16 MiB per library. PDF, OCR, folder watching and automatic document sync remain roadmap work.
+
+
+## Research acceptance
+
+1. Import two documents with different prices. Tap Research, keep Include the web off, and compare them in airplane mode. Check both quotations, source buttons, gaps and the distinction between model analysis and checked quotations.
+2. Stop an active run, restart, and explicitly Retry/Continue. Check task identity and saved sources; New task must not reuse the previous research implicitly.
+3. In Settings → Web add a Brave Search API key, then research a public topic with Include the web on. No browser installation should be needed. Check source URLs and snapshots, invalid-key/quota/offline errors, and that no secret is displayed or exported.
+4. Remove the key using the red confirmation. Research a topic containing a public HTTPS link: it should still read that link while showing automatic web search as incomplete. Disable web access: no new fetch should succeed; prior snapshots remain inspectable offline.
+5. Delete the research task and restart; its saved web sources must be unavailable. Remove a cited document and confirm its dependent local conversations disappear. Confirm unrelated tasks and original files remain.
+6. Record end-to-end time for two-source local and online research, including cold/warm model loads. Try Android ↔ computer continuity and record unavailable source snapshots honestly: automatic document/research-source sync is not implemented.

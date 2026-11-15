@@ -9,7 +9,7 @@
 //! that read one.
 
 use std::cell::Cell;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use dom_query::{Document, NodeId, NodeRef};
 use html5ever::TokenizerResult;
@@ -119,7 +119,7 @@ pub struct Page {
 }
 
 pub struct ReadWebPage {
-    fetch: Box<dyn Fetch>,
+    fetch: Arc<dyn Fetch>,
     pages: Mutex<Vec<Cached>>,
 }
 
@@ -132,6 +132,10 @@ struct Cached {
 
 impl ReadWebPage {
     pub fn new(fetch: Box<dyn Fetch>) -> Self {
+        Self::shared(Arc::from(fetch))
+    }
+
+    pub fn shared(fetch: Arc<dyn Fetch>) -> Self {
         Self {
             fetch,
             pages: Mutex::new(Vec::new()),
