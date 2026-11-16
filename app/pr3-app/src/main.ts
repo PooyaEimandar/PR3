@@ -1563,17 +1563,26 @@ interface WebInfo {
   on: boolean;
 }
 
+type SearchProvider = "tavily" | "brave";
+interface ResearchSettings { provider: SearchProvider; configured: boolean; web_enabled: boolean }
+const searchProviderNames: Record<SearchProvider, string> = { tavily: "Tavily", brave: "Brave Search" };
 const webPane = find("#web", HTMLElement);
+let webRenderVersion = 0;
 
 // Whether PR3 reads the pages the user links. Off, the model is told so when it tries.
 async function renderWeb(problem?: string): Promise<void> {
+  const version = ++webRenderVersion;
+  // Opening Settings and selecting its remembered tab can overlap. Do not leave
+  // stale controls interactive or append results from an older refresh.
+  for (const control of webPane.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLButtonElement>("input, select, button")) control.disabled = true;
   let info: WebInfo;
   try {
     info = await invoke<WebInfo>("web_reading");
   } catch (err) {
-    webPane.replaceChildren(el("p", String(err), "error-text"));
+    if (version === webRenderVersion) webPane.replaceChildren(el("p", String(err), "error-text"));
     return;
   }
+  if (version !== webRenderVersion) return;
   webPane.replaceChildren(el("h2", "Web"));
   if (problem) webPane.append(el("p", problem, "error-text"));
   if (!info.available) {
@@ -1600,27 +1609,50 @@ async function renderWeb(problem?: string): Promise<void> {
     ),
   );
   try {
-    const info = await invoke<{ configured: boolean }>("research_settings");
-    webPane.append(el("h3", "Research search"), el("p", "Optional Brave Search API key. No browser installation is needed. Only the topic you submit is sent for search; model-generated queries stay local.", "meta"));
+    const info = await invoke<ResearchSettings>("research_settings");
+    if (version !== webRenderVersion) return;
+    const provider = info.provider;
+    const name = searchProviderNames[provider];
+    webPane.append(el("h3", "Research search"), el("p", "Only the topic you submit is sent to your selected search provider; model-generated queries stay local. No browser installation is needed.", "meta"));
+    const providerLabel = el("label", "Search provider", "field");
+    const select = el("select"); select.id = "research-provider";
+    for (const [value, label] of Object.entries(searchProviderNames)) {
+      const option = el("option", value === "tavily" ? `${label} — free plan available` : `${label} — optional`);
+      option.value = value; select.append(option);
+    }
+    select.value = provider;
+    providerLabel.append(select);
+    webPane.append(providerLabel, el("p", provider === "tavily"
+      ? "Uses basic search. A free Tavily account and API key are required. Your provider account controls quota and billing."
+      : "Requires a Brave Search API key. Your provider account controls quota and billing.", "meta"));
     const form = el("form");
+    const controls = el("fieldset"); controls.className = "research-key-controls";
     const key = el("input"); key.type = "password"; key.autocomplete = "off"; key.maxLength = 512;
-    key.placeholder = info.configured ? "Replace saved API key" : "Brave Search API key";
-    key.setAttribute("aria-label", "Brave Search API key");
+    key.placeholder = info.configured ? "Replace saved API key" : `${name} API key`;
+    key.setAttribute("aria-label", `${name} API key`);
     const save = el("button", "Save key"); save.type = "submit";
-    form.append(key, save);
-    form.addEventListener("submit", async event => {
-      event.preventDefault(); if (!key.value.trim()) return;
-      const value = key.value; key.value = ""; save.disabled = true;
-      try { await invoke("set_research_key", { key: value }); await renderWeb(); }
+    controls.append(key, save); form.append(controls);
+    select.addEventListener("change", async () => {
+      select.disabled = true; controls.disabled = true;
+      try { await invoke("set_research_provider", { provider: select.value }); await renderWeb(); }
       catch (err) { await renderWeb(String(err)); }
     });
-    webPane.append(form, el("p", info.configured ? "Search key saved on this device." : "Without a key, research uses local documents and links you provide.", "meta"));
-    if (info.configured) webPane.append(makeButton("Remove key", async () => {
-      if (!await confirmItemRemoval("Remove search key?", "Automatic web search will stop. Your documents and saved research remain.", "Remove")) return;
-      try { await invoke("set_research_key", { key: "" }); await renderWeb(); }
+    form.addEventListener("submit", async event => {
+      event.preventDefault(); if (!key.value.trim()) return;
+      const value = key.value; key.value = ""; controls.disabled = true; select.disabled = true;
+      try { await invoke("set_research_key", { provider, key: value }); await renderWeb(); }
+      catch (err) { await renderWeb(String(err)); }
+    });
+    webPane.append(form, el("p", info.configured ? `${name} key saved on this device.` : "Without a key for this provider, research uses local documents and links you provide.", "meta"));
+    if (info.configured) controls.append(makeButton("Remove key", async () => {
+      if (!await confirmItemRemoval(`Remove ${name} key?`, "Automatic search with this provider will stop. Your documents and saved research remain.", "Remove")) return;
+      controls.disabled = true; select.disabled = true;
+      try { await invoke("set_research_key", { provider, key: "" }); await renderWeb(); }
       catch (err) { await renderWeb(String(err)); }
     }, "danger small"));
-  } catch (err) { webPane.append(el("p", String(err), "error-text")); }
+  } catch (err) {
+    if (version === webRenderVersion) webPane.append(el("p", String(err), "error-text"));
+  }
 }
 
 const documentsPane = find("#documents", HTMLElement);
@@ -1669,14 +1701,28 @@ const researchTopic = find("#research-topic", HTMLInputElement);
 const researchOnline = find("#research-online", HTMLInputElement);
 find("#research-button", HTMLButtonElement).addEventListener("click", () => {
   find("#research-error", HTMLElement).textContent = "";
+  void renderResearchScope();
   researchDialog.showModal(); researchTopic.focus();
 });
 find("#research-cancel", HTMLButtonElement).addEventListener("click", () => researchDialog.close());
-researchOnline.addEventListener("change", () => {
-  find("#research-scope", HTMLElement).textContent = researchOnline.checked
-    ? "Sends exactly this topic to Brave Search if a key is configured, and reads returned public pages or links you include. Local document text stays on your devices."
-    : "Uses your imported documents. Each research starts a new task.";
-});
+let researchScopeVersion = 0;
+async function renderResearchScope(): Promise<void> {
+  const version = ++researchScopeVersion;
+  const scope = find("#research-scope", HTMLElement);
+  scope.textContent = researchOnline.checked ? "Checking web search settings…" : "Uses your imported documents. Each research starts a new task.";
+  if (!researchOnline.checked) return;
+  try {
+    const info = await invoke<ResearchSettings>("research_settings");
+    if (version !== researchScopeVersion) return;
+    scope.textContent = !info.web_enabled ? "Web access is off in Settings → Web. Saved sources remain available."
+      : info.configured
+        ? `Sends exactly this topic to ${searchProviderNames[info.provider]}, and reads returned public pages or links you include. Local document text stays on your devices.`
+        : `No ${searchProviderNames[info.provider]} key is saved. Uses local documents and public links you include; automatic search is unavailable.`;
+  } catch {
+    if (version === researchScopeVersion) scope.textContent = "Search settings are unavailable. Check Settings → Web before starting online research.";
+  }
+}
+researchOnline.addEventListener("change", () => { void renderResearchScope(); });
 find("#research-form", HTMLFormElement).addEventListener("submit", async event => {
   event.preventDefault(); if (answering || storageLocked) return;
   const topic = researchTopic.value.trim();

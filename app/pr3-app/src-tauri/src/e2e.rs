@@ -202,7 +202,9 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         Some(&dir),
         Err("Model downloads disabled in E2E".into()),
     ));
-    app.manage(crate::web::open(Some(&dir), false).0);
+    // Exercise production Web settings without giving the fixture host a fetcher:
+    // synthetic provider keys can never reach the network in these workflows.
+    app.manage(crate::web::open(Some(&dir), true).0);
     app.manage(crate::speech::Speech::open(app.handle()));
     Ok(())
 }

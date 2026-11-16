@@ -34,6 +34,7 @@ interface ReadResults {
   list_tasks: TaskCard[];
   list_memories: unknown[];
   list_documents: unknown[];
+  research_settings: { provider: 'tavily' | 'brave'; configured: boolean; web_enabled: boolean };
 }
 let scenario = 0;
 const pause = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
@@ -104,7 +105,8 @@ afterEach(async context => {
 });
 
 // Read-only assertions through the same IPC used by the UI. All workflow actions
-// below (including approval, retry and deletion) are clicks or typed messages.
+// below (including approval, retry and deletion) are clicks or typed messages;
+// file and native select inputs use DOM events with the production handlers.
 async function invoke<K extends keyof ReadResults>(command: K): Promise<ReadResults[K]> {
   const result: unknown = await browser().execute(async (name: string) => {
     return window.__TAURI__.core.invoke<unknown>(name);
@@ -359,4 +361,74 @@ test('research compares sources, restores the report and removes dependent tasks
   assert.deepEqual(await invoke('list_tasks'), []);
   await stop(); await launch();
   assert.doesNotMatch(await browser().$('#log').getText(), /Alpha price|Beta price/);
+});
+
+test('search provider selection and separate keys survive restart and confirmed removal', { timeout: 90000 }, async () => {
+  const chooseProvider = async (provider: 'tavily' | 'brave') => {
+    await browser().$('#research-provider').waitForClickable();
+    // The native driver's option.click() does not reliably change WKWebView's
+    // select value. Supply the selection event; UI handlers and IPC stay real.
+    await browser().execute((value) => {
+      const select = document.querySelector<HTMLSelectElement>('#research-provider');
+      if (!select || select.disabled) throw new Error('Search provider is not ready');
+      select.value = value;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    }, provider);
+    await browser().waitUntil(async () => (await invoke('research_settings')).provider === provider);
+    assert.equal(await browser().$$('#research-provider').length, 1, 'only the latest settings refresh is rendered');
+  };
+  await settings('web');
+  assert.deepEqual(await invoke('research_settings'), { provider: 'tavily', configured: false, web_enabled: true });
+  await textIncludes('#web', 'free Tavily account');
+  await browser().$('[aria-label="Tavily API key"]').setValue('synthetic-tavily-fixture-key');
+  await click('#web button=Save key');
+  await textIncludes('#web', 'encrypted storage');
+  assert.equal((await invoke('research_settings')).configured, false);
+  await stop();
+  await writeFile(resolve(dir, '.encrypted-storage'), 'synthetic encryption fixture\n');
+  await launch(); await settings('web');
+  await browser().$('[aria-label="Tavily API key"]').setValue('synthetic-tavily-fixture-key');
+  await click('#web button=Save key');
+  await textIncludes('#web', 'Tavily key saved on this device.');
+  assert.equal(await browser().$('[aria-label="Tavily API key"]').getValue(), '');
+  assert.deepEqual(await invoke('research_settings'), { provider: 'tavily', configured: true, web_enabled: true });
+  await chooseProvider('brave');
+  await textIncludes('#web', 'Without a key for this provider');
+  await browser().$('[aria-label="Brave Search API key"]').setValue('synthetic-brave-fixture-key');
+  await click('#web button=Save key');
+  await textIncludes('#web', 'Brave Search key saved on this device.');
+  await stop(); await launch();
+  const database = await readFile(resolve(dir, 'memory.sqlite'));
+  assert.equal(database.includes(Buffer.from('synthetic-tavily-fixture-key')), false);
+  assert.equal(database.includes(Buffer.from('synthetic-brave-fixture-key')), false);
+  assert.deepEqual(await invoke('research_settings'), { provider: 'brave', configured: true, web_enabled: true });
+  await click('#research-button'); await click('#research-online');
+  await textIncludes('#research-scope', 'Sends exactly this topic to Brave Search');
+  await click('#research-cancel');
+  await settings('web');
+  await chooseProvider('tavily');
+  await textIncludes('#web', 'Tavily key saved on this device.');
+  await browser().saveScreenshot(resolve(artifacts, 'search-settings.png'));
+  await click('#settings-close'); await click('#research-button');
+  await textIncludes('#research-scope', 'Sends exactly this topic to Tavily');
+  await click('#research-cancel'); await settings('web');
+  await click('#web button=Remove key');
+  await textIncludes('#remove-item-dialog', 'Remove Tavily key?');
+  assert.match(await browser().$('#remove-item-action').getAttribute('class') ?? '', /danger/);
+  await click('#remove-item-dialog button[value=cancel]');
+  assert.equal((await invoke('research_settings')).configured, true);
+  await click('#web button=Remove key'); await click('#remove-item-action');
+  await textIncludes('#web', 'Without a key for this provider');
+  await click('#settings-close'); await click('#research-button');
+  await textIncludes('#research-scope', 'No Tavily key is saved');
+  await click('#research-cancel');
+  await stop(); await launch();
+  assert.deepEqual(await invoke('research_settings'), { provider: 'tavily', configured: false, web_enabled: true });
+  await settings('web');
+  await chooseProvider('brave');
+  await textIncludes('#web', 'Brave Search key saved on this device.');
+  await click('#web input[type=checkbox]');
+  await browser().waitUntil(async () => !(await invoke('research_settings')).web_enabled);
+  await click('#settings-close'); await click('#research-button'); await click('#research-online');
+  await textIncludes('#research-scope', 'Web access is off');
 });

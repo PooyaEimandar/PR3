@@ -2,6 +2,13 @@
 
 Part of the [PR3 documentation](README.md). Newest first; each version records what changed in the design and why.
 
+## Unreleased (16 November 2026) - Tavily search option
+
+- Add Tavily basic search as the default for new setups, using a free-plan API key. Keep Brave optional and preserve existing Brave-only configurations. Settings → Web selects the provider, stores its key separately in encrypted local storage, and confirms removal in red. Research scope text reflects the selected provider, missing key and disabled web access.
+- Send only the original topic to a fixed provider endpoint. Disable Tavily's automatic parameter selection and generated answers/raw content; retain five results, public-HTTPS source reading, quotation checks, request/response limits, approval checks and execution limits. Never automatically switch providers on failure or key removal; show authentication/quota failures without exposing provider response bodies.
+- Add HTTP transport regressions for provider authentication, exact topic encoding, basic-search parameters, malformed/oversized results, redirects, quotas and web permission. Add storage upgrade/restart/key-isolation checks and a native TypeScript workflow for encrypted key custody, provider selection, restart and confirmed removal. Live keyed-provider and Android acceptance remain outstanding.
+- Validation: 382 Rust tests pass (9 existing opt-in tests ignored), all 8 native workflows and 4 TypeScript Stop tests pass, and strict type/lint/format/trusted-boundary checks pass. Native dropdown selection uses a DOM event fixture; production Settings handlers, IPC and encrypted storage are exercised.
+
 ## Unreleased (15 November 2026) - research quotation relevance
 
 - Apply the shared untrusted-source boundary while the model proposes research report arguments, where findings and quotations become visible. Host-owned metadata selects this path; source text cannot enable it. Preserve useful facts, source IDs and explicitly requested instruction quotations while guiding the model to omit unrelated instructions from findings, quotations and gaps.

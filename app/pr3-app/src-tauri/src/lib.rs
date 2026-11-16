@@ -499,6 +499,7 @@ pub fn run() {
             documents::remove_document,
             research::research_source,
             research::research_settings,
+            research::set_research_provider,
             research::set_research_key,
             platform_info,
             send_message,

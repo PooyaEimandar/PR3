@@ -568,6 +568,17 @@ button.small {
   flex-wrap: wrap;
   gap: 8px;
 }
+.research-key-controls {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.research-key-controls input { min-width: 160px; }
 
 .pane input:not([type="checkbox"]),
 .pane select {

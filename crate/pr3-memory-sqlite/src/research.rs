@@ -18,6 +18,33 @@ CREATE TABLE research_sources(task INTEGER NOT NULL REFERENCES research_runs(tas
 CREATE TABLE research_settings(name TEXT PRIMARY KEY, value TEXT NOT NULL);
 ";
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SearchProvider {
+    Tavily,
+    Brave,
+}
+impl SearchProvider {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Tavily => "Tavily",
+            Self::Brave => "Brave Search",
+        }
+    }
+    fn setting(self) -> &'static str {
+        match self {
+            Self::Tavily => "tavily_key",
+            Self::Brave => "brave_key",
+        }
+    }
+    fn value(self) -> &'static str {
+        match self {
+            Self::Tavily => "tavily",
+            Self::Brave => "brave",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Research {
     pub task: u64,
@@ -256,29 +283,93 @@ impl SqliteMemory {
         }
         Ok(found)
     }
-    /// App-owned secret: never passed to model tools, conversation exports or sync.
-    pub fn research_search_key(&self) -> Result<Option<String>, MemoryError> {
+    /// Preserve a pre-provider-selection Brave setup; new installations use Tavily.
+    pub fn research_search_provider(&self) -> Result<SearchProvider, MemoryError> {
+        let saved: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT value FROM research_settings WHERE name='provider'",
+                [],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(error)?;
+        match saved.as_deref() {
+            Some("tavily") => Ok(SearchProvider::Tavily),
+            Some("brave") => Ok(SearchProvider::Brave),
+            Some(_) => Err(invalid(
+                "Unknown search provider. Choose one in Settings → Web.",
+            )),
+            None if self.research_search_configured(SearchProvider::Brave)? => {
+                Ok(SearchProvider::Brave)
+            }
+            None => Ok(SearchProvider::Tavily),
+        }
+    }
+    pub fn set_research_search_provider(
+        &mut self,
+        provider: SearchProvider,
+    ) -> Result<(), MemoryError> {
+        self.conn.execute(
+            "INSERT INTO research_settings VALUES('provider',?1) ON CONFLICT(name) DO UPDATE SET value=excluded.value",
+            [provider.value()],
+        ).map_err(error)?;
+        Ok(())
+    }
+    pub fn research_search_configured(
+        &self,
+        provider: SearchProvider,
+    ) -> Result<bool, MemoryError> {
         self.conn
             .query_row(
-                "SELECT value FROM research_settings WHERE name='brave_key'",
-                [],
+                "SELECT EXISTS(SELECT 1 FROM research_settings WHERE name=?1)",
+                [provider.setting()],
+                |r| r.get(0),
+            )
+            .map_err(error)
+    }
+    /// App-owned secret: never passed to model tools, conversation exports or sync.
+    pub fn research_search_key(
+        &self,
+        provider: SearchProvider,
+    ) -> Result<Option<String>, MemoryError> {
+        self.conn
+            .query_row(
+                "SELECT value FROM research_settings WHERE name=?1",
+                [provider.setting()],
                 |r| r.get(0),
             )
             .optional()
             .map_err(error)
     }
-    pub fn set_research_search_key(&mut self, key: &str) -> Result<(), MemoryError> {
-        if key.is_empty() {
-            self.conn
-                .execute("DELETE FROM research_settings WHERE name='brave_key'", [])
-                .map_err(error)?;
-        } else {
-            if !(16..=512).contains(&key.len()) || !key.bytes().all(|c| c.is_ascii_graphic()) {
-                return Err(invalid("Enter a valid search API key without spaces"));
-            }
-            self.conn.execute("INSERT INTO research_settings VALUES('brave_key',?1) ON CONFLICT(name) DO UPDATE SET value=excluded.value",[key]).map_err(error)?;
+    pub fn set_research_search_key(
+        &mut self,
+        provider: SearchProvider,
+        key: &str,
+    ) -> Result<(), MemoryError> {
+        if !key.is_empty()
+            && (!(16..=512).contains(&key.len()) || !key.bytes().all(|c| c.is_ascii_graphic()))
+        {
+            return Err(invalid("Enter a valid search API key without spaces"));
         }
-        Ok(())
+        let selected = self.research_search_provider()?;
+        let tx = self.conn.transaction().map_err(error)?;
+        // Freeze the legacy/default selection before removing or adding a key.
+        tx.execute(
+            "INSERT OR IGNORE INTO research_settings VALUES('provider',?1)",
+            [selected.value()],
+        )
+        .map_err(error)?;
+        if key.is_empty() {
+            tx.execute(
+                "DELETE FROM research_settings WHERE name=?1",
+                [provider.setting()],
+            )
+            .map_err(error)?;
+        } else {
+            tx.execute("INSERT INTO research_settings VALUES(?1,?2) ON CONFLICT(name) DO UPDATE SET value=excluded.value",[provider.setting(),key]).map_err(error)?;
+        }
+        tx.commit().map_err(error)
     }
 }
 
@@ -360,16 +451,80 @@ mod tests {
             "batch rolls back"
         );
         let secret = "synthetic-key-not-a-real-credential";
-        db.set_research_search_key(secret).unwrap();
-        assert_eq!(db.research_search_key().unwrap().as_deref(), Some(secret));
+        for provider in [SearchProvider::Tavily, SearchProvider::Brave] {
+            db.set_research_search_key(provider, secret).unwrap();
+            assert_eq!(
+                db.research_search_key(provider).unwrap().as_deref(),
+                Some(secret)
+            );
+            assert!(db.set_research_search_key(provider, "bad\nheader").is_err());
+            assert!(
+                db.set_research_search_key(provider, &"x".repeat(513))
+                    .is_err()
+            );
+        }
         assert!(
             !serde_json::to_string(&db.research(1).unwrap())
                 .unwrap()
                 .contains(secret)
         );
-        assert!(db.set_research_search_key("bad\nheader").is_err());
-        db.set_research_search_key("").unwrap();
-        assert!(db.research_search_key().unwrap().is_none());
+        db.continuity_init(&"a".repeat(64)).unwrap();
+        assert_eq!(
+            db.continuity_generation().unwrap(),
+            0,
+            "keys do not enter the sync journal"
+        );
+        for provider in [SearchProvider::Tavily, SearchProvider::Brave] {
+            db.set_research_search_key(provider, "").unwrap();
+            assert!(!db.research_search_configured(provider).unwrap());
+            assert!(db.research_search_key(provider).unwrap().is_none());
+        }
         assert!(db.begin_research(u64::MAX, "topic", false).is_err());
+    }
+
+    #[test]
+    fn provider_selection_preserves_legacy_brave_and_isolates_keys_across_restart() {
+        use SearchProvider::{Brave, Tavily};
+        let path =
+            std::env::temp_dir().join(format!("pr3-search-settings-{}.sqlite", std::process::id()));
+        let mut db = SqliteMemory::open(&path).unwrap();
+        assert_eq!(db.research_search_provider().unwrap(), Tavily);
+        // The exact row written by the original Brave-only app.
+        db.conn
+            .execute(
+                "INSERT INTO research_settings VALUES('brave_key',?1)",
+                ["synthetic-legacy-brave-key"],
+            )
+            .unwrap();
+        assert_eq!(db.research_search_provider().unwrap(), Brave);
+        db.set_research_search_key(Tavily, "synthetic-tavily-key")
+            .unwrap();
+        assert_eq!(
+            db.research_search_provider().unwrap(),
+            Brave,
+            "saving does not silently switch providers"
+        );
+        db.set_research_search_key(Brave, "").unwrap();
+        assert_eq!(
+            db.research_search_provider().unwrap(),
+            Brave,
+            "removing does not enable a different provider"
+        );
+        assert!(db.research_search_configured(Tavily).unwrap());
+        drop(db);
+        let mut db = SqliteMemory::open(&path).unwrap();
+        assert_eq!(db.research_search_provider().unwrap(), Brave);
+        assert!(!db.research_search_configured(Brave).unwrap());
+        assert_eq!(
+            db.research_search_key(Tavily).unwrap().as_deref(),
+            Some("synthetic-tavily-key")
+        );
+        db.set_research_search_provider(Tavily).unwrap();
+        drop(db);
+        let db = SqliteMemory::open(&path).unwrap();
+        assert_eq!(db.research_search_provider().unwrap(), Tavily);
+        assert!(serde_json::from_str::<SearchProvider>("\"https://attacker.example\"").is_err());
+        drop(db);
+        std::fs::remove_file(path).unwrap();
     }
 }
