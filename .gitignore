@@ -55,3 +55,4 @@ fuzz/coverage/
 node_modules/
 
 bench/documents/result/
+bench/research/result/

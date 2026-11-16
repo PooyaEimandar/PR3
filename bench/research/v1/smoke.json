@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "split": "smoke",
+  "cases": [
+    {
+      "id": "s01",
+      "family": "smoke-lookup",
+      "online": false,
+      "topic": "What is the Meadow badge code? Cite the record.",
+      "documents": [
+        {
+          "name": "meadow.md",
+          "text": "The Meadow badge code is MP-614."
+        }
+      ],
+      "pages": [],
+      "checks": {
+        "facts": [
+          [
+            "MP-614"
+          ]
+        ],
+        "quotes": [
+          [
+            "MP-614"
+          ]
+        ],
+        "minSources": 1,
+        "analysis": [],
+        "forbidden": [],
+        "rubric": "Every substantive conclusion must be supported by its cited evidence; no extra claims."
+      }
+    },
+    {
+      "id": "s02",
+      "family": "smoke-web",
+      "online": true,
+      "topic": "What is the Pebble shuttle fare?",
+      "documents": [],
+      "pages": [
+        {
+          "url": "https://research.example/pebble-fare",
+          "title": "pebble-fare",
+          "text": "The Pebble shuttle fare is 9 tokens."
+        }
+      ],
+      "checks": {
+        "facts": [
+          [
+            "9"
+          ]
+        ],
+        "quotes": [
+          [
+            "9 tokens"
+          ]
+        ],
+        "minSources": 1,
+        "analysis": [],
+        "forbidden": [],
+        "rubric": "Every substantive conclusion must be supported by its cited evidence; no extra claims."
+      }
+    }
+  ]
+}

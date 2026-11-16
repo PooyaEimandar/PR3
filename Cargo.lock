@@ -3286,6 +3286,7 @@ dependencies = [
  "pr3-app",
  "pr3-core",
  "pr3-llamacpp",
+ "pr3-memory",
  "pr3-memory-sqlite",
  "pr3-tool",
  "serde_json",

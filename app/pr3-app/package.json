@@ -7,7 +7,8 @@
     "build": "tsc",
     "watch": "tsc --watch --preserveWatchOutput",
     "check": "tsc --noEmit && npm run check:test",
-    "test": "npm run check:test && node --test test/turn-stop.test.ts",
+    "test": "npm run check:test && node --test test/turn-stop.test.ts && npm run test:research",
+    "test:research": "tsc -p ../../bench/research/tsconfig.json && node --test ../../bench/research/*.test.ts",
     "test:e2e:build": "npm run build && cargo build -p pr3-app --features e2e --locked",
     "test:e2e": "npm run check:test && node --test --test-concurrency=1 test/workflow.test.ts",
     "check:test": "tsc -p tsconfig.test.json"
