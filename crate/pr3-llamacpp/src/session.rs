@@ -601,6 +601,43 @@ impl<'m> Session<'m> {
                 return Ok(prompt);
             }
             longest = longest.max(prompt.tokens.len());
+            // A saved-source view can be reduced without changing the stored evidence,
+            // current request, host status, or tool-call budget. Measure each candidate
+            // with the actual model tokenizer and the complete protected template,
+            // before dropping historical user context from this window.
+            let window: Vec<ChatMessage> = window.into_iter().cloned().collect();
+            let query = window
+                .iter()
+                .rev()
+                .find(|m| m.role == ChatRole::User)
+                .map(|m| m.content.as_str())
+                .unwrap_or_default();
+            for (bytes, count) in [(800, 4), (500, 4), (300, 4), (300, 2), (160, 1)] {
+                let mut compact = window.clone();
+                let mut changed = false;
+                for message in &mut compact {
+                    if message.role == ChatRole::Tool
+                        && message.saved_evidence
+                        && let Some(content) =
+                            crate::saved_evidence_view(&message.content, query, "", bytes, count)
+                    {
+                        message.content = content;
+                        changed = true;
+                    }
+                }
+                if !changed {
+                    break;
+                }
+                let prompt = self.tokenize(&prompt::render(
+                    self.format,
+                    &compact.iter().collect::<Vec<_>>(),
+                    tools,
+                    self.config.thinking,
+                ));
+                if prompt.tokens.len() + room_for_answer <= n_ctx {
+                    return Ok(prompt);
+                }
+            }
         }
         Err(EngineError::ContextFull {
             prompt_tokens: longest,
@@ -641,6 +678,53 @@ fn count(n: usize) -> u32 {
 mod tests {
     use super::*;
     use ChatRole::{Assistant as A, Tool as T, User as U};
+
+    #[test]
+    #[ignore = "requires the local 4B tokenizer; no generation or network"]
+    fn actual_token_budget_excerpts_only_marked_evidence_and_reserves_the_full_answer() {
+        let config = EngineConfig {
+            n_ctx: 4096,
+            max_new_tokens: 512,
+            gpu_layers: 0,
+            ..EngineConfig::default()
+        };
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../model/Qwen3.5-4B-Q4_K_M.gguf");
+        let model = load(&path, &config).unwrap();
+        let session = Session::new(&model, config).unwrap();
+        let content=serde_json::json!({"source_count":4,"sources":(0..4).map(|i|serde_json::json!({"source":format!("research:1:{i}"),"text":"Unrelated background sentence. ".repeat(100)})).collect::<Vec<_>>()}).to_string();
+        let mut messages = vec![
+            ChatMessage::new(ChatRole::System, "Keep the trusted rules. ".repeat(240)),
+            ChatMessage::new(U, "Quote one background sentence."),
+            ChatMessage::new(T, content),
+        ];
+        assert!(matches!(
+            session.prompt_tokens(&messages, &[]),
+            Err(EngineError::ContextFull { .. })
+        ));
+        messages[2].saved_evidence = true;
+        let original = messages.clone();
+        let fitted = session.prompt_tokens(&messages, &[]).unwrap();
+        assert!(fitted.tokens.len() + 512 <= 4096);
+        assert_eq!(
+            messages, original,
+            "fitting must not change stored history or evidence"
+        );
+        messages[1].content = "The user's request cannot be shortened. ".repeat(1000);
+        assert!(matches!(
+            session.prompt_tokens(&messages, &[]),
+            Err(EngineError::ContextFull { .. })
+        ));
+        messages = original;
+        messages[2].role = U;
+        messages[2].content = messages[2].content.repeat(2);
+        assert!(
+            matches!(
+                session.prompt_tokens(&messages, &[]),
+                Err(EngineError::ContextFull { .. })
+            ),
+            "a flag cannot turn user text into expendable tool data"
+        );
+    }
 
     #[test]
     fn windows_drop_whole_exchanges_but_never_the_last_question() {

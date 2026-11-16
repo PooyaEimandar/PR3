@@ -14,6 +14,7 @@
 #![cfg_attr(test, allow(clippy::disallowed_macros))] // tests may assert (clippy.toml)
 
 mod cache;
+mod evidence;
 mod prompt;
 mod session;
 mod text;
@@ -28,6 +29,7 @@ use std::thread::JoinHandle;
 use llama_cpp_2::llama_backend::LlamaBackend;
 
 pub use crate::prompt::PromptFormat;
+pub use evidence::saved_evidence_view;
 
 /// For the fuzz targets in `fuzz/` only, which build with `--cfg fuzzing`: the output
 /// path from token bytes to tool calls, exactly as a session runs it, without a model.
@@ -106,6 +108,9 @@ pub struct ChatMessage {
     pub content: String,
     /// The calls an assistant turn made; the engine writes them in the model's format.
     pub tool_calls: Vec<ToolCallText>,
+    /// Host-owned, transient saved-source view. Only this Tool message may have
+    /// its evidence excerpted to fit the input budget; it never gains authority.
+    pub saved_evidence: bool,
 }
 
 impl ChatMessage {
@@ -114,6 +119,7 @@ impl ChatMessage {
             role,
             content: content.into(),
             tool_calls: Vec::new(),
+            saved_evidence: false,
         }
     }
 }
