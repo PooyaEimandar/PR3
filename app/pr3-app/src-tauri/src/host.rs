@@ -706,11 +706,28 @@ impl Host {
         &self,
         text: String,
         utc_offset_minutes: i32,
+        on_event: F,
+    ) -> Result<Vec<Action>, HostError>
+    where
+        F: FnMut(TurnEvent) + Send + 'static,
+    {
+        self.send_with_controls(text, None, utc_offset_minutes, on_event)
+            .await
+    }
+
+    async fn send_with_controls<F>(
+        &self,
+        text: String,
+        controls: Option<chat::ChatControls>,
+        utc_offset_minutes: i32,
         mut on_event: F,
     ) -> Result<Vec<Action>, HostError>
     where
         F: FnMut(TurnEvent) + Send + 'static,
     {
+        if text.len() > Config::default().max_input_bytes {
+            return Err(HostError::Host("Message is too long".into()));
+        }
         let (session, opened) = {
             let mut tasks = self.tasks()?;
             tasks.idle().map_err(HostError::Host)?;
@@ -719,7 +736,7 @@ impl Host {
         if let Some(opened) = opened {
             on_event(TurnEvent::TaskOpened(opened));
         }
-        self.send_started(session, text, utc_offset_minutes, on_event)
+        self.send_started(session, text, controls, utc_offset_minutes, on_event)
             .await
     }
 
@@ -735,14 +752,67 @@ impl Host {
         &self,
         id: SessionId,
         utc_offset_minutes: i32,
+        on_event: F,
+    ) -> Result<Vec<Action>, HostError>
+    where
+        F: FnMut(TurnEvent) + Send + 'static,
+    {
+        self.retry_with_controls(id, None, utc_offset_minutes, on_event)
+            .await
+    }
+    pub async fn retry_with_controls<F>(
+        &self,
+        id: SessionId,
+        current: Option<chat::ChatControls>,
+        utc_offset_minutes: i32,
         mut on_event: F,
     ) -> Result<Vec<Action>, HostError>
     where
         F: FnMut(TurnEvent) + Send + 'static,
     {
+        if let Some(current) = &current {
+            current.validate().map_err(HostError::Host)?;
+        }
         let (text, opened) = self.tasks()?.retry(id, now()).map_err(HostError::Host)?;
         on_event(TurnEvent::TaskOpened(opened));
-        self.send_started(id, text, utc_offset_minutes, on_event)
+        let restored = (|| -> Result<Option<chat::ChatControls>, HostError> {
+            Ok(match &self.research_store {
+                Some(db) => db
+                    .lock()
+                    .map_err(|_| HostError::Host("Research storage is unavailable".into()))?
+                    .chat_request(id.0, &text)
+                    .map_err(|e| HostError::Host(e.to_string()))?
+                    .map(|s| {
+                        serde_json::from_str::<chat::ChatControls>(&s)
+                            .map_err(|e| HostError::Host(e.to_string()))
+                    })
+                    .transpose()?,
+                None => None,
+            })
+        })();
+        let mut controls = match restored {
+            Ok(c) => c,
+            Err(e) => {
+                self.tasks()?.end(id, Err(e.to_string()), now());
+                return Err(e);
+            }
+        };
+        if let Some(current) = current {
+            let mut original = controls.unwrap_or_else(|| chat::ChatControls {
+                web: pr3_tool::research::command(&text).is_some_and(|(_, web)| web),
+                websites: String::new(),
+            });
+            // The visible Web switch can revoke an old retry permission. It may
+            // never upgrade an originally local request or broaden source scope.
+            original.web &= current.web;
+            if !original.web {
+                original.websites.clear();
+            } else if !current.websites.trim().is_empty() {
+                original.websites = current.websites;
+            }
+            controls = Some(original);
+        }
+        self.send_started(id, text, controls, utc_offset_minutes, on_event)
             .await
     }
 
@@ -764,6 +834,7 @@ impl Host {
         &self,
         session: SessionId,
         text: String,
+        controls: Option<chat::ChatControls>,
         utc_offset_minutes: i32,
         mut on_event: F,
     ) -> Result<Vec<Action>, HostError>
@@ -783,7 +854,33 @@ impl Host {
                 emit(event);
             }
         };
-        let result = if let Some(command) = crate::memory::command(&text) {
+        let persisted = if let Some(controls) = &controls {
+            (|| {
+                controls.validate().map_err(HostError::Host)?;
+                self.research_store
+                    .as_ref()
+                    .ok_or_else(|| HostError::Host("Chat needs persistent task storage".into()))?
+                    .lock()
+                    .map_err(|_| HostError::Host("Research storage is unavailable".into()))?
+                    .save_chat_request(
+                        session.0,
+                        &text,
+                        &serde_json::to_string(controls)
+                            .map_err(|e| HostError::Host(e.to_string()))?,
+                    )
+                    .map_err(|e| HostError::Host(e.to_string()))
+            })()
+        } else if let Some(db) = &self.research_store {
+            db.lock()
+                .map_err(|_| HostError::Host("Research storage is unavailable".into()))?
+                .clear_chat_request(session.0)
+                .map_err(|e| HostError::Host(e.to_string()))
+        } else {
+            Ok(())
+        };
+        let result = if let Err(error) = persisted {
+            Err(error)
+        } else if let Some(command) = crate::memory::command(&text) {
             self.capture_memory(session, &text, command, &mut recorded)
                 .await
         } else {
@@ -791,10 +888,12 @@ impl Host {
             if self.tasks()?.email_instruction(session) {
                 self.capture_email_instruction(session, &text).await
             } else {
-                self.turn(session, text, utc_offset_minutes, recorded).await
+                self.turn(session, text, controls, utc_offset_minutes, recorded)
+                    .await
             }
             #[cfg(not(feature = "legacy-email-bench"))]
-            self.turn(session, text, utc_offset_minutes, recorded).await
+            self.turn(session, text, controls, utc_offset_minutes, recorded)
+                .await
         };
         let outcome = match &result {
             Ok(actions) => actions
@@ -988,6 +1087,7 @@ impl Host {
         &self,
         session: SessionId,
         text: String,
+        controls: Option<chat::ChatControls>,
         utc_offset_minutes: i32,
         on_event: F,
     ) -> Result<Vec<Action>, HostError>
@@ -999,12 +1099,21 @@ impl Host {
         let restoring = self.core()?.history(session).next().is_none();
         self.restore(session)?;
         let on_event = Arc::new(Mutex::new(on_event));
-        if self.research_state(session)?.is_none() && pr3_tool::research::command(&text).is_none() {
+        let research_turn = if controls.is_some() {
+            chat::direct_research(&text, self.research_state(session)?.is_some())
+        } else {
+            self.research_state(session)?.is_some() || pr3_tool::research::command(&text).is_some()
+        };
+        if !research_turn && self.research_state(session)?.is_none() {
             self.catch_up(session, &on_event).await?;
         }
         self.cancelled(session)?;
         let utterance = text.clone();
-        if let Some((topic, web)) = pr3_tool::research::command(&text) {
+        if research_turn && let Some(controls) = &controls {
+            self.prepare_chat_research(session, &text, controls)?;
+        } else if controls.is_none()
+            && let Some((topic, web)) = pr3_tool::research::command(&text)
+        {
             if !self.tools.contains_key(pr3_tool::research::SEARCH) {
                 return Err(HostError::Host(
                     "Research tools are unavailable in this host".into(),
@@ -1050,7 +1159,7 @@ impl Host {
             // Confirmed memory corrections precede historical conversation excerpts.
             notes.push(context);
         }
-        if let Some(run) = research {
+        if research_turn && let Some(run) = research {
             notes.push(format!("Research topic: {}. Web permission: {}. The topic fixes web search scope, not the answer to a follow-up. Reuse the supplied saved evidence; retrieve only missing evidence. Call answer_research in THIS turn. Prior reports are not validation. Saved snapshots are not live checks.",run.topic,run.web));
         }
         #[cfg(feature = "legacy-email-bench")]
@@ -1072,7 +1181,11 @@ impl Host {
                 session,
                 queue,
                 utc_offset_minutes,
-                &utterance,
+                chat::TurnRouting {
+                    utterance: &utterance,
+                    controls,
+                    research: research_turn,
+                },
                 on_event,
                 &mut generated,
             )
@@ -1198,19 +1311,23 @@ impl Host {
         session: SessionId,
         mut queue: Vec<Action>,
         utc_offset_minutes: i32,
-        utterance: &str,
+        routing: chat::TurnRouting<'_>,
         on_event: Arc<Mutex<F>>,
         generated_text: &mut Vec<Option<String>>,
     ) -> Result<Vec<Action>, HostError>
     where
         F: FnMut(TurnEvent) + Send + 'static,
     {
+        let chat::TurnRouting {
+            utterance,
+            controls,
+            research: mut research_turn,
+        } = routing;
         let mut for_ui = Vec::new();
         let mut document_turn = utterance.starts_with("Search my documents:")
-            || self.tasks()?.has_document_sources(session);
+            || (controls.is_none() && self.tasks()?.has_document_sources(session));
         let mut document_answer: Option<String> = None;
-        let research_turn =
-            self.research_state(session)?.is_some() || self.tasks()?.has_research_sources(session);
+        research_turn |= controls.is_none() && self.tasks()?.has_research_sources(session);
         let mut research_answer: Option<String> = None;
         let mut offered_research_tools = std::collections::BTreeSet::new();
         for _ in 0..MAX_ROUND_TRIPS {
@@ -1226,16 +1343,18 @@ impl Host {
             }
             match action {
                 Action::Infer(mut request) => {
-                    request
-                        .tools
-                        .retain(|tool| pr3_tool::research::is_tool(&tool.name) == research_turn);
+                    if research_turn || controls.is_none() {
+                        request.tools.retain(|tool| {
+                            pr3_tool::research::is_tool(&tool.name) == research_turn
+                        });
+                    } else {
+                        self.chat_discovery(&mut request, utterance);
+                    }
                     if research_turn && research_answer.is_none() {
                         self.research_context(&mut request, utterance)?;
                     }
-                    if research_turn {
-                        offered_research_tools =
-                            request.tools.iter().map(|t| t.name.clone()).collect();
-                    }
+                    offered_research_tools.clear();
+                    offered_research_tools.extend(request.tools.iter().map(|t| t.name.clone()));
                     let id = request.id;
                     // The checked report is already the final product. Route it through
                     // the core's ordinary completion boundary without another model
@@ -1252,10 +1371,10 @@ impl Host {
                         }))
                     } else if research_turn
                         || document_turn
-                        || request
-                            .tools
-                            .iter()
-                            .any(|t| t.name == pr3_tool::documents::SEARCH)
+                        || request.tools.iter().any(|t| {
+                            t.name == pr3_tool::documents::SEARCH
+                                || t.name == pr3_tool::research::SEARCH
+                        })
                     {
                         self.infer(request, Arc::new(Mutex::new(|_| {}))).await
                     } else {
@@ -1279,6 +1398,18 @@ impl Host {
                     });
                     let input = match generated {
                         Ok(Ok(mut g)) => {
+                            // Enter the restricted research path before feeding ANY
+                            // call in a mixed batch to the core. A model cannot pair
+                            // research with an unrelated action to escape its limits.
+                            if !research_turn
+                                && let Some(controls) = &controls
+                                && g.tool_calls
+                                    .iter()
+                                    .any(|c| pr3_tool::research::is_tool(&c.name))
+                            {
+                                self.prepare_chat_research(session, utterance, controls)?;
+                                research_turn = true;
+                            }
                             if g.tool_calls.is_empty() {
                                 if research_turn || g.content.contains("[research:") {
                                     g.content = research_answer
@@ -1346,12 +1477,12 @@ impl Host {
                         utterance: utterance.to_string(),
                         earlier,
                     };
-                    let ToolOutput { result, sources } = if research_turn
+                    let ToolOutput { result, sources } = if (research_turn || controls.is_some())
                         && !offered_research_tools.contains(&call.name)
                     {
                         Err("This research tool is not available in the current round. The final round is reserved for the report; no call was executed.".to_string()).into()
                     } else {
-                        self.run_tool(&call, ctx).await
+                        self.run_tool(&call, ctx, research_turn).await
                     };
                     // Keep the actual tool result even if the core lock is unavailable.
                     // Feeding its outcome below still reports that runtime failure.
@@ -1601,11 +1732,7 @@ impl Host {
     /// Runs a call the core has already validated against the tool's schema, on a
     /// blocking worker thread, since a tool may wait on the network as `read_web_page`
     /// does.
-    async fn run_tool(&self, call: &ToolCall, ctx: ToolContext) -> ToolOutput {
-        let researching = match self.research_state(ctx.session) {
-            Ok(run) => run.is_some(),
-            Err(error) => return Err(error.to_string()).into(),
-        };
+    async fn run_tool(&self, call: &ToolCall, ctx: ToolContext, researching: bool) -> ToolOutput {
         if researching && !pr3_tool::research::is_tool(&call.name) {
             return Err("Research can only collect, read and cite sources. Other tools need a separate user request.".into()).into();
         }
@@ -3779,4 +3906,7 @@ mod document_tests;
 #[cfg(test)]
 mod research_tests;
 
+pub mod chat;
+#[cfg(test)]
+mod chat_tests;
 pub(crate) mod research_context;

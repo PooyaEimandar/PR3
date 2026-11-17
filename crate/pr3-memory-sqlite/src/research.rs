@@ -108,6 +108,59 @@ fn unique_reference<T>(mut matches: impl Iterator<Item = T>) -> Result<Option<T>
 }
 
 impl SqliteMemory {
+    pub fn clear_chat_request(&mut self, task: u64) -> Result<(), MemoryError> {
+        self.conn
+            .execute("DELETE FROM chat_requests WHERE task=?1", [sql_id(task)?])
+            .map_err(error)?;
+        Ok(())
+    }
+    pub fn save_chat_request(
+        &mut self,
+        task: u64,
+        text: &str,
+        controls: &str,
+    ) -> Result<(), MemoryError> {
+        if controls.len() > 1024 {
+            return Err(invalid("Chat controls are too long"));
+        }
+        let hash = pr3_core::trusted::Hash::of(&[text.as_bytes()]).to_hex();
+        self.conn.execute("INSERT INTO chat_requests VALUES(?1,?2,?3) ON CONFLICT(task) DO UPDATE SET utterance_hash=excluded.utterance_hash, controls=excluded.controls",
+            params![sql_id(task)?, hash, controls]).map_err(error)?;
+        Ok(())
+    }
+    pub fn chat_request(&self, task: u64, text: &str) -> Result<Option<String>, MemoryError> {
+        let hash = pr3_core::trusted::Hash::of(&[text.as_bytes()]).to_hex();
+        self.conn
+            .query_row(
+                "SELECT controls FROM chat_requests WHERE task=?1 AND utterance_hash=?2",
+                params![sql_id(task)?, hash],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(error)
+    }
+
+    /// Only the host's actual user request may change the search topic or web
+    /// permission. The host carries forward the task's narrowed website scope.
+    pub fn configure_chat_research(
+        &mut self,
+        task: u64,
+        topic: &str,
+        web: bool,
+    ) -> Result<(), MemoryError> {
+        if self.research(task)?.is_none() {
+            return self.begin_research(task, topic, web);
+        }
+        if topic.trim().is_empty() || topic.len() > 512 || topic.chars().any(char::is_control) {
+            return Err(invalid(
+                "Use a research question of 1–512 UTF-8 bytes on one line",
+            ));
+        }
+        self.conn.execute("UPDATE research_runs SET search_state=CASE WHEN ?3=0 THEN 'disabled' WHEN topic<>?2 OR web=0 THEN 'pending' ELSE search_state END, search_error=CASE WHEN topic<>?2 OR web<>?3 THEN NULL ELSE search_error END, topic=?2, web=?3 WHERE task=?1",
+            params![sql_id(task)?,topic,web]).map_err(error)?;
+        Ok(())
+    }
+
     pub fn research_source_reference(
         &self,
         task: u64,

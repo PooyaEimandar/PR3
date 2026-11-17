@@ -51,6 +51,18 @@ impl pr3_tool::web::Fetch for Pages {
 fn string<'a>(v: &'a Value, k: &str) -> Result<&'a str, String> {
     v[k].as_str().ok_or_else(|| format!("{k} required"))
 }
+fn tools(
+    db: &pr3_tool::documents::Library,
+    pages: &Arc<Pages>,
+    chat: bool,
+) -> Vec<Box<dyn pr3_tool::Tool>> {
+    let mut tools = pr3_tool::research::tools(db.clone(), Some(pages.clone()), None);
+    if chat {
+        tools.extend(pr3_tool::builtin());
+        tools.extend(pr3_tool::memory_tools(db.clone()));
+    }
+    tools
+}
 fn quotations_match(answer: &str, expected: &Value) -> bool {
     let quoted = answer
         .lines()
@@ -93,11 +105,19 @@ fn turn(host: &Host, request: &str, case: &Value, db: &pr3_tool::documents::Libr
         }
     }));
     let start = Instant::now();
-    let outcome = block_on(host.send(request.into(), 0, move |e| {
+    let emit = move |e| {
         if let Ok(mut events) = sink.lock() {
             events.push(e);
         }
-    }));
+    };
+    let outcome = if case["chat"].is_object() {
+        match serde_json::from_value(case["chat"].clone()) {
+            Ok(controls) => block_on(host.send_chat(request.into(), controls, 0, emit)),
+            Err(e) => Err(pr3_app_lib::bench::HostError::Host(e.to_string())),
+        }
+    } else {
+        block_on(host.send(request.into(), 0, emit))
+    };
     let (answer, error) = match outcome {
         Ok(actions) => (
             actions
@@ -187,22 +207,27 @@ fn run() -> Result<(), String> {
             on: AtomicBool::new(true),
             reads: AtomicUsize::new(0),
         });
-        let host = Host::new(
-            model.clone(),
-            pr3_tool::research::tools(db.clone(), Some(pages.clone()), None),
-        )
-        .map_err(|e| e.to_string())?
-        .with_tasks(db.clone(), 30)
-        .map_err(|e| e.to_string())?;
-        let request = format!(
-            "Research {}: {}",
-            if case["online"] == true {
-                "online"
-            } else {
-                "locally"
-            },
-            string(case, "topic")?
-        );
+        let host = Host::new(model.clone(), tools(&db, &pages, case["chat"].is_object()))
+            .map_err(|e| e.to_string())?;
+        let host = if case["chat"].is_object() {
+            host.with_memory(db.clone())
+        } else {
+            host
+        };
+        let host = host.with_tasks(db.clone(), 30).map_err(|e| e.to_string())?;
+        let request = if case["chat"].is_object() {
+            string(case, "topic")?.to_string()
+        } else {
+            format!(
+                "Research {}: {}",
+                if case["online"] == true {
+                    "online"
+                } else {
+                    "locally"
+                },
+                string(case, "topic")?
+            )
+        };
         let mut turns = vec![turn(&host, &request, case, &db)];
         let task = host
             .current_task()
@@ -217,20 +242,22 @@ fn run() -> Result<(), String> {
             let db = Arc::new(Mutex::new(
                 SqliteMemory::open(&path).map_err(|e| e.to_string())?,
             ));
-            let host = Host::new(
-                model.clone(),
-                pr3_tool::research::tools(db.clone(), Some(pages.clone()), None),
-            )
-            .map_err(|e| e.to_string())?
-            .with_tasks(db.clone(), 30)
-            .map_err(|e| e.to_string())?;
+            let host = Host::new(model.clone(), tools(&db, &pages, case["chat"].is_object()))
+                .map_err(|e| e.to_string())?;
+            let host = if case["chat"].is_object() {
+                host.with_memory(db.clone())
+            } else {
+                host
+            };
+            let host = host.with_tasks(db.clone(), 30).map_err(|e| e.to_string())?;
             host.continue_task(pr3_core::SessionId(task))?;
-            turns.push(turn(
-                &host,
-                request,
-                case.get("restart_checks").unwrap_or(case),
-                &db,
-            ));
+            let mut checks = case.get("restart_checks").unwrap_or(case).clone();
+            if case["chat"].is_object() {
+                checks["chat"] = case["chat"].clone();
+                checks["chat"]["web"] = json!(false);
+                checks["chat"]["websites"] = json!("");
+            }
+            turns.push(turn(&host, request, &checks, &db));
         }
         let passed = turns.iter().all(|t| t["pass"] == true);
         writeln!(output,"{}",json!({"id":id,"seed":seed,"development":true,"web":"offline fixtures, no live provider","pass":passed,"page_fetches":pages.reads.load(Ordering::SeqCst),"turns":turns})).map_err(|e|e.to_string())?;

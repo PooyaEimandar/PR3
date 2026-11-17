@@ -3,17 +3,13 @@ use pr3_memory_sqlite::research::{Evidence, SearchProvider};
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
-/// Validate the dialog before it opens a new task. Typed chat requests retain the
-/// runtime clarification path; neither path trusts model-generated scope.
 #[tauri::command]
-pub fn validate_research_topic(topic: String) -> Result<(), String> {
-    if topic.trim().is_empty() || topic.len() > 512 || topic.chars().any(char::is_control) {
-        return Err("Use a research topic of 1–512 UTF-8 bytes on one line".into());
-    }
-    if let Some(problem) = pr3_tool::research_scope::SourceScope::from_topic(&topic).problem() {
-        return Err(problem.into());
-    }
-    Ok(())
+pub fn chat_scope(
+    app: AppHandle,
+    host: tauri::State<'_, crate::host::Host>,
+) -> Result<Vec<String>, String> {
+    crate::storage::require_ready(&app)?;
+    host.chat_scope()
 }
 
 fn library(app: &AppHandle) -> Result<pr3_tool::documents::Library, String> {

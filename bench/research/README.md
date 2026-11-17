@@ -36,6 +36,15 @@ Model loading is outside warm-turn timings. Adapter wall time is recorded separa
 
 ## Development diagnostics
 
+`chat-regressions.json` exercises the unified chat entry point with the production Host and local model: natural document comparison, model-selected research without an explicit research command, and a user-provided public-link fixture. Two scenarios reopen SQLite and reuse saved evidence with Web off. The optional `chat` object sends structured composer controls instead of an implicit `Research:` prefix; ordinary clock/calculator/memory tools are available before research begins. This is exposed development coverage, not a held-out or matched comparison. Review the saved answers against their source snapshots in addition to the automatic quotation checks. The [three-seed 4B check](evidence/2026-11-17-unified-chat.md) records 15/15 diagnostic passes and the remaining presentation limitations.
+
+```sh
+cargo build -p pr3-bench-documents --bin research --locked
+# Use a fresh output path for each seed, 1/2/7.
+target/debug/research model/Qwen3.5-4B-Q4_K_M.gguf 1 \
+  bench/research/chat-regressions.json /tmp/research-chat-4b-seed1.jsonl
+```
+
 `run-reliability.ts` freezes and runs the context, quotation, source-scope/conditional-reasoning and public-page development replays together, using 4B and 27B at seeds 1/2/7. It records source, corpus, model and executable hashes and preserves every failed turn. Public SQLite HTML is downloaded once during preparation; all model turns then use offline page fixtures with the production parser. This does not replay Tavily's search-result inventory or provider timing. Run it with a copied executable and a new directory:
 
 ```sh
@@ -67,6 +76,6 @@ Each JSONL row preserves final answers, errors, tool events, full core traces an
 
 Automatic checks require a runtime-validated report, expected fact strings, a minimum count of distinct cited source IDs and absence of the injection marker. Expected facts are checked outside source metadata, so digits in a source fingerprint or filename cannot supply a missing fact. The new corpus also checks requested phrases inside actual evidence blockquotes, rather than accepting a mention in analysis; `restart_checks` can specify different expectations for the resumed user request. Every quoted passage is independently checked by the production tool. These development checks do not establish semantic entailment, exhaustive coverage or strong multilingual quality; the completed frozen comparison above adds source review, while independent review and a larger real-page holdout remain necessary for broader claims. An irrelevant quoted hostile instruction counts as an answer-quality failure even if no tool action follows it. Desktop timings here are diagnostic and may include concurrent test/build load; they are not Android latency measurements.
 
-Regression coverage also exercises exact user-topic egress, candidate-only web reads, fabricated quotations, snippets, task isolation, source deletion, Stop/retry, bounded storage/output, malformed provider results and missing keys. Native UI automation covers Research → compare → restart → inspect → remove; real public-link reader smoke tests are separate. Live keyed Brave search and physical Android acceptance remain manual gates.
+Regression coverage also exercises exact user-topic egress, candidate-only web reads, fabricated quotations, snippets, task isolation, source deletion, Stop/retry, bounded storage/output, malformed provider results and missing keys. Native UI automation covers ordinary chat → natural research in the same task → ordinary chat → restart → inspect → remove, along with inline source validation and New task. Real public-link reader smoke tests are separate. Live keyed search and physical Android acceptance remain manual gates.
 
 [Initial 4B development results, seeds 1/2/7](evidence/2026-11-14-development-4b-report.md): 15/18 cases, with all failures retained. [Quotation-fix evaluation and regression results](evidence/2026-11-15-quotation-4b-report.md) rerun that unchanged corpus and the new cases, preserving intermediate failures too.

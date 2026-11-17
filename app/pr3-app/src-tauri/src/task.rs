@@ -1739,15 +1739,21 @@ pub fn retry_task_save(host: tauri::State<'_, Host>) -> Result<(), String> {
 #[tauri::command]
 pub async fn retry_task(
     id: u64,
+    research_controls: Option<crate::host::chat::ChatControls>,
     utc_offset_minutes: i32,
     on_event: Channel<TurnEvent>,
     app: tauri::AppHandle,
     host: tauri::State<'_, Host>,
 ) -> Result<Vec<pr3_core::Action>, String> {
     let result = host
-        .retry(SessionId(id), utc_offset_minutes, move |event| {
-            let _ = on_event.send(event);
-        })
+        .retry_with_controls(
+            SessionId(id),
+            research_controls,
+            utc_offset_minutes,
+            move |event| {
+                let _ = on_event.send(event);
+            },
+        )
         .await
         .map_err(|e| e.to_string());
     crate::settle_later(app);

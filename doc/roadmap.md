@@ -41,6 +41,8 @@ The spike ends with the 30-day user-zero diary and the AgentDojo result; togethe
 
 The [OpenJarvis capability and acceptance checklist](openjarvis-parity.md) records the concrete gaps beyond research, including ingestion/retrieval, approved exports, scheduling, skills, code tools, routing and release operations. These remain separate from benchmark scores.
 
+**One chat for requests and research.** Research now runs from natural messages in the current task, with inline Web and Sources controls. Subsequent ordinary questions use the same chat; New task starts separate source storage. Web resets off after restart or task switching, retry cannot upgrade the original permission, and website restrictions persist until a new task. Source validation, approvals and execution limits remain enforced. Native workflow and host regressions cover this path; physical Android acceptance and broader natural-language routing quality remain open.
+
 Email and contacts are **retired from the shipped app**: no address-book permission or sync, mail tool, draft planner, mail-app handoff or Contacts settings. Old action cards cannot execute. The trusted gate, receipt verification, approval expiry and execution limits remain in the core. Historical email adapters are isolated behind a debug-only `legacy-email-bench` feature; frozen corpora and results are preserved, not counted as current product capabilities. The [previous inventory](../bench/legacy-email/roadmap-2026-11-12.md) records that history.
 
 | Area | Current implementation | Remaining work / acceptance gate |

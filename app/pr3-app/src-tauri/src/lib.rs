@@ -80,21 +80,27 @@ fn platform_info(host: tauri::State<'_, Host>) -> PlatformInfo {
 #[tauri::command]
 async fn send_message(
     text: String,
+    research_controls: Option<host::chat::ChatControls>,
     utc_offset_minutes: i32,
     on_event: Channel<TurnEvent>,
     app: tauri::AppHandle,
     host: tauri::State<'_, Host>,
 ) -> Result<Vec<pr3_core::Action>, String> {
     storage::require_ready(&app)?;
-    let result = host
-        .send(text, utc_offset_minutes, move |event| {
-            #[cfg(feature = "e2e")]
-            e2e::hold_turn_event(&event);
-            // A closed channel only means the window went away; the turn still completes.
-            let _ = on_event.send(event);
-        })
-        .await
-        .map_err(|e| e.to_string());
+    let emit = move |event| {
+        #[cfg(feature = "e2e")]
+        e2e::hold_turn_event(&event);
+        // A closed channel only means the window went away; the turn still completes.
+        let _ = on_event.send(event);
+    };
+    let result = match research_controls {
+        Some(controls) => {
+            host.send_chat(text, controls, utc_offset_minutes, emit)
+                .await
+        }
+        None => host.send(text, utc_offset_minutes, emit).await,
+    }
+    .map_err(|e| e.to_string());
     settle_later(app);
     result
 }
@@ -498,7 +504,7 @@ pub fn run() {
             documents::document_source,
             documents::remove_document,
             research::research_source,
-            research::validate_research_topic,
+            research::chat_scope,
             research::research_settings,
             research::set_research_provider,
             research::set_research_key,

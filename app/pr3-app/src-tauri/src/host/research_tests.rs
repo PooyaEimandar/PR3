@@ -238,7 +238,7 @@ fn stop_requires_explicit_retry_and_research_cannot_call_unrelated_tools() {
         arguments: "{}".into(),
     };
     assert!(
-        tauri::async_runtime::block_on(host.run_tool(&call, ctx))
+        tauri::async_runtime::block_on(host.run_tool(&call, ctx, true))
             .result
             .is_err()
     );

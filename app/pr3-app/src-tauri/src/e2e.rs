@@ -62,23 +62,38 @@ impl Backend for ScriptedModel {
         let asked = last.rsplit("\n\n").next().unwrap_or(last);
         let mut result = Generation::default();
         let last_tool = request.messages.iter().rev().find(|m| m.role == Role::Tool);
-        if asked.starts_with("Research locally:") {
-            if last_tool.is_none() {
+        if request
+            .tools
+            .iter()
+            .any(|t| t.name == pr3_tool::research::ANSWER)
+        {
+            let saved = request
+                .messages
+                .iter()
+                .find(|m| {
+                    m.tool_call_id.as_deref() == Some(crate::host::research_context::SAVED_EVIDENCE)
+                })
+                .and_then(|m| serde_json::from_str::<serde_json::Value>(&m.content).ok());
+            let sources = saved.as_ref().and_then(|v| v["sources"].as_array());
+            if sources.is_none()
+                && !request.messages.iter().any(|m| {
+                    m.tool_calls
+                        .iter()
+                        .any(|c| c.name == pr3_tool::research::SEARCH)
+                })
+            {
                 result.tool_calls.push(ProposedToolCall {
                     name: "research_sources".into(),
-                    arguments: r#"{"query":"price"}"#.into(),
+                    arguments: serde_json::json!({"query":if asked.starts_with("Search my documents:"){"permit code"}else{"price"}}).to_string(),
                 });
             } else if !request
                 .messages
                 .iter()
                 .any(|m| m.tool_calls.iter().any(|t| t.name == "answer_research"))
             {
-                let findings = last_tool.into_iter().flat_map(|m| {
-                    m.content.split("document:").skip(1).map(|tail|format!("document:{}",tail.chars().take_while(|c|c.is_ascii_hexdigit()||*c==':').collect::<String>()))
-                }).filter(|id|id.starts_with("document:1:")||id.starts_with("document:2:")).take(2).map(|source| {
-                    let quote=if source.starts_with("document:1:"){ "Alpha price is 25." }else{"Beta price is 40."};
-                    serde_json::json!({"text":quote,"citations":[{"source":source,"quote":quote}]})
-                }).collect::<Vec<_>>();
+                let findings = sources.into_iter().flatten().take(2).map(|source|
+                    serde_json::json!({"text":source["text"],"citations":[{"quote_ref":source["quote_ref"]}]})
+                ).collect::<Vec<_>>();
                 result.tool_calls.push(ProposedToolCall {
                     name: "answer_research".into(),
                     arguments:
@@ -129,7 +144,9 @@ impl Backend for ScriptedModel {
     ) -> Result<Generation, String> {
         if request
             .messages
-            .last()
+            .iter()
+            .rev()
+            .find(|m| m.role == Role::User)
             .is_some_and(|m| m.content.rsplit("\n\n").next() == Some("Slow request"))
         {
             if !self.stopped_once.swap(true, Ordering::AcqRel) {

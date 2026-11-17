@@ -208,6 +208,10 @@ const MIGRATIONS: &[&str] = &[
     CREATE TRIGGER document_delete AFTER DELETE ON document_passages BEGIN INSERT INTO document_fts(document_fts,rowid,text) VALUES('delete',old.id,old.text); END;",
 
     research::MIGRATION,
+    // v11: local composer controls for an explicit retry, never inherited by a
+    // different task or transferred as permission to another device.
+    "CREATE TABLE chat_requests(task INTEGER PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+      utterance_hash TEXT NOT NULL, controls TEXT NOT NULL);",
 ];
 
 const COLUMNS: &str = "m.id, m.text, m.status, m.principal, m.created_at, m.valid_at,

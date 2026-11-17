@@ -234,10 +234,13 @@ h1 {
 #composer {
   position: relative;
   display: flex;
+  flex-direction: column;
   gap: 8px;
   padding: 10px 6px 14px;
   border-top: 1px solid var(--line);
 }
+
+.composer-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
 
 #composer button[type="submit"] {
   padding: 10px 12px;
@@ -274,7 +277,7 @@ h1 {
 /* Four buttons share the row with the text box; on small phones they sit closer, so
    "Message PR3" still fits. */
 @media (max-width: 400px) {
-  #composer {
+  .composer-line {
     gap: 6px;
   }
 }
@@ -951,12 +954,21 @@ button.danger {
 .document-passage pre { font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
 #document-source-dialog { width: min(640px, 90vw); max-height: 85dvh; overflow: auto; }
 #document-source-body pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
-#research-dialog .field { display: flex; flex-direction: column; gap: 10px; margin: 18px 0; }
-#research-dialog .field[hidden] { display: none; }
-#research-dialog input[type="text"] { width: 100%; background: var(--bg); color: var(--text); font: inherit; font-size: 16px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; }
-#research-dialog .toggle { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
-#research-dialog input[type="checkbox"] { accent-color: var(--accent); width: 18px; height: 18px; }
-#research-error { color: var(--error); }
+.composer-options { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 0 4px; }
+.composer-options > .meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; font-size: 12px; }
+.chat-web { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+.chat-web input { appearance: none; width: 32px; height: 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); position: relative; margin: 0; cursor: pointer; }
+.chat-web input::before { content: ""; position: absolute; width: 12px; height: 12px; border-radius: 50%; left: 3px; top: 3px; background: var(--muted); transition: transform .15s; }
+.chat-web input:checked { background: var(--accent); border-color: var(--accent); }
+.chat-web input:checked::before { transform: translateX(12px); background: var(--bg); }
+.chat-web input:focus-visible, #chat-sources summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.chat-web input:disabled { opacity: .5; cursor: default; }
+#chat-sources summary { font-size: 13px; cursor: pointer; color: var(--accent); }
+#chat-sources[hidden] { display: none; }
+.source-options { position: absolute; bottom: calc(100% + 8px); left: 6px; right: 6px; z-index: 5; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); box-shadow: 0 4px 16px rgba(0,0,0,.25); }
+.source-options label { display: block; font-size: 14px; margin-bottom: 8px; }
+#research-websites { box-sizing: border-box; width: 100%; background: var(--bg); color: var(--text); font: inherit; font-size: 16px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; }
+.source-options p { margin-bottom: 0; }
 
 /* A task's Back and Settings' Close: icons, drawn like the composer's icon buttons. */
 #task-detail button.icon,

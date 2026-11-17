@@ -139,10 +139,7 @@ impl ResearchTool {
             .map_err(|_| "Research storage is unavailable")?
             .research(task)
             .map_err(|e| e.to_string())?
-            .ok_or(
-                "Start research from the Research button, or write Research: followed by a topic."
-                    .into(),
-            )
+            .ok_or("Ask a research question in chat to collect sources.".into())
     }
     fn search(
         &self,
@@ -464,7 +461,7 @@ impl ResearchTool {
             .map_err(|e| e.to_string())?
             .ok_or("Research was removed")?;
         output.push(format!("Coverage: {} cited source passages. {}",sources.iter().collect::<std::collections::BTreeSet<_>>().len(),
-            if !state.web {"Local documents only.".into()} else if state.search_state=="complete" {"Web search completed for your submitted topic; saved pages are snapshots, not live updates.".into()} else {format!("Web search incomplete: {}",state.search_error.as_deref().unwrap_or("search has not run"))}));
+            if !state.web {"Web off; using local documents and saved sources.".into()} else if state.search_state=="complete" {"Web search completed for your submitted topic; saved pages are snapshots, not live updates.".into()} else {format!("Web search incomplete: {}",state.search_error.as_deref().unwrap_or("search has not run"))}));
         let result = output.join("\n\n");
         if result.len() > 7000 {
             return Err("Report exceeds the output limit. Use fewer, shorter findings.".into());

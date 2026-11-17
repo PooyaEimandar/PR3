@@ -358,7 +358,8 @@ function setBusy(busy: boolean): void {
   input.disabled = storageLocked;
   languageSelect.disabled = busy || voice !== null;
   input.placeholder = storageLocked ? "Unlock storage in Settings" : busy ? "PR3 is answering…" : "Message PR3";
-  find("#research-button", HTMLButtonElement).disabled = busy || storageLocked;
+  find("#research-online", HTMLInputElement).disabled = busy || storageLocked;
+  find("#research-websites", HTMLInputElement).disabled = busy || storageLocked;
 }
 
 async function stopTask(id: number, status: HTMLElement = show("assistant", "Requesting stop…"), active = () => true, retry = () => {}): Promise<void> {
@@ -476,8 +477,8 @@ async function send(text: string, retryId?: number): Promise<void> {
   try {
     const utcOffsetMinutes = -new Date().getTimezoneOffset();
     const actions = retryId === undefined
-      ? await invoke<Action[]>("send_message", { text, utcOffsetMinutes, onEvent })
-      : await invoke<Action[]>("retry_task", { id: retryId, utcOffsetMinutes, onEvent });
+      ? await invoke<Action[]>("send_message", { text, utcOffsetMinutes, onEvent, researchControls: { web: researchOnline.checked, websites: researchOnline.checked ? researchWebsites.value.trim() : "" } })
+      : await invoke<Action[]>("retry_task", { id: retryId, utcOffsetMinutes, onEvent, researchControls: { web: researchOnline.checked, websites: researchOnline.checked ? researchWebsites.value.trim() : "" } });
     bubble.classList.remove("pending");
     for (const action of actions) {
       // The final reply is canonical; it replaces whatever was streamed.
@@ -1571,6 +1572,7 @@ let webRenderVersion = 0;
 
 // Whether PR3 reads the pages the user links. Off, the model is told so when it tries.
 async function renderWeb(problem?: string): Promise<void> {
+  void renderResearchScope();
   const version = ++webRenderVersion;
   // Opening Settings and selecting its remembered tab can overlap. Do not leave
   // stale controls interactive or append results from an older refresh.
@@ -1696,53 +1698,48 @@ function documentSources(into: HTMLElement, text: string): void {
   }, "secondary small"));
 }
 
-const researchDialog = find("#research-dialog", HTMLDialogElement);
-const researchTopic = find("#research-topic", HTMLInputElement);
 const researchOnline = find("#research-online", HTMLInputElement);
 const researchWebsites = find("#research-websites", HTMLInputElement);
-find("#research-button", HTMLButtonElement).addEventListener("click", () => {
-  find("#research-error", HTMLElement).textContent = "";
-  void renderResearchScope();
-  researchDialog.showModal(); researchTopic.focus();
-});
-find("#research-cancel", HTMLButtonElement).addEventListener("click", () => researchDialog.close());
 let researchScopeVersion = 0;
+let savedChatScope: string[] = [];
 async function renderResearchScope(): Promise<void> {
   const version = ++researchScopeVersion;
   const scope = find("#research-scope", HTMLElement);
-  find("#research-websites-field", HTMLElement).hidden = !researchOnline.checked;
-  scope.textContent = researchOnline.checked ? "Checking web search settings…" : "Uses your imported documents. Each research starts a new task.";
+  find("#chat-sources", HTMLDetailsElement).hidden = !researchOnline.checked;
+  scope.textContent = researchOnline.checked ? "Checking web access…" : savedChatScope.length ? "Saved sources only" : "Local documents";
+  scope.title = "Ask naturally in this chat. Saved sources stay with the current task.";
   if (!researchOnline.checked) return;
   try {
     const info = await invoke<ResearchSettings>("research_settings");
     if (version !== researchScopeVersion) return;
-    scope.textContent = !info.web_enabled ? "Web access is off in Settings → Web. Saved sources remain available."
-      : info.configured
-        ? `Sends exactly this topic to ${searchProviderNames[info.provider]}, and reads returned public pages or links you include. Local document text stays on your devices.`
-        : `No ${searchProviderNames[info.provider]} key is saved. Uses local documents and public links you include; automatic search is unavailable.`;
+    scope.textContent = !info.web_enabled ? "Web is off in Settings"
+      : info.configured ? searchProviderNames[info.provider] : `No ${searchProviderNames[info.provider]} key — links only`;
+    scope.title = !info.web_enabled ? "Enable web access in Settings → Web. Saved sources remain available."
+      : "Research may send this message and your selected websites to the search provider. Local document text is not added to the search query.";
   } catch {
-    if (version === researchScopeVersion) scope.textContent = "Search settings are unavailable. Check Settings → Web before starting online research.";
+    if (version === researchScopeVersion) scope.textContent = "Check Settings → Web";
   }
 }
 researchOnline.addEventListener("change", () => { void renderResearchScope(); });
-find("#research-form", HTMLFormElement).addEventListener("submit", async event => {
-  event.preventDefault(); if (answering || storageLocked) return;
-  const websites = researchWebsites.value.trim();
-  const topic = researchTopic.value.trim() + (researchOnline.checked && websites ? ` Sources only: ${websites}` : "");
-  if (!researchTopic.value.trim()) {
-    find("#research-error", HTMLElement).textContent = "Enter a research question."; return;
+void renderResearchScope();
+async function synchronizeChatScope(reset = false): Promise<void> {
+  if (reset) {
+    researchOnline.checked = false;
+    researchWebsites.value = "";
+    savedChatScope = [];
+    find("#chat-sources", HTMLDetailsElement).open = false;
+    void renderResearchScope();
   }
-  if (!topic || new TextEncoder().encode(topic).length > 512) {
-    find("#research-error", HTMLElement).textContent = "Use a shorter topic (up to 512 UTF-8 bytes)."; return;
-  }
+  const task = currentTask, value = researchWebsites.value;
   try {
-    await invoke("validate_research_topic", { topic });
-    const previous = await invoke<TaskCard | null>("new_topic");
-    currentTask = null; foldConversation(previous);
-    researchDialog.close();
-    await send(`Research ${researchOnline.checked ? "online" : "locally"}: ${topic}`);
-  } catch (err) { find("#research-error", HTMLElement).textContent = String(err); }
-});
+    const websites = await invoke<string[]>("chat_scope");
+    if (currentTask === task) {
+      savedChatScope = websites;
+      if (websites.length && researchWebsites.value === value) researchWebsites.value = websites.join(", ");
+      void renderResearchScope();
+    }
+  } catch { /* Locked storage does not grant web access or reset saved scope. */ }
+}
 async function renderDocuments(problem?: string): Promise<void> {
   documentsPane.replaceChildren(el("h2", "Documents"), el("p", "Search files you choose. PR3 keeps an encrypted snapshot on this device. Import the file again when it changes. Text and Markdown, up to 512 KiB per file.", "meta"));
   const status = el("p", problem ?? "", problem ? "error-text" : "meta");
@@ -2173,6 +2170,7 @@ async function openTask(id: number): Promise<void> {
 }
 
 function refreshTaskAfterTurn(): void {
+  void synchronizeChatScope();
   if (tasksSection.hidden) return;
   if (!taskList.hidden) renderTasks();
   else if (taskDetail.dataset.task) openTask(Number(taskDetail.dataset.task));
@@ -2317,6 +2315,7 @@ function backTo(id: number, next: Continued, after: Node[] = []): void {
   for (const entry of next.task.chat) addToLog(entryNode(entry));
   for (const node of after) addToLog(node);
   currentTask = id;
+  void synchronizeChatScope(true);
   showTasks(false);
   if (next.task.waiting) askAgain(id);
 }
@@ -2337,6 +2336,7 @@ async function followUp(id: number, status: HTMLElement): Promise<void> {
 function followingUp(id: number, next: FollowingUp, after: Node[] = []): void {
   foldConversation(next.previous);
   currentTask = null;
+  void synchronizeChatScope(true);
   log.querySelector("button.fold.following")?.remove();
   const line = addFold(id, `Following up: ${next.parent.title}`);
   line.classList.add("following");
@@ -2350,6 +2350,7 @@ async function startNewTopic(): Promise<void> {
   try {
     const previous = await invoke<TaskCard | null>("new_topic");
     currentTask = null;
+    void synchronizeChatScope(true);
     // New topic also drops a follow-up that was about to start.
     log.querySelector("button.fold.following")?.remove();
     foldConversation(previous);
@@ -2389,6 +2390,7 @@ async function restoreConversation(): Promise<void> {
   const task = await invoke<TaskView | null>("current_task").catch(() => null);
   if (!task) return;
   currentTask = task.id;
+  void synchronizeChatScope(true);
   for (const entry of task.chat) addToLog(entryNode(entry));
   if (task.waiting) askAgain(task.id);
 }
