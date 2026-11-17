@@ -1212,6 +1212,7 @@ impl Host {
         let research_turn =
             self.research_state(session)?.is_some() || self.tasks()?.has_research_sources(session);
         let mut research_answer: Option<String> = None;
+        let mut offered_research_tools = std::collections::BTreeSet::new();
         for _ in 0..MAX_ROUND_TRIPS {
             if queue.is_empty() {
                 break;
@@ -1230,6 +1231,10 @@ impl Host {
                         .retain(|tool| pr3_tool::research::is_tool(&tool.name) == research_turn);
                     if research_turn && research_answer.is_none() {
                         self.research_context(&mut request, utterance)?;
+                    }
+                    if research_turn {
+                        offered_research_tools =
+                            request.tools.iter().map(|t| t.name.clone()).collect();
                     }
                     let id = request.id;
                     // The checked report is already the final product. Route it through
@@ -1341,7 +1346,13 @@ impl Host {
                         utterance: utterance.to_string(),
                         earlier,
                     };
-                    let ToolOutput { result, sources } = self.run_tool(&call, ctx).await;
+                    let ToolOutput { result, sources } = if research_turn
+                        && !offered_research_tools.contains(&call.name)
+                    {
+                        Err("This research tool is not available in the current round. The final round is reserved for the report; no call was executed.".to_string()).into()
+                    } else {
+                        self.run_tool(&call, ctx).await
+                    };
                     // Keep the actual tool result even if the core lock is unavailable.
                     // Feeding its outcome below still reports that runtime failure.
                     let labels = self
@@ -3182,7 +3193,12 @@ mod tests {
             request: &InferenceRequest,
             _: &mut dyn FnMut(&str),
         ) -> Result<Generation, String> {
-            let last = request.messages.last().unwrap();
+            let last = request
+                .messages
+                .iter()
+                .rev()
+                .find(|m| m.role != Role::System)
+                .unwrap();
             if last.role == Role::Tool {
                 return Ok(Generation {
                     content: format!("It is {}.", last.content),
@@ -3696,7 +3712,12 @@ mod tests {
             request: &InferenceRequest,
             _: &mut dyn FnMut(&str),
         ) -> Result<Generation, String> {
-            let last = request.messages.last().map(|m| m.content.clone());
+            let last = request
+                .messages
+                .iter()
+                .rev()
+                .find(|m| m.role == Role::Tool)
+                .map(|m| m.content.clone());
             if request
                 .messages
                 .iter()

@@ -498,6 +498,7 @@ pub fn run() {
             documents::document_source,
             documents::remove_document,
             research::research_source,
+            research::validate_research_topic,
             research::research_settings,
             research::set_research_provider,
             research::set_research_key,

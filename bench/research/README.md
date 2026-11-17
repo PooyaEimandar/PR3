@@ -4,7 +4,7 @@
 
 The [preregistered protocol](v1/protocol.md), [held-out corpus](v1/held-out.json) and [freeze manifest](v1/freeze.json) define 16 fresh scenarios, four with offline restart. The full matrix is complete: **4B and 27B, seeds 1/2/7, two arms, 192 scenario runs / 240 reviewed turns**. Production source hashes and corpus bytes were frozen before inference. The two smoke scenarios are separate and do not contribute to held-out scores. See the [completed comparison](evidence/2026-11-16-held-out-report.md), [machine-readable summary](evidence/2026-11-16-held-out-summary.json) and [live Tavily findings](evidence/2026-11-16-live-report.md).
 
-Source-reviewed answer content passed 51/60 PR3 versus 41/60 upstream at 4B, and 53/60 versus 27/60 at 27B. This was implementation-assistant review, not independent human validation; the report preserves borderline judgments and separate automatic scores. Power changed from AC to battery, so timing comparisons are observational. **Live research acceptance failed:** Tavily search worked, but four of five diagnostic turns exhausted the context budget. Fix real-page budgeting and source reuse before expanding the workflow.
+Source-reviewed answer content passed 51/60 PR3 versus 41/60 upstream at 4B, and 53/60 versus 27/60 at 27B. This was implementation-assistant review, not independent human validation; the report preserves borderline judgments and separate automatic scores. Power changed from AC to battery, so timing comparisons are observational. **The November 16 live acceptance failed:** Tavily search worked, but four of five diagnostic turns exhausted the context budget. The [November 17 reliability report](evidence/2026-11-17-reliability-report.md) records subsequent context, citation, scope and planning changes, with answer-quality failures kept separate from runtime checks. These historical matched scores do not certify the newer build.
 
 The [raw evidence archive](evidence/2026-11-16-held-out-v1.tar.gz) includes complete model/tool IPC, snapshots, both review packets, manifests and replay helpers. Its [extraction and aggregate replay check](evidence/2026-11-16-held-out-archive-check.json) passed. Credentials and personal app traces are excluded.
 
@@ -35,6 +35,18 @@ Use a new output directory for each attempt; preserve failures. The runner refus
 Model loading is outside warm-turn timings. Adapter wall time is recorded separately, and model processes exit before the next run starts. No credentials or live provider requests are used by this comparison. Live Tavily checks ran separately in the app, with the key entered by the user. Desktop timings are not Android latency evidence. This corpus has now been exposed to implementation review: preserve it as a regression baseline and freeze a new version for subsequent held-out claims rather than overwriting v1.
 
 ## Development diagnostics
+
+`run-reliability.ts` freezes and runs the context, quotation, source-scope/conditional-reasoning and public-page development replays together, using 4B and 27B at seeds 1/2/7. It records source, corpus, model and executable hashes and preserves every failed turn. Public SQLite HTML is downloaded once during preparation; all model turns then use offline page fixtures with the production parser. This does not replay Tavily's search-result inventory or provider timing. Run it with a copied executable and a new directory:
+
+```sh
+cargo build -p pr3-bench-documents --bin research --locked
+cp target/debug/research /tmp/pr3-research-frozen
+node bench/research/run-reliability.ts /tmp/pr3-research-frozen \
+  bench/research/result/reliability-new
+node bench/research/review-reliability.ts bench/research/result/reliability-new
+```
+
+`reliability-regressions.ts` replays four exposed v1 reasoning cases and adds website restriction/restart and ambiguous official-source clarification cases. These are development evidence, not a new holdout. The diagnostic runner's `pass` is intentionally narrow; review the saved `evidence.sources` against each case's `review` rubric before claiming conclusion quality. Public live-page acceptance and Android measurements remain separate.
 
 This exercises the production PR3 Host, research tools and SQLite with real local-model inference. Six **development** cases cover two-source prices, conflicting dates with restart, missing evidence, Spanish documents, source-embedded hostile instructions, and a local/web comparison with offline restart. The web case uses a synthetic fetcher and no search provider/key; it is not live internet evidence.
 

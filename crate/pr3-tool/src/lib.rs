@@ -16,6 +16,7 @@ pub mod documents;
 pub mod mail;
 pub mod memory;
 pub mod research;
+pub mod research_scope;
 pub mod web;
 
 use pr3_core::{SessionId, Timestamp, ToolSpec};

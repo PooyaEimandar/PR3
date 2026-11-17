@@ -122,6 +122,64 @@ impl Fetcher {
             on,
         }
     }
+
+    fn request(
+        &self,
+        url: &str,
+        hosts: &[String],
+    ) -> Result<ureq::http::Response<ureq::Body>, String> {
+        if hosts.is_empty() {
+            return self
+                .agent
+                .get(url)
+                .header(
+                    "Accept",
+                    "text/html, application/xhtml+xml, text/plain;q=0.9",
+                )
+                .call()
+                .map_err(reason);
+        }
+        let start = std::time::Instant::now();
+        let mut next = url.to_string();
+        for hops in 0..=MAX_REDIRECTS {
+            self.check_enabled()?;
+            if !pr3_tool::research_scope::url_in_scope(&next, hosts) {
+                return Err("Source is outside this task's website restriction".into());
+            }
+            let timeout = WHOLE
+                .checked_sub(start.elapsed())
+                .filter(|t| !t.is_zero())
+                .ok_or("Page read exceeded its time limit")?;
+            let response = self
+                .agent
+                .get(&next)
+                .header(
+                    "Accept",
+                    "text/html, application/xhtml+xml, text/plain;q=0.9",
+                )
+                .config()
+                .max_redirects(0)
+                .timeout_global(Some(timeout))
+                .build()
+                .call()
+                .map_err(reason)?;
+            if !matches!(response.status().as_u16(), 301 | 302 | 303 | 307 | 308) {
+                return Ok(response);
+            }
+            if hops == MAX_REDIRECTS {
+                return Err(format!(
+                    "the site redirected more than {MAX_REDIRECTS} times"
+                ));
+            }
+            let location = response
+                .headers()
+                .get("location")
+                .and_then(|v| v.to_str().ok())
+                .ok_or("Redirect is missing a valid location")?;
+            next = pr3_tool::research_scope::scoped_redirect(&next, location, hosts)?;
+        }
+        Err("Page redirect limit reached".into())
+    }
 }
 
 impl Fetch for Fetcher {
@@ -133,16 +191,12 @@ impl Fetch for Fetcher {
     }
 
     fn fetch(&self, url: &str) -> Result<Fetched, String> {
+        self.fetch_scoped(url, &[])
+    }
+
+    fn fetch_scoped(&self, url: &str, hosts: &[String]) -> Result<Fetched, String> {
         self.check_enabled()?;
-        let mut response = self
-            .agent
-            .get(url)
-            .header(
-                "Accept",
-                "text/html, application/xhtml+xml, text/plain;q=0.9",
-            )
-            .call()
-            .map_err(reason)?;
+        let mut response = self.request(url, hosts)?;
         let status = response.status();
         if !status.is_success() {
             return Err(format!("the site answered {status}"));

@@ -952,6 +952,7 @@ button.danger {
 #document-source-dialog { width: min(640px, 90vw); max-height: 85dvh; overflow: auto; }
 #document-source-body pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
 #research-dialog .field { display: flex; flex-direction: column; gap: 10px; margin: 18px 0; }
+#research-dialog .field[hidden] { display: none; }
 #research-dialog input[type="text"] { width: 100%; background: var(--bg); color: var(--text); font: inherit; font-size: 16px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; }
 #research-dialog .toggle { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
 #research-dialog input[type="checkbox"] { accent-color: var(--accent); width: 18px; height: 18px; }

@@ -3337,6 +3337,7 @@ name = "pr3-llamacpp"
 version = "0.1.1"
 dependencies = [
  "llama-cpp-2",
+ "pr3-memory",
  "serde_json",
 ]
 

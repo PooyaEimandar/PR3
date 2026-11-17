@@ -1699,6 +1699,7 @@ function documentSources(into: HTMLElement, text: string): void {
 const researchDialog = find("#research-dialog", HTMLDialogElement);
 const researchTopic = find("#research-topic", HTMLInputElement);
 const researchOnline = find("#research-online", HTMLInputElement);
+const researchWebsites = find("#research-websites", HTMLInputElement);
 find("#research-button", HTMLButtonElement).addEventListener("click", () => {
   find("#research-error", HTMLElement).textContent = "";
   void renderResearchScope();
@@ -1709,6 +1710,7 @@ let researchScopeVersion = 0;
 async function renderResearchScope(): Promise<void> {
   const version = ++researchScopeVersion;
   const scope = find("#research-scope", HTMLElement);
+  find("#research-websites-field", HTMLElement).hidden = !researchOnline.checked;
   scope.textContent = researchOnline.checked ? "Checking web search settings…" : "Uses your imported documents. Each research starts a new task.";
   if (!researchOnline.checked) return;
   try {
@@ -1725,11 +1727,16 @@ async function renderResearchScope(): Promise<void> {
 researchOnline.addEventListener("change", () => { void renderResearchScope(); });
 find("#research-form", HTMLFormElement).addEventListener("submit", async event => {
   event.preventDefault(); if (answering || storageLocked) return;
-  const topic = researchTopic.value.trim();
+  const websites = researchWebsites.value.trim();
+  const topic = researchTopic.value.trim() + (researchOnline.checked && websites ? ` Sources only: ${websites}` : "");
+  if (!researchTopic.value.trim()) {
+    find("#research-error", HTMLElement).textContent = "Enter a research question."; return;
+  }
   if (!topic || new TextEncoder().encode(topic).length > 512) {
     find("#research-error", HTMLElement).textContent = "Use a shorter topic (up to 512 UTF-8 bytes)."; return;
   }
   try {
+    await invoke("validate_research_topic", { topic });
     const previous = await invoke<TaskCard | null>("new_topic");
     currentTask = null; foldConversation(previous);
     researchDialog.close();

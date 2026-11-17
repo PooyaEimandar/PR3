@@ -15,11 +15,17 @@ use std::{
     time::Instant,
 };
 struct Pages {
-    pages: Vec<(String, String)>,
+    pages: Vec<(String, String, String)>,
     on: AtomicBool,
     reads: AtomicUsize,
 }
 impl pr3_tool::web::Fetch for Pages {
+    fn fetch_scoped(&self, url: &str, hosts: &[String]) -> Result<pr3_tool::web::Fetched, String> {
+        if !hosts.is_empty() && !pr3_tool::research_scope::url_in_scope(url, hosts) {
+            return Err("Outside fixture website scope".into());
+        }
+        self.fetch(url) // Fixtures never redirect.
+    }
     fn check_enabled(&self) -> Result<(), String> {
         if self.on.load(Ordering::SeqCst) {
             Ok(())
@@ -30,14 +36,14 @@ impl pr3_tool::web::Fetch for Pages {
     fn fetch(&self, url: &str) -> Result<pr3_tool::web::Fetched, String> {
         self.check_enabled()?;
         self.reads.fetch_add(1, Ordering::SeqCst);
-        let (_, text) = self
+        let (_, text, media_type) = self
             .pages
             .iter()
-            .find(|(u, _)| u == url)
+            .find(|(u, _, _)| u == url)
             .ok_or("No fixture page for URL")?;
         Ok(pr3_tool::web::Fetched {
             url: url.into(),
-            media_type: "text/plain".into(),
+            media_type: media_type.clone(),
             body: text.as_bytes().to_vec(),
         })
     }
@@ -76,7 +82,7 @@ fn report_evidence(answer: &str) -> (String, usize) {
     }
     (text.join("\n"), sources.len())
 }
-fn turn(host: &Host, request: &str, case: &Value) -> Value {
+fn turn(host: &Host, request: &str, case: &Value, db: &pr3_tool::documents::Library) -> Value {
     let events = Arc::new(Mutex::new(Vec::<TurnEvent>::new()));
     let sink = events.clone();
     let traces = Arc::new(Mutex::new(Vec::<pr3_core::Trace>::new()));
@@ -122,7 +128,13 @@ fn turn(host: &Host, request: &str, case: &Value) -> Value {
     let quotations = quotations_match(&answer, &case["quotes"]);
     let supported = answer.starts_with("Research findings")
         && citations >= case["citations"].as_u64().unwrap_or(0) as usize;
-    json!({"answer":answer,"error":error,"seconds":start.elapsed().as_secs_f64(),"checks":{"expected":expected,"absent":absent,"report_and_citations":supported,"quotations":quotations},"pass":error.is_none()&&expected&&absent&&supported&&quotations,"events":events.lock().ok().as_deref(),"traces":traces.lock().ok().as_deref()})
+    let evidence = host
+        .current_task()
+        .ok()
+        .flatten()
+        .and_then(|task| db.lock().ok()?.research_sources(task.card.id).ok())
+        .unwrap_or_default();
+    json!({"answer":answer,"error":error,"seconds":start.elapsed().as_secs_f64(),"checks":{"expected":expected,"absent":absent,"report_and_citations":supported,"quotations":quotations},"pass":error.is_none()&&expected&&absent&&supported&&quotations,"evidence":{"sources":evidence,"network":[]},"events":events.lock().ok().as_deref(),"traces":traces.lock().ok().as_deref()})
 }
 fn run() -> Result<(), String> {
     let args: Vec<_> = std::env::args().collect();
@@ -164,7 +176,13 @@ fn run() -> Result<(), String> {
                 .as_array()
                 .into_iter()
                 .flatten()
-                .map(|p| Ok((string(p, "url")?.into(), string(p, "text")?.into())))
+                .map(|p| {
+                    Ok((
+                        string(p, "url")?.into(),
+                        string(p, "text")?.into(),
+                        p["media_type"].as_str().unwrap_or("text/plain").into(),
+                    ))
+                })
                 .collect::<Result<_, String>>()?,
             on: AtomicBool::new(true),
             reads: AtomicUsize::new(0),
@@ -185,7 +203,7 @@ fn run() -> Result<(), String> {
             },
             string(case, "topic")?
         );
-        let mut turns = vec![turn(&host, &request, case)];
+        let mut turns = vec![turn(&host, &request, case, &db)];
         let task = host
             .current_task()
             .map_err(|e| e.to_string())?
@@ -204,13 +222,14 @@ fn run() -> Result<(), String> {
                 pr3_tool::research::tools(db.clone(), Some(pages.clone()), None),
             )
             .map_err(|e| e.to_string())?
-            .with_tasks(db, 30)
+            .with_tasks(db.clone(), 30)
             .map_err(|e| e.to_string())?;
             host.continue_task(pr3_core::SessionId(task))?;
             turns.push(turn(
                 &host,
                 request,
                 case.get("restart_checks").unwrap_or(case),
+                &db,
             ));
         }
         let passed = turns.iter().all(|t| t["pass"] == true);

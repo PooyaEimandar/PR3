@@ -18,7 +18,7 @@ impl Backend for ResearchModel {
         r: &InferenceRequest,
         token: &mut dyn FnMut(&str),
     ) -> Result<Generation, String> {
-        if !r.tools.iter().any(|t| t.name == SEARCH) {
+        if !r.tools.iter().any(|t| t.name == SEARCH) && (!self.endless || r.tools.is_empty()) {
             return Ok(Generation {
                 content: "A separate conversation.".into(),
                 ..Generation::default()
@@ -26,6 +26,24 @@ impl Backend for ResearchModel {
         }
         assert!(r.tools.iter().all(|t| pr3_tool::research::is_tool(&t.name)));
         let n = self.calls.fetch_add(1, Ordering::SeqCst);
+        if self.endless && n == 3 {
+            assert_eq!(
+                r.tools.iter().map(|t| t.name.as_str()).collect::<Vec<_>>(),
+                [ANSWER]
+            );
+            assert!(
+                r.messages
+                    .iter()
+                    .all(|m| m.tool_calls.iter().all(|c| c.name != SEARCH))
+            );
+            assert!(
+                r.messages
+                    .iter()
+                    .any(|m| m.tool_call_id.as_deref() == Some(research_context::SAVED_EVIDENCE))
+            );
+            assert!(r.messages.iter().any(|m| m.role == Role::System
+                && m.content == pr3_core::tool_round_budget(3, 4).unwrap()));
+        }
         let call = if self.endless || n.is_multiple_of(3) {
             Some((
                 SEARCH,
@@ -230,9 +248,17 @@ fn stop_requires_explicit_retry_and_research_cannot_call_unrelated_tools() {
 }
 #[test]
 fn research_uses_the_existing_execution_budget() {
-    let host = host(library(), false, true);
+    let db = library();
+    let host = host(db.clone(), false, true);
     let (actions, events) = send(&host, "Research locally: Compare prices");
     assert_eq!(answer(&actions), pr3_tool::research::NO_ANSWER);
+    let id = host.current_task().unwrap().unwrap().card.id;
+    assert_eq!(
+        db.lock().unwrap().research(id).unwrap().unwrap().searches,
+        3,
+        "a backend that ignores the final report-only tools cannot execute a fourth search"
+    );
+    assert!(events.iter().any(|e| matches!(e, TurnEvent::Tool { name, success: false, output, .. } if name == SEARCH && output.contains("no call was executed"))));
     assert!(
         events
             .iter()
@@ -340,8 +366,102 @@ impl Backend for SavedViewModel {
             })
             .unwrap();
         assert_eq!(source["captured_at"], 123);
+        let reference = source["source"].as_str().unwrap();
+        assert!(reference.starts_with("s:") && reference.len() == 18);
         Ok(Generation{tool_calls:vec![ProposedToolCall{name:ANSWER.into(),arguments:json!({"findings":[{"text":quote,"citations":[{"source":source["source"],"quote":quote}]}],"gaps":""}).to_string()}],..Generation::default()})
     }
+}
+
+struct ScopedViewModel;
+impl Backend for ScopedViewModel {
+    fn label(&self) -> String {
+        "website scope regression".into()
+    }
+    fn generate(
+        &self,
+        r: &InferenceRequest,
+        _: &mut dyn FnMut(&str),
+    ) -> Result<Generation, String> {
+        let view = r
+            .messages
+            .iter()
+            .find(|m| m.tool_call_id.as_deref() == Some(research_context::SAVED_EVIDENCE))
+            .unwrap();
+        let packet: Value = serde_json::from_str(&view.content).unwrap();
+        let sources = packet["sources"].as_array().unwrap();
+        assert_eq!(
+            sources.len(),
+            1,
+            "excluded saved sources never enter inference"
+        );
+        assert_eq!(sources[0]["text"], "The permitted price is 28.");
+        assert!(!view.content.contains("PRIVATE") && !view.content.contains("OUTSIDE"));
+        Ok(Generation { tool_calls: vec![ProposedToolCall { name: ANSWER.into(), arguments: json!({"findings":[{"text":"The price is 28.","citations":[{"quote_ref":sources[0]["quote_ref"]}]}],"gaps":""}).to_string() }], ..Generation::default() })
+    }
+}
+
+#[test]
+fn website_correction_filters_saved_evidence_and_survives_reopening() {
+    let dir = std::env::temp_dir().join(format!("pr3-scope-view-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("db.sqlite");
+    let db = Arc::new(Mutex::new(SqliteMemory::open(&path).unwrap()));
+    db.lock()
+        .unwrap()
+        .import_document("PRIVATE.md", "PRIVATE price is 999.")
+        .unwrap();
+    let initial = host(db.clone(), false, false);
+    send(&initial, "Research online: Compare prices");
+    let id = SessionId(initial.current_task().unwrap().unwrap().card.id);
+    for (domain, text) in [
+        ("permitted.example", "The permitted price is 28."),
+        ("outside.example", "OUTSIDE price is 17."),
+    ] {
+        db.lock()
+            .unwrap()
+            .save_research_sources(
+                id.0,
+                &[pr3_memory_sqlite::research::Evidence {
+                    source: format!("research:{}:{domain}", id.0),
+                    title: domain.into(),
+                    location: format!("https://{domain}/price"),
+                    text: text.into(),
+                    captured_at: 123,
+                    document: None,
+                }],
+            )
+            .unwrap();
+    }
+    drop(initial);
+    drop(db);
+    for request in [
+        "Quote the price. Sources only: permitted.example",
+        "Continue",
+    ] {
+        let db = Arc::new(Mutex::new(SqliteMemory::open(&path).unwrap()));
+        let host = Host::new(
+            Arc::new(ScopedViewModel),
+            pr3_tool::research::tools(db.clone(), None, None),
+        )
+        .unwrap()
+        .with_tasks(db, 30)
+        .unwrap();
+        host.continue_task(id).unwrap();
+        let (actions, events) = send(&host, request);
+        assert!(answer(&actions).contains("The permitted price is 28."));
+        let calls = events
+            .iter()
+            .filter_map(|e| {
+                if let TurnEvent::Tool { name, .. } = e {
+                    Some(name.as_str())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(calls, [ANSWER]);
+    }
+    std::fs::remove_dir_all(dir).unwrap();
 }
 
 struct RepairReportModel(AtomicUsize, usize);
@@ -362,6 +482,12 @@ impl Backend for RepairReportModel {
         let packet: Value = serde_json::from_str(&view.content).unwrap();
         let source = &packet["sources"][0];
         let attempt = self.0.fetch_add(1, Ordering::SeqCst);
+        if attempt == 3 {
+            assert_eq!(
+                r.tools.iter().map(|t| t.name.as_str()).collect::<Vec<_>>(),
+                [ANSWER]
+            );
+        }
         let args = if attempt < self.1 {
             json!({"findings":(0..4).map(|_|json!({"text":format!("{attempt}: {}","UNVALIDATED-DRAFT ".repeat(30)),"citations":[{"source":source["source"],"quote":"A made-up quotation."}]})).collect::<Vec<_>>(),"gaps":""})
         } else {

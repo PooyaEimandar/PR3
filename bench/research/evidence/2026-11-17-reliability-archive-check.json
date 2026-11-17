@@ -1,0 +1,42 @@
+{
+  "verifiedAt": "2026-11-17T09:35:23.259Z",
+  "archive": "2026-11-17-reliability.tar.gz",
+  "archiveSha256": "1cc0b353852bbc7a9233d9926b6ef95303882a04e94173199708b58c8b4fd7d6",
+  "sourceFilesVerified": 132,
+  "extractedAnalysisReplayMatches": true,
+  "rows": 96,
+  "reviewedTurns": 138,
+  "verifiedQuotations": 219,
+  "negativeControls": [
+    {
+      "control": "unaltered evidence accepted",
+      "pass": true
+    },
+    {
+      "control": "incomplete matrix rejected",
+      "pass": true
+    },
+    {
+      "control": "missing source review rejected",
+      "pass": true
+    },
+    {
+      "control": "duplicate source review rejected",
+      "pass": true
+    },
+    {
+      "control": "changed displayed quotation rejected",
+      "pass": true
+    },
+    {
+      "control": "changed frozen corpus rejected",
+      "pass": true
+    }
+  ],
+  "scope": "Exposed development cases, not held-out or a current OpenJarvis comparison. Source review is unblinded and non-independent. Timings are observational desktop measurements.",
+  "finalWorkspaceSourcesMatch": true,
+  "finalDiagnosticAndNativeBinaryHashesMatch": true,
+  "restartTurns": 42,
+  "restartRetrievalTurns": 0,
+  "localDocumentationLinksChecked": 128
+}

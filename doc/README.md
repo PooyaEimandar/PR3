@@ -11,6 +11,7 @@ Start with the overview; read the rest as you need it.
 | [Benchmarking](benchmarks.md) | The comparisons PR3 commits to, evaluation dimensions, acceptance gates, and results so far |
 | [Applications](applications.md) | Rules for applications that act, and the areas PR3 targets |
 | [Roadmap](roadmap.md) | Spike status, milestones M0–M6, success metrics and go/no-go gates |
+| [OpenJarvis capability checklist](openjarvis-parity.md) | Implemented research mechanisms, measured acceptance and the remaining product gaps |
 | [Build, CI and quality gates](quality-gates.md) | Toolchain, CI matrix, formal verification targets, release channels |
 | [Risks and governance](risks-and-governance.md) | Risks with mitigations; governance and attribution |
 | [Related work and reuse](related-work.md) | OpenJarvis and ZeroClaw, and what PR3 takes from each; references |

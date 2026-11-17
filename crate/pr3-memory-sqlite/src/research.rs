@@ -78,7 +78,67 @@ fn sql_id(value: u64) -> Result<i64, MemoryError> {
     i64::try_from(value).map_err(|_| invalid("Research identifier exceeds storage range"))
 }
 
+/// Compact exact references for model arguments. Canonical IDs remain the storage,
+/// audit and UI authority. Binding the task prevents reuse in a different task;
+/// resolution rejects collisions rather than matching a prefix or guessing.
+pub fn source_reference(task: u64, source: &str) -> String {
+    reference("s", task, source)
+}
+pub fn candidate_reference(task: u64, candidate: &str) -> String {
+    reference("c", task, candidate)
+}
+fn reference(kind: &str, task: u64, id: &str) -> String {
+    let hash = pr3_core::trusted::Hash::of(&[
+        b"pr3-research-reference-v1",
+        kind.as_bytes(),
+        &task.to_le_bytes(),
+        id.as_bytes(),
+    ])
+    .to_hex();
+    format!("{kind}:{}", &hash[..16])
+}
+fn unique_reference<T>(mut matches: impl Iterator<Item = T>) -> Result<Option<T>, MemoryError> {
+    let found = matches.next();
+    if matches.next().is_some() {
+        return Err(invalid(
+            "Ambiguous research reference; use the complete source ID",
+        ));
+    }
+    Ok(found)
+}
+
 impl SqliteMemory {
+    pub fn research_source_reference(
+        &self,
+        task: u64,
+        id: &str,
+    ) -> Result<Option<Evidence>, MemoryError> {
+        if !id.starts_with("s:") {
+            return self.research_source(task, id);
+        }
+        let found = unique_reference(
+            self.research_sources(task)?
+                .into_iter()
+                .filter(|s| source_reference(task, &s.source) == id),
+        )?;
+        match found {
+            Some(s) => self.research_source(task, &s.source),
+            None => Ok(None),
+        }
+    }
+
+    pub fn research_candidate_reference(
+        &self,
+        task: u64,
+        id: &str,
+    ) -> Result<Option<Candidate>, MemoryError> {
+        unique_reference(
+            self.research_candidates(task)?
+                .into_iter()
+                .filter(|c| c.id == id || candidate_reference(task, &c.id) == id),
+        )
+    }
+
     /// Includes snapshots saved before a stopped turn could persist tool metadata.
     pub fn research_document_tasks(&self, document: i64) -> Result<Vec<u64>, MemoryError> {
         self.conn
@@ -410,8 +470,23 @@ mod tests {
         db.save_research_sources(1, &[evidence()]).unwrap();
         db.add_research_candidate(1, "https://example.org/", "Plan", "")
             .unwrap();
+        let source_ref = source_reference(1, "research:1:source");
+        let candidate_id = db.research_candidates(1).unwrap()[0].id.clone();
+        let candidate_ref = candidate_reference(1, &candidate_id);
         assert!(
             db.research_source(2, "research:1:source")
+                .unwrap()
+                .is_none()
+        );
+        // Identical text/IDs in another task still have distinct references.
+        db.save_research_sources(2, &[evidence()]).unwrap();
+        assert!(
+            db.research_source_reference(2, &source_ref)
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            db.research_candidate_reference(2, &candidate_ref)
                 .unwrap()
                 .is_none()
         );
@@ -419,14 +494,51 @@ mod tests {
         drop(db);
         let mut db = SqliteMemory::open(&path).unwrap();
         assert_eq!(db.research_sources(1).unwrap()[0].text, "Price is 40.");
+        assert_eq!(
+            db.research_source_reference(1, &source_ref)
+                .unwrap()
+                .unwrap()
+                .source,
+            "research:1:source"
+        );
+        assert_eq!(
+            db.research_candidate_reference(1, &candidate_ref)
+                .unwrap()
+                .unwrap()
+                .id,
+            candidate_id
+        );
+        for wrong in [
+            &source_ref[..source_ref.len() - 1],
+            "research:1:",
+            "s:0000000000000000",
+        ] {
+            assert!(db.research_source_reference(1, wrong).unwrap().is_none());
+        }
         assert_eq!(db.research(1).unwrap().unwrap().topic, "Compare plans");
         db.delete_task(1, Timestamp(2)).unwrap();
         assert!(db.research(1).unwrap().is_none());
         assert!(db.research_sources(1).unwrap().is_empty());
         assert!(db.research_candidates(1).unwrap().is_empty());
+        assert!(
+            db.research_source_reference(1, &source_ref)
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            db.research_candidate_reference(1, &candidate_ref)
+                .unwrap()
+                .is_none()
+        );
         assert!(db.research(2).unwrap().is_some());
         drop(db);
         std::fs::remove_dir_all(dir).unwrap();
+    }
+    #[test]
+    fn ambiguous_references_are_never_resolved_by_first_match() {
+        assert!(unique_reference(["one", "two"].into_iter()).is_err());
+        assert_eq!(unique_reference(["one"].into_iter()).unwrap(), Some("one"));
+        assert_eq!(unique_reference(std::iter::empty::<&str>()).unwrap(), None);
     }
     #[test]
     fn removal_bounds_and_credentials_do_not_mix_with_evidence() {

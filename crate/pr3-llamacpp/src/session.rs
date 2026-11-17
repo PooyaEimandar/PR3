@@ -612,7 +612,7 @@ impl<'m> Session<'m> {
                 .find(|m| m.role == ChatRole::User)
                 .map(|m| m.content.as_str())
                 .unwrap_or_default();
-            for (bytes, count) in [(800, 4), (500, 4), (300, 4), (300, 2), (160, 1)] {
+            for (bytes, count) in [(800, 4), (500, 4), (300, 4), (200, 4), (300, 2), (160, 1)] {
                 let mut compact = window.clone();
                 let mut changed = false;
                 for message in &mut compact {

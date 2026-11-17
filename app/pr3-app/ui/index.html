@@ -124,6 +124,10 @@
           <input id="research-topic" type="text" required maxlength="512" autocomplete="off" placeholder="Compare the plans in my documents" />
         </label>
         <label class="toggle"><input id="research-online" type="checkbox" /> Include the web</label>
+        <label id="research-websites-field" class="field" hidden>Only these websites (optional)
+          <input id="research-websites" type="text" maxlength="200" autocomplete="off" placeholder="sqlite.org, docs.example.org" aria-describedby="research-websites-help" />
+          <span id="research-websites-help" class="meta">Enter up to four domains. Includes subdomains; excludes other websites and local documents. Choose official websites yourself.</span>
+        </label>
         <p id="research-scope">Uses your imported documents. Each research starts a new task.</p>
         <p id="research-error" role="status"></p>
         <div class="choices"><button type="button" id="research-cancel" class="secondary">Cancel</button><button type="submit">Start research</button></div>

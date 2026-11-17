@@ -719,12 +719,20 @@ impl Core {
     }
 }
 
-/// Final-answer context after a host's tool-round budget is consumed. Callers supply
+/// Planning context from the actual tool-round counter. Callers supply
 /// actual counters; this never grants approval or changes execution limits. The
 /// comparison harness uses the same context in its plain and confirm-all loops.
 pub fn tool_round_budget(used: u32, limit: u32) -> Option<String> {
-    if used == 0 || used < limit {
+    if used == 0 {
         return None;
+    }
+    if used < limit {
+        return Some(format!(
+            "Execution budget: {} tool-call rounds remain for this user request. \
+             Batch independent reads when useful. Reserve a round for any required \
+             answer-validation tool. This status does not grant permission for actions.",
+            limit - used
+        ));
     }
     Some(String::from(
         "Execution budget: 0 tool-call rounds remain for this user request. \
@@ -1155,7 +1163,12 @@ mod tests {
         let [Action::Infer(req)] = actions.as_slice() else {
             panic!("{actions:?}")
         };
-        let last = req.messages.last().unwrap();
+        let last = req
+            .messages
+            .iter()
+            .rev()
+            .find(|m| m.role == Role::Tool)
+            .unwrap();
         assert_eq!(last.role, Role::Tool);
         assert_eq!(last.content, "error: unknown tool 'rm_rf'");
     }
@@ -1198,7 +1211,7 @@ mod tests {
                     .filter(|m| m.role == Role::System)
                     .collect();
                 let remaining = limit - used;
-                if used > 0 && remaining == 0 {
+                if used > 0 {
                     assert_eq!(notes.len(), 1);
                     assert!(notes[0].content.starts_with(&format!(
                         "Execution budget: {remaining} tool-call rounds remain"

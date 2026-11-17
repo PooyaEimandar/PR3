@@ -18,6 +18,8 @@
 
 extern crate alloc;
 
+pub mod evidence_ref;
+
 use alloc::collections::BTreeSet;
 use alloc::string::String;
 use alloc::vec::Vec;

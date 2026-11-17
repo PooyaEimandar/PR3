@@ -106,6 +106,16 @@ pub trait Fetch: Send + Sync {
     }
 
     fn fetch(&self, url: &str) -> Result<Fetched, String>;
+
+    /// Restricted research must check every redirect BEFORE following it. A host
+    /// without that capability fails closed rather than silently ignoring scope.
+    fn fetch_scoped(&self, url: &str, hosts: &[String]) -> Result<Fetched, String> {
+        if hosts.is_empty() {
+            self.fetch(url)
+        } else {
+            Err("This web reader cannot enforce website restrictions".into())
+        }
+    }
 }
 
 /// A page as the model reads it.
