@@ -1,5 +1,5 @@
 /** Production-host development regressions, not a new holdout or upstream comparison.
- * node bench/research/run-reliability.ts FROZEN_BINARY NEW_OUTPUT_DIRECTORY
+ * node bench/research/run-reliability.ts FROZEN_BINARY NEW_OUTPUT_DIRECTORY [BASELINE_CORPUS] [--replay-only]
  */
 import { createReadStream, createWriteStream, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -12,7 +12,8 @@ const root = fileURLToPath(new URL('../../', import.meta.url));
 const here = resolve(root, 'bench/research');
 const binary = resolve(process.argv[2] ?? '');
 const out = resolve(process.argv[3] ?? '');
-if (process.argv.length !== 4) throw new Error('Usage: run-reliability.ts FROZEN_BINARY NEW_OUTPUT_DIRECTORY');
+const replayOnly = process.argv[5] === '--replay-only';
+if (![4,5].includes(process.argv.length) && !(process.argv.length === 6 && replayOnly)) throw new Error('Usage: run-reliability.ts FROZEN_BINARY NEW_OUTPUT_DIRECTORY [BASELINE_CORPUS] [--replay-only]');
 mkdirSync(out, { recursive: false });
 async function hash(path: string) {
   const h = createHash('sha256');
@@ -22,7 +23,15 @@ async function hash(path: string) {
 const power = () => platform() === 'darwin' ? execFileSync('pmset', ['-g', 'batt'], { encoding: 'utf8' }) : 'unmeasured';
 type Case = { id: string; restart?: string; [key: string]: unknown };
 const cases: Case[] = [];
-for (const suite of ['context', 'quotation', 'reliability', 'live-pages']) {
+const baseline = process.argv[4];
+if (baseline) {
+  const bytes = readFileSync(resolve(baseline));
+  const original = JSON.parse(bytes.toString()) as { cases: Case[] };
+  if (!Array.isArray(original.cases) || original.cases.some(c => !c.id || typeof c.suite !== 'string')) throw new Error('Baseline requires cases with IDs and suite names');
+  writeFileSync(resolve(out,'baseline-corpus.json'),bytes,{flag:'wx'});
+  cases.push(...original.cases);
+}
+for (const suite of replayOnly ? [] : baseline ? ['coverage'] : ['context', 'quotation', 'reliability', 'live-pages', 'coverage']) {
   const path = resolve(out, `${suite}.json`);
   if (suite === 'quotation') writeFileSync(path, readFileSync(resolve(here, 'quotation-regressions.json')), { flag: 'wx' });
   else execFileSync(process.execPath, [resolve(here, `${suite}-regressions.ts`), path], { cwd: root });
@@ -44,6 +53,7 @@ for (const path of [...files, 'Cargo.lock', 'Cargo.toml', 'app/pr3-app/src-tauri
 const manifest = {
   startedAt: new Date().toISOString(), binary, binarySha256: await hash(binary), corpusSha256: await hash(corpusPath),
   pr3Head: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(), productionSources,
+  baselineCorpusSha256: baseline ? await hash(resolve(out,'baseline-corpus.json')) : null,
   models, seeds: [1, 2, 7], expectedRows: cases.length * 6, expectedTurns: cases.reduce((n, c) => n + (c.restart ? 2 : 1), 0) * 6,
   engine: { context: 4096, maxNewTokens: 512, temperature: .7, topP: .8, topK: 20, presencePenalty: 1.5, thinking: false, gpuLayers: 999 },
   limits: { toolRounds: 4, callsPerRound: 4, toolCalls: 12 },

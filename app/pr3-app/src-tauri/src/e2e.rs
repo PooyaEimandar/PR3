@@ -66,7 +66,18 @@ impl Backend for ScriptedModel {
             .tools
             .iter()
             .any(|t| t.name == pr3_tool::research::ANSWER)
+            || (request
+                .tools
+                .iter()
+                .all(|t| pr3_tool::research::is_tool(&t.name))
+                && request
+                    .tools
+                    .iter()
+                    .any(|t| t.name == pr3_tool::research::SEARCH))
         {
+            // A fresh research task offers discovery only until evidence exists.
+            // Follow the production tool inventory instead of assuming that the
+            // report tool is always offered before a source has been collected.
             let saved = request
                 .messages
                 .iter()

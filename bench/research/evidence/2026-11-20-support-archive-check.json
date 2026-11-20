@@ -1,0 +1,58 @@
+{
+  "verifiedAt": "2026-11-20T07:52:58.900Z",
+  "archiveSha256": "c561b475bd78010d18e66e8043f80c976cdea0a14341c022425ddda2b9b0b168",
+  "archive": "/Users/pooyaeimandar/Codes/PooyaEimandar/pr3/bench/research/evidence/2026-11-20-support.tar.gz",
+  "sourceFilesVerified": 137,
+  "baselineCasesUnchanged": 18,
+  "rows": 108,
+  "turns": 162,
+  "unchangedRestartSnapshots": 54,
+  "coverageSnapshotsWithAllRequestedFacts": 24,
+  "currentSourcesMatchFrozenManifest": true,
+  "frozenExecutableMatchesManifest": true,
+  "modelFilesMatchManifest": true,
+  "extractedReplayMatches": true,
+  "controls": [
+    {
+      "control": "unaltered evidence accepted",
+      "pass": true
+    },
+    {
+      "control": "incomplete matrix rejected",
+      "pass": true
+    },
+    {
+      "control": "missing source review rejected",
+      "pass": true
+    },
+    {
+      "control": "duplicate source review rejected",
+      "pass": true
+    },
+    {
+      "control": "changed displayed quotation rejected",
+      "pass": true
+    },
+    {
+      "control": "changed frozen corpus rejected",
+      "pass": true
+    },
+    {
+      "control": "changed baseline corpus rejected",
+      "pass": true
+    },
+    {
+      "control": "changed restart capture time rejected",
+      "pass": true
+    },
+    {
+      "control": "exceeded execution limit rejected",
+      "pass": true
+    },
+    {
+      "control": "missing late-page fact rejected",
+      "pass": true
+    }
+  ],
+  "packagingNote": "An in-progress Android build log was excluded; Android packaging is verified separately. Evaluation data and replay results are unchanged."
+}

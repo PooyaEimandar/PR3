@@ -10,7 +10,7 @@ if (process.argv.length !== 3) throw new Error('Usage: review-reliability.ts RES
 const manifest = JSON.parse(readFileSync(resolve(dir, 'manifest.json'), 'utf8')) as { corpusSha256: string; models: { name: string }[]; seeds: number[] };
 const corpusBytes = readFileSync(resolve(dir, 'corpus.json'), 'utf8');
 if (createHash('sha256').update(corpusBytes).digest('hex') !== manifest.corpusSha256) throw new Error('Corpus changed since freeze');
-const corpus = JSON.parse(corpusBytes) as { cases: { id: string; suite: string; review?: Checks; restart_review?: Checks; restart?: string }[] };
+const corpus = JSON.parse(corpusBytes) as { cases: { id: string; suite: string; topic: string; review?: Checks; restart_review?: Checks; restart?: string; quotes?: string[]; restart_checks?: {quotes?: string[]} }[] };
 const progress = JSON.parse(readFileSync(resolve(dir, 'progress.json'), 'utf8')) as { complete: boolean; runs: { model: string; seed: number; file: string }[] };
 if (!progress.complete || progress.runs.length !== 6) throw new Error('Matrix is incomplete; retain missing turns in the denominator');
 if (new Set(progress.runs.map(r => `${r.model}/${r.seed}`)).size !== 6 || progress.runs.some(r => !manifest.models.some(m => m.name === r.model) || !manifest.seeds.includes(r.seed))) throw new Error('Duplicate or foreign model/seed run');
@@ -33,7 +33,7 @@ for (const run of progress.runs) {
       group.restartSearchOrReads += Number(i > 0 && turn.events.some(e => ['research_sources', 'read_research_source'].includes(e.name ?? '')));
       group.seconds.push(turn.seconds);
       const rubric = i === 0 ? test.review : test.restart_review ?? test.review;
-      if (!turn.pass || rubric) review.push({ model: run.model, seed: run.seed, id: row.id, turn: i, diagnosticPass: turn.pass, checks: turn.checks, strongerAutomaticChecks: rubric ? score(turn, rubric) : null, rubric: rubric?.rubric, answer: turn.answer, error: turn.error, sources: turn.evidence.sources, judgment: null, reason: null });
+      review.push({ model: run.model, seed: run.seed, id: row.id, turn: i, request: i === 0 ? test.topic : test.restart, expectedQuotes: i === 0 ? test.quotes : test.restart_checks?.quotes ?? test.quotes, diagnosticPass: turn.pass, checks: turn.checks, strongerAutomaticChecks: rubric ? score(turn, rubric) : null, rubric: rubric?.rubric ?? 'Answer the latest request completely with relevant supporting quotations; preserve conditions and uncertainty. No obsolete or unrequested findings. Restart must reuse saved evidence without claiming a live check.', answer: turn.answer, error: turn.error, sources: turn.evidence.sources, judgment: null, reason: null });
     }
   }
 }

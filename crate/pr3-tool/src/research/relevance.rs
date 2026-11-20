@@ -9,7 +9,7 @@ fn normalized(text: &str) -> String {
         .join(" ")
 }
 
-fn agent_directive(text: &str) -> bool {
+pub(super) fn agent_directive(text: &str) -> bool {
     let text = normalized(text);
     [
         "ignore the user",
@@ -42,7 +42,7 @@ fn agent_directive(text: &str) -> bool {
                 .any(|verb| text.contains(verb)))
 }
 
-fn inspection_request(text: &str) -> bool {
+pub(super) fn inspection_request(text: &str) -> bool {
     let text = normalized(text);
     if [
         "do not quote",

@@ -612,7 +612,19 @@ impl<'m> Session<'m> {
                 .find(|m| m.role == ChatRole::User)
                 .map(|m| m.content.as_str())
                 .unwrap_or_default();
-            for (bytes, count) in [(800, 4), (500, 4), (300, 4), (200, 4), (300, 2), (160, 1)] {
+            // Keep complete conditional passages from distinct sources before
+            // shrinking every passage to a fragment. Source diversity still
+            // reserves one slot per origin in each candidate view.
+            for (bytes, count) in [
+                (800, 4),
+                (500, 4),
+                (500, 3),
+                (500, 2),
+                (300, 4),
+                (200, 4),
+                (300, 2),
+                (160, 1),
+            ] {
                 let mut compact = window.clone();
                 let mut changed = false;
                 for message in &mut compact {
@@ -705,6 +717,15 @@ mod tests {
         let original = messages.clone();
         let fitted = session.prompt_tokens(&messages, &[]).unwrap();
         assert!(fitted.tokens.len() + 512 <= 4096);
+        let report = ToolDef {
+            name: "answer_research".into(),
+            description: "Report checked quotations".into(),
+            parameters: r#"{"type":"object","properties":{}}"#.into(),
+            read_only: true,
+            report: true,
+        };
+        let report_fitted = session.prompt_tokens(&messages, &[report]).unwrap();
+        assert!(report_fitted.tokens.len() + 512 <= 4096);
         assert_eq!(
             messages, original,
             "fitting must not change stored history or evidence"

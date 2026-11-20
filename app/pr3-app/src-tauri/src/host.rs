@@ -1330,6 +1330,7 @@ impl Host {
         research_turn |= controls.is_none() && self.tasks()?.has_research_sources(session);
         let mut research_answer: Option<String> = None;
         let mut offered_research_tools = std::collections::BTreeSet::new();
+        let mut offered_source_refs: Option<Vec<String>> = None;
         for _ in 0..MAX_ROUND_TRIPS {
             if queue.is_empty() {
                 break;
@@ -1355,6 +1356,19 @@ impl Host {
                     }
                     offered_research_tools.clear();
                     offered_research_tools.extend(request.tools.iter().map(|t| t.name.clone()));
+                    offered_source_refs = request
+                        .tools
+                        .iter()
+                        .find(|t| t.name == pr3_tool::research::READ)
+                        .and_then(|t| serde_json::from_str::<Value>(&t.parameters).ok())
+                        .and_then(|p| {
+                            p["properties"]["source"]["enum"].as_array().map(|items| {
+                                items
+                                    .iter()
+                                    .filter_map(|v| v.as_str().map(str::to_string))
+                                    .collect()
+                            })
+                        });
                     let id = request.id;
                     // The checked report is already the final product. Route it through
                     // the core's ordinary completion boundary without another model
@@ -1480,7 +1494,17 @@ impl Host {
                     let ToolOutput { result, sources } = if (research_turn || controls.is_some())
                         && !offered_research_tools.contains(&call.name)
                     {
-                        Err("This research tool is not available in the current round. The final round is reserved for the report; no call was executed.".to_string()).into()
+                        Err("This research tool is not available in the current round; no call was executed. Follow the offered tools and the remaining execution budget.".to_string()).into()
+                    } else if call.name == pr3_tool::research::READ
+                        && offered_source_refs.as_ref().is_some_and(|allowed| {
+                            let args: Value =
+                                serde_json::from_str(&call.arguments).unwrap_or(Value::Null);
+                            args["source"]
+                                .as_str()
+                                .is_none_or(|source| !allowed.iter().any(|id| id == source))
+                        })
+                    {
+                        Err("Read one of the currently offered, unread requested candidate references. A cached reread was not executed; the existing call budget still applies.".to_string()).into()
                     } else {
                         self.run_tool(&call, ctx, research_turn).await
                     };

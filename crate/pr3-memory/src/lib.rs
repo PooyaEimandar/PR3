@@ -19,6 +19,7 @@
 extern crate alloc;
 
 pub mod evidence_ref;
+pub mod retrieval;
 
 use alloc::collections::BTreeSet;
 use alloc::string::String;

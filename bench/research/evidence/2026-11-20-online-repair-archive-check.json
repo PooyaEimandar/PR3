@@ -1,0 +1,16 @@
+{
+  "checkedAt": "2026-11-20T09:49:25.882Z",
+  "archive": "2026-11-20-online-repair.tar.gz",
+  "archiveSha256": "50343dbb69002a47f9092c1810b25aea95b8308bc1d35b058e7ec2d15702dd05",
+  "frozenSourcesVerified": 138,
+  "filesVerifiedAfterExtraction": true,
+  "excludes": [
+    "API keys",
+    "encrypted app databases",
+    "original app configuration",
+    "unrelated personal traces",
+    "model weights",
+    "APK binaries"
+  ],
+  "scope": "Archive integrity only. Live outcome status is recorded separately in the report and summary."
+}

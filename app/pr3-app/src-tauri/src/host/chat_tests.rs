@@ -1,6 +1,6 @@
 use super::chat::ChatControls;
 use super::*;
-use pr3_tool::research::{ANSWER, SEARCH};
+use pr3_tool::research::{ANSWER, READ, SEARCH};
 use serde_json::json;
 
 struct ChatModel {
@@ -78,7 +78,13 @@ impl Backend for ChatModel {
                 .messages
                 .iter()
                 .any(|m| m.tool_calls.iter().any(|c| c.name == SEARCH));
-        let next = if fresh
+        let next = if r.tools.len() == 1 && r.tools[0].name == READ {
+            let parameters: Value = serde_json::from_str(&r.tools[0].parameters).unwrap();
+            call(
+                READ,
+                json!({"source":parameters["properties"]["source"]["enum"][0]}),
+            )
+        } else if fresh
             || !r.tools.iter().any(|t| t.name == ANSWER)
             || (sources.is_empty() && tools == 0)
         {

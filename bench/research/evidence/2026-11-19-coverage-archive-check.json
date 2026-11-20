@@ -1,0 +1,71 @@
+{
+  "verifiedAt": "2026-11-19T18:13:24.211Z",
+  "archiveSha256": "aafa7e1a496a8de15cc99b5f46d7842d5b01ec6d4ac713b1bc9db58cd20e1806",
+  "archive": "/Users/pooyaeimandar/Codes/PooyaEimandar/pr3/bench/research/evidence/2026-11-19-coverage.tar.gz",
+  "extracted": "/var/folders/j4/tw99b4nj0s178b4x81cvswbm0000gn/T/pr3-coverage-verified-pLh0Br",
+  "sourceFilesVerified": 136,
+  "baselineCasesUnchanged": 16,
+  "rows": 108,
+  "turns": 162,
+  "unchangedRestartSnapshots": 54,
+  "coverageSnapshotsWithAllRequestedFacts": 24,
+  "lateCitedPassages": 40,
+  "currentSourcesMatchFrozenManifest": true,
+  "frozenExecutableMatchesManifest": true,
+  "modelFilesMatchManifest": true,
+  "extractedReplayMatches": true,
+  "candidates": [
+    {
+      "name": "candidate1",
+      "sourceFilesVerified": 136,
+      "corpusSha256": "8bef4ce1cec707bb25dd87767571d3823e44414910d4f1b10f009376d915e0ee"
+    },
+    {
+      "name": "candidate2",
+      "sourceFilesVerified": 136,
+      "corpusSha256": "8bef4ce1cec707bb25dd87767571d3823e44414910d4f1b10f009376d915e0ee"
+    }
+  ],
+  "controls": [
+    {
+      "control": "unaltered evidence accepted",
+      "pass": true
+    },
+    {
+      "control": "incomplete matrix rejected",
+      "pass": true
+    },
+    {
+      "control": "missing source review rejected",
+      "pass": true
+    },
+    {
+      "control": "duplicate source review rejected",
+      "pass": true
+    },
+    {
+      "control": "changed displayed quotation rejected",
+      "pass": true
+    },
+    {
+      "control": "changed frozen corpus rejected",
+      "pass": true
+    },
+    {
+      "control": "changed baseline corpus rejected",
+      "pass": true
+    },
+    {
+      "control": "changed restart capture time rejected",
+      "pass": true
+    },
+    {
+      "control": "exceeded execution limit rejected",
+      "pass": true
+    },
+    {
+      "control": "missing late-page fact rejected",
+      "pass": true
+    }
+  ]
+}

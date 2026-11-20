@@ -34,7 +34,12 @@ impl Backend for ResearchModel {
             assert!(
                 r.messages
                     .iter()
-                    .all(|m| m.tool_calls.iter().all(|c| c.name != SEARCH))
+                    .flat_map(|m| &m.tool_calls)
+                    .filter(|c| c.name == SEARCH)
+                    .all(|c| r.messages.iter().any(|m| m.role == Role::Tool
+                        && m.tool_call_id.as_deref() == Some(c.id.as_str())
+                        && m.content.starts_with("error:"))),
+                "completed discovery is omitted, but real rejected attempts remain"
             );
             assert!(
                 r.messages
@@ -255,8 +260,8 @@ fn research_uses_the_existing_execution_budget() {
     let id = host.current_task().unwrap().unwrap().card.id;
     assert_eq!(
         db.lock().unwrap().research(id).unwrap().unwrap().searches,
-        3,
-        "a backend that ignores the final report-only tools cannot execute a fourth search"
+        2,
+        "a backend that ignores the report/repair-only tools cannot execute a third or fourth search"
     );
     assert!(events.iter().any(|e| matches!(e, TurnEvent::Tool { name, success: false, output, .. } if name == SEARCH && output.contains("no call was executed"))));
     assert!(
@@ -276,6 +281,129 @@ fn research_uses_the_existing_execution_budget() {
             .iter()
             .all(|name| !host.tools[*name].spec().requires_confirmation)
     );
+}
+
+struct RepeatedCachedRead {
+    source: String,
+    calls: AtomicUsize,
+}
+impl Backend for RepeatedCachedRead {
+    fn label(&self) -> String {
+        "requested source coverage regression".into()
+    }
+    fn generate(
+        &self,
+        r: &InferenceRequest,
+        _: &mut dyn FnMut(&str),
+    ) -> Result<Generation, String> {
+        let n = self.calls.fetch_add(1, Ordering::SeqCst);
+        if r.tools.is_empty() {
+            return Ok(Generation::default());
+        }
+        assert!(n < 4, "source coverage cannot add tool rounds");
+        assert_eq!(
+            r.tools.iter().map(|t| t.name.as_str()).collect::<Vec<_>>(),
+            [if n == 3 { ANSWER } else { READ }]
+        );
+        // Deliberately ignore the offered enum and, on the last round, the
+        // report-only tool list. Neither is merely a suggestion to the model.
+        Ok(Generation {
+            tool_calls: vec![ProposedToolCall {
+                name: READ.into(),
+                arguments: json!({"source":self.source,"offset":n * 10}).to_string(),
+            }],
+            ..Generation::default()
+        })
+    }
+}
+
+#[test]
+fn cached_rereads_cannot_bypass_requested_source_coverage_or_extend_the_budget() {
+    use pr3_memory_sqlite::research::{Evidence, source_reference};
+    let db = library();
+    let query = "Compare https://public.example/a and https://public.example/b";
+    let source = {
+        let mut store = db.lock().unwrap();
+        store
+            .save_task(&pr3_memory_sqlite::TaskRecord {
+                id: 1,
+                title: "Research".into(),
+                parent: None,
+                state: pr3_memory_sqlite::TaskState::Working,
+                updated_at: now(),
+            })
+            .unwrap();
+        store.begin_research(1, query, true).unwrap();
+        for name in ["a", "b"] {
+            store
+                .add_research_candidate(1, &format!("https://public.example/{name}"), name, "")
+                .unwrap();
+        }
+        let a = store
+            .research_candidates(1)
+            .unwrap()
+            .into_iter()
+            .find(|c| c.url.ends_with("/a"))
+            .unwrap();
+        let source = a.id.replacen("candidate:", "research:", 1) + ":1:hash";
+        store
+            .save_research_sources(
+                1,
+                &[Evidence {
+                    source: source.clone(),
+                    title: "A".into(),
+                    location: a.url,
+                    text: "A allows readers.".into(),
+                    captured_at: 1,
+                    document: None,
+                }],
+            )
+            .unwrap();
+        source_reference(1, &source)
+    };
+    let host = Host::new(
+        Arc::new(RepeatedCachedRead {
+            source,
+            calls: AtomicUsize::new(0),
+        }),
+        pr3_tool::research::tools(db.clone(), None, None),
+    )
+    .unwrap()
+    .with_tasks(db.clone(), 30)
+    .unwrap();
+    host.continue_task(SessionId(1)).unwrap();
+    let (actions, events) = send(&host, query);
+    assert_eq!(answer(&actions), pr3_tool::research::NO_ANSWER);
+    let calls = events
+        .iter()
+        .filter_map(|e| match e {
+            TurnEvent::Tool {
+                name,
+                success,
+                output,
+                ..
+            } => Some((name, success, output)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(calls.len(), 4);
+    assert!(
+        calls
+            .iter()
+            .all(|(name, success, _)| *name == READ && !**success)
+    );
+    assert!(
+        calls[..3]
+            .iter()
+            .all(|(_, _, output)| output.contains("cached reread was not executed"))
+    );
+    assert!(calls[3].2.contains("not available in the current round"));
+    assert!(
+        events
+            .iter()
+            .all(|e| !matches!(e, TurnEvent::Approval { .. }))
+    );
+    assert_eq!(db.lock().unwrap().research_sources(1).unwrap().len(), 1);
 }
 
 #[test]
@@ -464,7 +592,195 @@ fn website_correction_filters_saved_evidence_and_survives_reopening() {
     std::fs::remove_dir_all(dir).unwrap();
 }
 
-struct RepairReportModel(AtomicUsize, usize);
+struct RepairReportModel(AtomicUsize, usize, bool);
+
+struct BiographyWeb;
+impl pr3_tool::research::SearchWeb for BiographyWeb {
+    fn search(&self, topic: &str) -> Result<Vec<pr3_tool::research::SearchHit>, String> {
+        assert_eq!(topic, "Who is Mira Vale, search her.");
+        Ok((1..=5)
+            .map(|i| pr3_tool::research::SearchHit {
+                url: format!("https://public.example/profile-{i}"),
+                title: format!("Mira Vale profile {i}"),
+                snippet: "A public biography; read the page for evidence.".into(),
+            })
+            .collect())
+    }
+}
+impl pr3_tool::web::Fetch for BiographyWeb {
+    fn fetch(&self, url: &str) -> Result<pr3_tool::web::Fetched, String> {
+        assert!(url.starts_with("https://public.example/profile-"));
+        Ok(pr3_tool::web::Fetched {
+            url: url.into(),
+            media_type: "text/plain".into(),
+            body: b"Mira Vale is a software engineer and technical author.".to_vec(),
+        })
+    }
+}
+
+struct BiographyRepairModel {
+    db: pr3_tool::documents::Library,
+    calls: AtomicUsize,
+}
+impl Backend for BiographyRepairModel {
+    fn label(&self) -> String {
+        "online citation repair regression".into()
+    }
+    fn generate(
+        &self,
+        r: &InferenceRequest,
+        _: &mut dyn FnMut(&str),
+    ) -> Result<Generation, String> {
+        let n = self.calls.fetch_add(1, Ordering::SeqCst);
+        if r.tools.is_empty() {
+            return Ok(Generation::default());
+        }
+        assert!(n < 4, "repair cannot add a fifth tool round");
+        let call = |name: &str, args: Value| ProposedToolCall {
+            name: name.into(),
+            arguments: args.to_string(),
+        };
+        let calls = if n == 0 {
+            vec![call(SEARCH, json!({"query":"Mira Vale"}))]
+        } else if n == 1 {
+            assert_eq!(
+                r.tools.iter().map(|t| t.name.as_str()).collect::<Vec<_>>(),
+                [READ],
+                "search snippets cannot unlock report submission before a source read"
+            );
+            let candidates = self
+                .db
+                .lock()
+                .unwrap()
+                .research_candidates(r.session.0)
+                .unwrap();
+            let parameters: Value = serde_json::from_str(&r.tools[0].parameters).unwrap();
+            let offered = parameters["properties"]["source"]["enum"]
+                .as_array()
+                .unwrap();
+            assert_eq!(
+                offered.len(),
+                5,
+                "a relevant later result must remain selectable"
+            );
+            for candidate in &candidates {
+                assert!(offered.contains(&json!(
+                    pr3_memory_sqlite::research::candidate_reference(r.session.0, &candidate.id)
+                )));
+            }
+            candidates.into_iter().rev().take(3)
+                .map(|c| call(READ, json!({"source":pr3_memory_sqlite::research::candidate_reference(r.session.0, &c.id)}))).collect()
+        } else {
+            let source = self
+                .db
+                .lock()
+                .unwrap()
+                .research_sources(r.session.0)
+                .unwrap()
+                .remove(0);
+            let id = pr3_memory_sqlite::research::source_reference(r.session.0, &source.source);
+            if r.tools.iter().any(|t| t.name == READ) {
+                // An optional cached read used to consume the repair round.
+                vec![call(READ, json!({"source":id}))]
+            } else {
+                let failed = r.messages.iter().any(|m| {
+                    m.role == Role::Tool && m.content.contains("excerpt reference does not match")
+                });
+                let citation = if failed {
+                    assert!(
+                        r.messages
+                            .iter()
+                            .all(|m| m.tool_calls.iter().all(|c| c.name != ANSWER)),
+                        "invalid arguments stay in the trace, not the repair prompt"
+                    );
+                    json!({"source":id,"quote":source.text})
+                } else {
+                    let mut reference =
+                        pr3_memory::evidence_ref::quote_reference(&id, 0, &source.text).unwrap();
+                    let last = reference.pop().unwrap();
+                    reference.push(if last == '0' { '1' } else { '0' });
+                    json!({"source":id,"quote_ref":reference})
+                };
+                vec![call(
+                    ANSWER,
+                    json!({"findings":[{"citations":[citation]}],"gaps":""}),
+                )]
+            }
+        };
+        Ok(Generation {
+            tool_calls: calls,
+            ..Generation::default()
+        })
+    }
+}
+
+#[test]
+fn online_search_and_batched_reads_leave_a_round_for_a_rejected_citation() {
+    let db = Arc::new(Mutex::new(SqliteMemory::open_in_memory().unwrap()));
+    let web = Arc::new(BiographyWeb);
+    let model = Arc::new(BiographyRepairModel {
+        db: db.clone(),
+        calls: AtomicUsize::new(0),
+    });
+    let host = Host::new(
+        model.clone(),
+        pr3_tool::research::tools(db.clone(), Some(web.clone()), Some(web)),
+    )
+    .unwrap()
+    .with_tasks(db.clone(), 30)
+    .unwrap();
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let sink = events.clone();
+    let actions = tauri::async_runtime::block_on(host.send_chat(
+        "Who is Mira Vale, search her.".into(),
+        super::chat::ChatControls {
+            web: true,
+            websites: String::new(),
+        },
+        0,
+        move |event| sink.lock().unwrap().push(event),
+    ))
+    .unwrap();
+    let events = events.lock().unwrap();
+    assert!(
+        answer(&actions).contains("> Mira Vale is a software engineer and technical author."),
+        "a recoverable reference error must not consume the only report opportunity: {}",
+        answer(&actions)
+    );
+    let calls = events
+        .iter()
+        .filter_map(|e| match e {
+            TurnEvent::Tool {
+                name,
+                success,
+                output,
+                ..
+            } => Some((name.as_str(), *success, output)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        calls.iter().map(|c| (c.0, c.1)).collect::<Vec<_>>(),
+        [
+            (SEARCH, true),
+            (READ, true),
+            (READ, true),
+            (READ, true),
+            (ANSWER, false),
+            (ANSWER, true)
+        ]
+    );
+    assert!(calls[4].2.contains("excerpt reference does not match"));
+    assert_eq!(model.calls.load(Ordering::SeqCst), 4);
+    assert!(
+        events
+            .iter()
+            .all(|e| !matches!(e, TurnEvent::Approval { .. }))
+    );
+    let task = host.current_task().unwrap().unwrap().card.id;
+    assert_eq!(db.lock().unwrap().research_sources(task).unwrap().len(), 3);
+}
+
 impl Backend for RepairReportModel {
     fn label(&self) -> String {
         "report repair regression".into()
@@ -489,7 +805,11 @@ impl Backend for RepairReportModel {
             );
         }
         let args = if attempt < self.1 {
-            json!({"findings":(0..4).map(|_|json!({"text":format!("{attempt}: {}","UNVALIDATED-DRAFT ".repeat(30)),"citations":[{"source":source["source"],"quote":"A made-up quotation."}]})).collect::<Vec<_>>(),"gaps":""})
+            if self.2 {
+                json!({"findings":[{"citations":[{"source":source["source"],"quote":source["text"],"anchor":format!("UNVALIDATED-DRAFT-{attempt}")}]}],"gaps":""})
+            } else {
+                json!({"findings":(0..4).map(|_|json!({"text":format!("{attempt}: {}","UNVALIDATED-DRAFT ".repeat(30)),"citations":[{"source":source["source"],"quote":"A made-up quotation."}]})).collect::<Vec<_>>(),"gaps":""})
+            }
         } else {
             assert!(r.messages.iter().all(|m| {
                 !m.content.contains("UNVALIDATED-DRAFT")
@@ -497,7 +817,16 @@ impl Backend for RepairReportModel {
                         .iter()
                         .all(|c| !c.arguments.contains("UNVALIDATED-DRAFT"))
             }));
-            assert!(r.messages.iter().any(|m|m.role==Role::Tool && m.content.contains("Quotation does not match")));
+            let error = if self.2 {
+                "different text from its anchor"
+            } else {
+                "Quotation does not match"
+            };
+            assert!(
+                r.messages
+                    .iter()
+                    .any(|m| m.role == Role::Tool && m.content.contains(error))
+            );
             if r.tools.is_empty() {
                 assert!(
                     r.messages.iter().any(
@@ -506,7 +835,7 @@ impl Backend for RepairReportModel {
                 );
                 return Ok(Generation::default());
             }
-            json!({"findings":[{"text":"The saved source states its price.","citations":[{"source":source["source"],"quote":source["text"]}]}],"gaps":""})
+            json!({"findings":[{"citations":[{"source":source["source"],"quote":source["text"],"anchor":"price"}]}],"gaps":""})
         };
         Ok(Generation {
             tool_calls: vec![ProposedToolCall {
@@ -520,14 +849,18 @@ impl Backend for RepairReportModel {
 
 #[test]
 fn rejected_reports_leave_the_error_and_execution_budget_without_filling_the_repair_context() {
-    for failures in [3, 4] {
+    for (failures, anchor_mismatch) in [(3, false), (4, false), (3, true), (4, true)] {
         let db = library();
         let first = host(db.clone(), false, false);
         send(&first, "Research locally: Compare prices");
         let id = SessionId(first.current_task().unwrap().unwrap().card.id);
         drop(first);
         let host = Host::new(
-            Arc::new(RepairReportModel(AtomicUsize::new(0), failures)),
+            Arc::new(RepairReportModel(
+                AtomicUsize::new(0),
+                failures,
+                anchor_mismatch,
+            )),
             pr3_tool::research::tools(db.clone(), None, None),
         )
         .unwrap()
