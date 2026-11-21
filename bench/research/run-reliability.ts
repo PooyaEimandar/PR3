@@ -47,7 +47,7 @@ for (const name of ['Qwen3.5-4B-Q4_K_M.gguf', 'Qwen3.8-27B-Q4_K_M.gguf']) {
   models.push({ name, path, sha256: await hash(path) });
 }
 const files = execFileSync('rg', ['--files', 'crate', 'app/pr3-app/src-tauri/src', 'app/pr3-app/src', 'app/pr3-app/ui', 'bench/research', 'bench/documents/src'], { cwd: root, encoding: 'utf8' })
-  .trim().split('\n').filter(p => /\.(rs|ts|html|css|toml)$/u.test(p));
+  .trim().split('\n').filter(p => /\.(rs|ts|html|css|toml)$/u.test(p) || /\/tests\/fixtures\/.*\.json$/u.test(p));
 const productionSources: Record<string, string> = {};
 for (const path of [...files, 'Cargo.lock', 'Cargo.toml', 'app/pr3-app/src-tauri/Cargo.toml', 'bench/documents/Cargo.toml']) productionSources[path] = await hash(resolve(root, path));
 const manifest = {

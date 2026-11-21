@@ -28,7 +28,7 @@ use std::thread::JoinHandle;
 
 use llama_cpp_2::llama_backend::LlamaBackend;
 
-pub use crate::prompt::PromptFormat;
+pub use crate::prompt::{CONCLUSION_REPORT_SCHEMA_KEY, PromptFormat, QUOTATION_REPORT_SCHEMA_KEY};
 pub use evidence::saved_evidence_view;
 
 /// For the fuzz targets in `fuzz/` only, which build with `--cfg fuzzing`: the output
@@ -124,6 +124,16 @@ impl ChatMessage {
     }
 }
 
+/// Private saved evidence selected for one diagnostic inference pass.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PromptEvidence {
+    pub prompt_tokens: u32,
+    pub answer_reservation: u32,
+    /// The selected saved-source views AFTER fitting, in prompt order. Private
+    /// text: returned only when explicitly enabled by a diagnostic caller.
+    pub source_views: Vec<String>,
+}
+
 /// One model turn: the visible answer plus any tool calls it made.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ChatOutput {
@@ -142,6 +152,8 @@ pub struct ChatOutput {
     /// two-pass answer this is the planning pass, which still benefits from read-ahead.
     pub first_pass_prompt_tokens: u32,
     pub first_pass_reused_tokens: u32,
+    /// Opt-in evidence diagnostics, one entry per actual inference pass.
+    pub prompt_evidence: Vec<PromptEvidence>,
 }
 
 /// What [`Engine::read_ahead`] read.
@@ -170,6 +182,9 @@ impl ReadingAhead {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct EngineConfig {
+    /// Return fitted saved evidence to the caller for diagnostics. Off in normal
+    /// app use; this never writes a log or changes the model's input.
+    pub capture_prompt_evidence: bool,
     /// Context window in tokens: prompt plus answer.
     pub n_ctx: u32,
     /// Longest answer, in tokens.
@@ -192,6 +207,7 @@ impl Default for EngineConfig {
     /// The non-thinking sampling settings Qwen's model cards recommend.
     fn default() -> Self {
         Self {
+            capture_prompt_evidence: false,
             n_ctx: 4096,
             max_new_tokens: 512,
             gpu_layers: 0,
@@ -495,6 +511,12 @@ where
 }
 
 fn include_usage(answer: &mut ChatOutput, earlier: &ChatOutput) {
+    answer.prompt_evidence = earlier
+        .prompt_evidence
+        .iter()
+        .chain(&answer.prompt_evidence)
+        .cloned()
+        .collect();
     answer.prompt_tokens = answer.prompt_tokens.saturating_add(earlier.prompt_tokens);
     answer.reused_tokens = answer.reused_tokens.saturating_add(earlier.reused_tokens);
     answer.completion_tokens = answer
@@ -693,6 +715,15 @@ mod answer_guard_tests {
     #[test]
     fn repeated_plan_gets_one_nonexecuting_correction_with_full_usage_accounting() {
         let mut calls = 0;
+        let audited = |arguments: &str, marker: &str| {
+            let mut output = planned(arguments);
+            output.prompt_evidence.push(PromptEvidence {
+                prompt_tokens: 10,
+                answer_reservation: 512,
+                source_views: vec![marker.into()],
+            });
+            output
+        };
         let out = repair_repeated_plan(
             &prior_lookup(),
             &tools(),
@@ -700,7 +731,7 @@ mod answer_guard_tests {
             &mut |history, _| {
                 calls += 1;
                 if calls == 1 {
-                    return Ok(planned(r#"{"b":2,"a":1}"#));
+                    return Ok(audited(r#"{"b":2,"a":1}"#, "first"));
                 }
                 assert!(history.last().unwrap().content.starts_with("NOT EXECUTED."));
                 assert!(
@@ -710,7 +741,7 @@ mod answer_guard_tests {
                         .content
                         .contains("do not assume they succeeded")
                 );
-                Ok(planned(r#"{"a":3}"#))
+                Ok(audited(r#"{"a":3}"#, "repair"))
             },
         )
         .unwrap();
@@ -725,6 +756,13 @@ mod answer_guard_tests {
             (2, 20, 10)
         );
         assert_eq!(out.first_pass_prompt_tokens, 10);
+        assert_eq!(
+            out.prompt_evidence
+                .iter()
+                .flat_map(|p| &p.source_views)
+                .collect::<Vec<_>>(),
+            ["first", "repair"]
+        );
     }
 
     #[test]

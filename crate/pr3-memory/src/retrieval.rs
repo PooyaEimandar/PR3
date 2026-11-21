@@ -24,26 +24,110 @@ fn stem(word: &str) -> String {
         .to_string()
 }
 
-pub fn terms(query: &str) -> Vec<String> {
+/// A bounded presentation hint from the actual request, never from source text.
+/// It is not a translation, semantic classifier or permission decision.
+pub fn focused_request(query: &str) -> bool {
+    let lower = query.to_lowercase();
+    let question = ["research online:", "research locally:", "research:"]
+        .iter()
+        .find_map(|prefix| lower.trim().strip_prefix(prefix))
+        .unwrap_or(&lower)
+        .trim();
+    let text = question.split("sources only:").next().unwrap_or(question);
+    let correction = text.split_once(':').is_some_and(|(label, _)| {
+        matches!(
+            label.trim(),
+            "correction" | "corrección" | "correccion" | "اصلاح"
+        )
+    });
+    correction
+        || (text.contains("only")
+            && text.contains("quote")
+            && !text.contains("not only")
+            && !text.contains("don't only"))
+        || ((text.contains("seulement") || text.contains("uniquement"))
+            && (text.contains("citation") || text.contains("citez"))
+            && !text.contains("pas seulement"))
+        || (text.contains("فقط") && text.contains("نقل"))
+}
+
+fn ranking_query(query: &str) -> String {
     let lower = query.to_lowercase();
     // In a narrow quotation correction, later instructions about what NOT to
     // repeat are not positive retrieval targets. This affects ranking only;
     // the complete user request still reaches the model and permission checks.
-    let focused =
-        lower.contains("only") && (lower.contains("quote") || lower.contains("correction:"));
-    let ranking = if focused {
-        [". do not ", "; do not ", ", without ", ". web is off"]
-            .iter()
-            .fold(lower.as_str(), |text, suffix| {
-                text.split(suffix).next().unwrap_or(text)
-            })
+    let focused = focused_request(&lower);
+    let positive = [". do not ", "; do not "]
+        .iter()
+        .fold(lower.as_str(), |text, suffix| {
+            text.split(suffix).next().unwrap_or(text)
+        });
+    let mut ranking = if focused {
+        [
+            ". do not ",
+            "; do not ",
+            ", without ",
+            ". web is off",
+            ", sans ",
+            ". ne ",
+            "; ne ",
+        ]
+        .iter()
+        .fold(positive, |text, suffix| {
+            text.split(suffix).next().unwrap_or(text)
+        })
     } else {
-        &lower
+        positive
     };
+    // A Persian negative follow-up clause is not a second positive retrieval
+    // target. Keep ordinary semicolon-separated positive conditions intact.
+    if focused
+        && let Some((before, after)) = ranking.split_once('؛')
+        && (after.contains("نکن") || after.contains("نگو"))
+    {
+        ranking = before;
+    }
+    ranking.to_string()
+}
+
+/// Comparison guidance must follow the positive request, not a later clause
+/// saying which old comparison to omit. This is only an inference hint.
+pub fn comparison_request(query: &str) -> bool {
+    ranking_query(query)
+        .split("sources only:")
+        .next()
+        .unwrap_or_default()
+        .split_whitespace()
+        .filter(|word| !word.contains("://"))
+        .flat_map(|word| word.split(|c: char| !c.is_alphabetic()))
+        .any(|word| {
+            matches!(
+                word,
+                "compare"
+                    | "compares"
+                    | "comparing"
+                    | "comparison"
+                    | "comparisons"
+                    | "comparez"
+                    | "comparer"
+                    | "comparaison"
+                    | "comparaisons"
+                    | "compara"
+                    | "comparar"
+                    | "comparación"
+                    | "comparacion"
+                    | "comparaciones"
+                    | "مقایسه"
+            )
+        })
+}
+
+pub fn terms(query: &str) -> Vec<String> {
+    let ranking = ranking_query(query);
     let mut words: Vec<_> = ranking
         .split("sources only:")
         .next()
-        .unwrap_or(ranking)
+        .unwrap_or(&ranking)
         .split_whitespace()
         .filter(|w| !w.contains("://"))
         .flat_map(|w| w.split(|c: char| !c.is_alphanumeric()))
@@ -85,6 +169,12 @@ pub fn terms(query: &str) -> Vec<String> {
                     | "snapshots"
                     | "answer"
                     | "question"
+                    | "explain"
+                    | "whether"
+                    | "when"
+                    | "how"
+                    | "can"
+                    | "relevant"
             )
         })
         .map(stem)
@@ -104,6 +194,46 @@ pub fn matches(text: &str, words: &[String]) -> Vec<bool> {
         .iter()
         .map(|w| tokens.iter().any(|t| t == w))
         .collect()
+}
+
+/// Adjacent meaningful query terms distinguish a requested concept (such as
+/// "default features") from unrelated occurrences of either word on a page.
+pub fn phrases(query: &str) -> Vec<(String, String)> {
+    let allowed = terms(query);
+    let ranking = ranking_query(query);
+    let tokens = ranking
+        .split_whitespace()
+        .filter(|word| !word.contains("://"))
+        .flat_map(|word| word.split(|c: char| !c.is_alphanumeric()))
+        .map(stem)
+        .filter(|word| allowed.contains(word))
+        .collect::<Vec<_>>();
+    let mut result = tokens
+        .windows(2)
+        .filter_map(|pair| match pair {
+            [a, b] if a != b => Some((a.clone(), b.clone())),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    result.sort();
+    result.dedup();
+    result
+}
+
+pub fn phrase_score(text: &str, phrases: &[(String, String)]) -> usize {
+    let tokens = text
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|word| word.len() > 2)
+        .map(stem)
+        .collect::<Vec<_>>();
+    phrases
+        .iter()
+        .filter(|(a, b)| {
+            tokens
+                .windows(2)
+                .any(|pair| matches!(pair, [x,y] if x == a && y == b))
+        })
+        .count()
 }
 
 pub fn score(text: &str, words: &[String]) -> usize {
@@ -155,7 +285,36 @@ pub fn passage_score(text: &str, words: &[String]) -> usize {
         })
         .max()
         .unwrap_or(0);
-    best * 4 + score(text, words)
+    // An option heading names the scope of the following rule. Without this,
+    // a nearby configuration example can outrank the actual command option.
+    // This is relevance only, never authority or permission to run a command.
+    best * 4 + score(text, words) + option_score(text, words) * 12
+}
+
+pub fn option_score(text: &str, words: &[String]) -> usize {
+    text.lines()
+        .map(str::trim)
+        .filter(|line| {
+            line.starts_with("--") && line.len() <= 100 && !line.contains(char::is_whitespace)
+        })
+        .map(|line| score(line, words))
+        // A generic match such as "file" in --dirstat-by-file must not
+        // outrank the requested passage. Require a compound scope match.
+        .filter(|matched| *matched >= 2)
+        .max()
+        .unwrap_or(0)
+}
+
+pub fn rule_scope_score(text: &str, words: &[String]) -> usize {
+    // The default rule is a separate requested case, not covered merely by an
+    // exception saying "unlike the default". Prefer the affirmative rule's scope.
+    let default = sentences(text)
+        .iter()
+        .filter(|(_, line)| line.to_lowercase().starts_with("by default,"))
+        .map(|_| score("default", words))
+        .max()
+        .unwrap_or(0);
+    option_score(text, words).max(default)
 }
 
 /// Choose at most `limit` parts across the whole bounded page. New query-term
@@ -256,6 +415,66 @@ mod tests {
         assert!(
             terms("Why can free accounts not export?").contains(&"export".into()),
             "ordinary questions retain their complete retrieval terms"
+        );
+    }
+
+    #[test]
+    fn comparison_hint_ignores_excluded_comparisons_and_source_addresses() {
+        for query in [
+            "Correction: quote only the host restriction. Do not repeat the reader comparison.",
+            "Correction: quote only the quota, without a comparison.",
+            "Correction : citez seulement la restauration, sans comparaison de conservation.",
+            "اصلاح: فقط شرط بازیابی را نقل کن؛ مقایسه را تکرار نکن",
+            "Quote the price. Sources only: compare.example",
+            "Quote https://example.org/comparison",
+        ] {
+            assert!(!comparison_request(query), "{query}");
+        }
+        for query in [
+            "Compare Lumen and Reed reader behavior. Do not repeat prices.",
+            "Correction: compare only Lumen and Reed host restrictions.",
+            "Correction : comparez seulement les conditions de restauration.",
+            "Compara las condiciones de restauración.",
+            "اصلاح: فقط شرط بازیابی را مقایسه کن؛ مدت نگهداری را تکرار نکن",
+        ] {
+            assert!(comparison_request(query), "{query}");
+        }
+    }
+
+    #[test]
+    fn focused_multilingual_corrections_keep_positive_scope_without_negative_followups() {
+        for (positive, full) in [
+            (
+                "Correction : citez seulement la condition de restauration",
+                "Correction : citez seulement la condition de restauration, sans répéter la conservation",
+            ),
+            (
+                "اصلاح: فقط شرط بازیابی را نقل کن",
+                "اصلاح: فقط شرط بازیابی را نقل کن؛ مدت نگهداری را تکرار نکن",
+            ),
+            (
+                "Corrección: cita la condición de restauración",
+                "Corrección: cita la condición de restauración",
+            ),
+        ] {
+            assert!(focused_request(full), "{full}");
+            assert_eq!(terms(full), terms(positive), "{full}");
+            assert_eq!(phrases(full), phrases(positive), "{full}");
+        }
+        assert!(focused_request(
+            "Research locally: Correction : citez la condition"
+        ));
+        for query in [
+            "Compare retention and restoration",
+            "Not only quote the condition; explain it",
+            "Ne citez pas seulement la condition",
+            "Sources only: https://example.org/correction:quote-only",
+        ] {
+            assert!(!focused_request(query), "{query}");
+        }
+        assert!(terms("اصلاح: فقط شرط بازیابی؛ همچنین مدت نگهداری").contains(&"نگهداری".into()));
+        assert!(
+            terms("Comparez la conservation et la restauration").contains(&"conservation".into())
         );
     }
 }

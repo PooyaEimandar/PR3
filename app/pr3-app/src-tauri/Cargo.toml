@@ -18,6 +18,7 @@ name = "pr3_app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [features]
+research-audit = []
 # Explicit opt-in, debug builds only. Never part of a distributed app.
 legacy-email-bench = ["pr3-tool/legacy-email-bench"]
 e2e = ["dep:tauri-plugin-wdio-webdriver"]

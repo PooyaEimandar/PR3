@@ -1,0 +1,103 @@
+{
+  "verifiedAt": "2026-11-20T16:32:05.945Z",
+  "archiveSha256": "0df2cf74a6f8424ac71f6b41d14357a954426b9b18d51a5bd026ea566a130e47",
+  "binarySha256": "8d568a997ec5ac3411757acf0d22f685740dc2553e7e3aa7ba5fb299b9a0e6e7",
+  "currentSourcesMatchFrozenManifest": true,
+  "frozenExecutableMatchesManifest": true,
+  "modelFilesMatchManifest": true,
+  "extractedReplaysMatch": true,
+  "controls": {
+    "development": {
+      "controls": [
+        {
+          "control": "unaltered evidence accepted",
+          "pass": true
+        },
+        {
+          "control": "pre-execution rejection counted from core trace",
+          "pass": true
+        },
+        {
+          "control": "incomplete matrix rejected",
+          "pass": true
+        },
+        {
+          "control": "missing source review rejected",
+          "pass": true
+        },
+        {
+          "control": "duplicate source review rejected",
+          "pass": true
+        },
+        {
+          "control": "changed displayed quotation rejected",
+          "pass": true
+        },
+        {
+          "control": "changed frozen corpus rejected",
+          "pass": true
+        },
+        {
+          "control": "changed baseline corpus rejected",
+          "pass": true
+        },
+        {
+          "control": "changed restart capture time rejected",
+          "pass": true
+        },
+        {
+          "control": "exceeded execution limit rejected",
+          "pass": true
+        },
+        {
+          "control": "missing late-page fact rejected",
+          "pass": true
+        }
+      ]
+    },
+    "generalization": {
+      "controls": [
+        {
+          "control": "unaltered evidence accepted",
+          "pass": true
+        },
+        {
+          "control": "pre-execution rejection counted from core trace",
+          "pass": true
+        },
+        {
+          "control": "incomplete matrix rejected",
+          "pass": true
+        },
+        {
+          "control": "missing source review rejected",
+          "pass": true
+        },
+        {
+          "control": "duplicate source review rejected",
+          "pass": true
+        },
+        {
+          "control": "changed displayed quotation rejected",
+          "pass": true
+        },
+        {
+          "control": "changed frozen corpus rejected",
+          "pass": true
+        },
+        {
+          "control": "changed baseline corpus rejected",
+          "pass": true
+        },
+        {
+          "control": "changed restart capture time rejected",
+          "pass": true
+        },
+        {
+          "control": "exceeded execution limit rejected",
+          "pass": true
+        }
+      ]
+    }
+  }
+}

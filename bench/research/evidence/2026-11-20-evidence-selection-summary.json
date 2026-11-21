@@ -1,0 +1,1374 @@
+{
+  "scope": "PR3-only exposed development and now-exposed former generalization regressions. Unblinded implementation-assistant review, not independent held-out evidence or a matched OpenJarvis comparison. No failed-case retry substitution in either final matrix.",
+  "binarySha256": "748112b6c1aa683bec5ca55a7e922511ae93d4156eafe8a3cc7682316912d689",
+  "development": {
+    "scope": "Exposed development cases, not held-out or a current OpenJarvis comparison. Source review is unblinded and non-independent. Timings are observational desktop measurements.",
+    "rows": 108,
+    "turns": 162,
+    "sourceFilesVerified": 139,
+    "baselineCasesUnchanged": 18,
+    "unchangedRestartSnapshots": 54,
+    "nonemptyRestartSnapshots": 54,
+    "lateCitedPassages": 42,
+    "coverageSnapshotsWithAllRequestedFacts": 24,
+    "caseScores": {
+      "Qwen3.5-4B-Q4_K_M.gguf/short-page-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/short-page-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/long-license-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/long-license-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/long-comparison-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/long-comparison-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/directives-around-fact/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/same-sentence-directive/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/spanish-directive/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/web-directive-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/web-directive-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/requested-quote-after-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/requested-quote-after-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/relevant-operating-instructions/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/replay-h05/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/replay-h06/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/replay-h08/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/replay-h16/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/website-scope-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/website-scope-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/official-source-clarification/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/public-sqlite-comparison-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 0
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/public-sqlite-comparison-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/late-comparison-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/late-comparison-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/late-conditions-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/late-conditions-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/short-page-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/short-page-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/long-license-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/long-license-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 2
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/long-comparison-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/long-comparison-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/directives-around-fact/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/same-sentence-directive/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/spanish-directive/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/web-directive-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/web-directive-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/requested-quote-after-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/requested-quote-after-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/relevant-operating-instructions/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/replay-h05/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/replay-h06/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/replay-h08/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/replay-h16/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/website-scope-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/website-scope-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/official-source-clarification/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/public-sqlite-comparison-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 2
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/public-sqlite-comparison-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/late-comparison-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 2
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/late-comparison-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/late-conditions-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/late-conditions-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      }
+    },
+    "failures": [
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 1,
+        "id": "public-sqlite-comparison-restart",
+        "turn": 0,
+        "pass": false,
+        "reason": "Does not explain rollback exclusion during commit; quotes pre-commit reader behavior instead and adds an unrelated obsolete large-transaction recommendation without its later-version qualification."
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 2,
+        "id": "public-sqlite-comparison-restart",
+        "turn": 0,
+        "pass": false,
+        "reason": "Omits both requested commit-reader behaviors, substitutes unrelated performance/default-mode facts, and incorrectly labels saved rollback evidence unavailable."
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 7,
+        "id": "public-sqlite-comparison-restart",
+        "turn": 0,
+        "pass": false,
+        "reason": "Omits WAL readers continuing during commits, substituting unrelated read-heavy performance and rollback setup quotations."
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 1,
+        "id": "public-sqlite-comparison-restart",
+        "turn": 0,
+        "pass": false,
+        "reason": "Incomplete comparison: omits WAL readers continuing during commit and reports that saved evidence unavailable, despite the captured WAL source. Rollback and same-host portions are supported. Bounded repair preceded the omission."
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 2,
+        "id": "late-comparison-restart",
+        "turn": 0,
+        "pass": false,
+        "reason": "Finding 2 reverses the cited condition: says Reed blocks existing readers from finishing, whereas the source says it waits for them to finish before commit. Correct attached quotation does not repair the contradictory interpretation."
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 7,
+        "id": "long-license-restart",
+        "turn": 1,
+        "pass": false,
+        "reason": "Invents a main license from which documentation is excluded. Saved evidence instead states the engine is public domain and documentation separately licensed; the correct attached quotation does not support the added license claim. Same standard as prior evaluation."
+      }
+    ],
+    "borderlineJudgments": [
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 1,
+        "id": "official-source-clarification",
+        "turn": 0,
+        "pass": true,
+        "reason": "Requests official websites and claims no search or verified authority; irrelevant agricultural-agency examples make the clarification borderline.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 2,
+        "id": "official-source-clarification",
+        "turn": 0,
+        "pass": true,
+        "reason": "Correctly asks for official websites and claims no search; irrelevant speculative seafood/agriculture examples make this borderline.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 7,
+        "id": "official-source-clarification",
+        "turn": 0,
+        "pass": true,
+        "reason": "Asks for specific official websites and makes no search claim; speculative fisheries/trade examples remain borderline clutter.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 1,
+        "id": "replay-h05",
+        "turn": 0,
+        "pass": true,
+        "reason": "Correctly distinguishes association from proof and cites the design limitations; no seasonal adjustment is a stronger paraphrase of not measuring seasonal changes, so this is borderline.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 2,
+        "id": "replay-h05",
+        "turn": 0,
+        "pass": true,
+        "reason": "Distinguishes before/after association from causal proof; identifies opt-in selection, no control group and unmeasured seasonal changes without attributing a causal effect size. Borderline per-finding support: self-selection in finding 2 is evidenced by the opt-in quotation attached to finding 1, not its own citation. This applies the same stricter treatment as the preceding quality evaluation.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 2,
+        "id": "replay-h16",
+        "turn": 0,
+        "pass": true,
+        "reason": "Correctly distinguishes expired 31-credit offer from undated 46-credit listing and refuses to establish a current price. Borderline wording calls capture or publication date unspecified even though snapshot capture metadata exists; the listing itself is undated.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 2,
+        "id": "public-sqlite-comparison-restart",
+        "turn": 0,
+        "pass": true,
+        "reason": "Covers WAL readers continuing, rollback writer requiring no readers, and same-host restriction. Borderline: rollback quote starts 'Before this happens' and omits the antecedent identifying database-file update/commit, leaving that context implicit.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 7,
+        "id": "public-sqlite-comparison-restart",
+        "turn": 0,
+        "pass": true,
+        "reason": "Complete, correct WAL/rollback commit comparison and same-host restriction with the rollback antecedent preserved. Borderline extra clause says originals are journaled first, which is in the saved page but omitted from this finding's displayed quotations.",
+        "borderline": true
+      }
+    ],
+    "groups": {
+      "Qwen3.5-4B-Q4_K_M.gguf/all": {
+        "turns": 81,
+        "diagnosticPass": 80,
+        "validatedReports": 81,
+        "runtimeErrors": 0,
+        "failedToolCalls": 3,
+        "traceRejectedCalls": 14,
+        "sourceReviewedPass": 78,
+        "acceptedBorderlines": 3,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 129,
+        "maxToolRounds": 4,
+        "maxToolCalls": 5,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 75,
+        "lenientSourceReviewedPass": 78,
+        "maxSeconds": 32.495772208,
+        "medianSeconds": 7.670611084,
+        "p95Seconds": 13.506583
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/context": {
+        "turns": 18,
+        "diagnosticPass": 18,
+        "validatedReports": 18,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 1,
+        "sourceReviewedPass": 18,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 27,
+        "maxToolRounds": 3,
+        "maxToolCalls": 4,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 18,
+        "lenientSourceReviewedPass": 18,
+        "maxSeconds": 12.806404666,
+        "medianSeconds": 7.0210650415,
+        "p95Seconds": 12.806404666
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/quotation": {
+        "turns": 24,
+        "diagnosticPass": 24,
+        "validatedReports": 24,
+        "runtimeErrors": 0,
+        "failedToolCalls": 1,
+        "traceRejectedCalls": 8,
+        "sourceReviewedPass": 24,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 26,
+        "maxToolRounds": 4,
+        "maxToolCalls": 4,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 24,
+        "lenientSourceReviewedPass": 24,
+        "maxSeconds": 13.506583,
+        "medianSeconds": 7.405167938,
+        "p95Seconds": 12.575520667
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/reliability": {
+        "turns": 21,
+        "diagnosticPass": 21,
+        "validatedReports": 21,
+        "runtimeErrors": 0,
+        "failedToolCalls": 1,
+        "traceRejectedCalls": 3,
+        "sourceReviewedPass": 21,
+        "acceptedBorderlines": 3,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 36,
+        "maxToolRounds": 3,
+        "maxToolCalls": 3,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 18,
+        "lenientSourceReviewedPass": 21,
+        "maxSeconds": 15.537202708,
+        "medianSeconds": 9.613236542,
+        "p95Seconds": 13.360620917
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/live-pages": {
+        "turns": 6,
+        "diagnosticPass": 5,
+        "validatedReports": 6,
+        "runtimeErrors": 0,
+        "failedToolCalls": 1,
+        "traceRejectedCalls": 2,
+        "sourceReviewedPass": 3,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 16,
+        "maxToolRounds": 4,
+        "maxToolCalls": 5,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 3,
+        "lenientSourceReviewedPass": 3,
+        "maxSeconds": 32.495772208,
+        "medianSeconds": 9.766157978999999,
+        "p95Seconds": 32.495772208
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/coverage": {
+        "turns": 12,
+        "diagnosticPass": 12,
+        "validatedReports": 12,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 12,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 24,
+        "maxToolRounds": 3,
+        "maxToolCalls": 5,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 12,
+        "lenientSourceReviewedPass": 12,
+        "maxSeconds": 14.768305333,
+        "medianSeconds": 10.335890521,
+        "p95Seconds": 14.768305333
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/all": {
+        "turns": 81,
+        "diagnosticPass": 81,
+        "validatedReports": 81,
+        "runtimeErrors": 0,
+        "failedToolCalls": 1,
+        "traceRejectedCalls": 1,
+        "sourceReviewedPass": 78,
+        "acceptedBorderlines": 5,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 138,
+        "maxToolRounds": 4,
+        "maxToolCalls": 5,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 73,
+        "lenientSourceReviewedPass": 78,
+        "maxSeconds": 202.162335958,
+        "medianSeconds": 40.304548666,
+        "p95Seconds": 89.820809791
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/context": {
+        "turns": 18,
+        "diagnosticPass": 18,
+        "validatedReports": 18,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 17,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 27,
+        "maxToolRounds": 4,
+        "maxToolCalls": 4,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 17,
+        "lenientSourceReviewedPass": 17,
+        "maxSeconds": 75.011795791,
+        "medianSeconds": 40.370397479000005,
+        "p95Seconds": 75.011795791
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/quotation": {
+        "turns": 24,
+        "diagnosticPass": 24,
+        "validatedReports": 24,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 24,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 24,
+        "maxToolRounds": 3,
+        "maxToolCalls": 3,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 24,
+        "lenientSourceReviewedPass": 24,
+        "maxSeconds": 53.870448875,
+        "medianSeconds": 37.290051917,
+        "p95Seconds": 53.804663125
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/reliability": {
+        "turns": 21,
+        "diagnosticPass": 21,
+        "validatedReports": 21,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 21,
+        "acceptedBorderlines": 3,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 49,
+        "maxToolRounds": 3,
+        "maxToolCalls": 3,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 18,
+        "lenientSourceReviewedPass": 21,
+        "maxSeconds": 100.857107958,
+        "medianSeconds": 63.023966292,
+        "p95Seconds": 100.24036875
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/live-pages": {
+        "turns": 6,
+        "diagnosticPass": 6,
+        "validatedReports": 6,
+        "runtimeErrors": 0,
+        "failedToolCalls": 1,
+        "traceRejectedCalls": 1,
+        "sourceReviewedPass": 5,
+        "acceptedBorderlines": 2,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 14,
+        "maxToolRounds": 4,
+        "maxToolCalls": 5,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 3,
+        "lenientSourceReviewedPass": 5,
+        "maxSeconds": 202.162335958,
+        "medianSeconds": 64.82055072899999,
+        "p95Seconds": 202.162335958
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/coverage": {
+        "turns": 12,
+        "diagnosticPass": 12,
+        "validatedReports": 12,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 11,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 24,
+        "maxToolRounds": 3,
+        "maxToolCalls": 4,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 11,
+        "lenientSourceReviewedPass": 11,
+        "maxSeconds": 80.168578,
+        "medianSeconds": 47.083730958,
+        "p95Seconds": 80.168578
+      }
+    }
+  },
+  "exposed": {
+    "scope": "Exposed development cases, not held-out or a current OpenJarvis comparison. Source review is unblinded and non-independent. Timings are observational desktop measurements.",
+    "rows": 48,
+    "turns": 78,
+    "sourceFilesVerified": 139,
+    "baselineCasesUnchanged": 8,
+    "unchangedRestartSnapshots": 30,
+    "nonemptyRestartSnapshots": 30,
+    "lateCitedPassages": 0,
+    "coverageSnapshotsWithAllRequestedFacts": 0,
+    "caseScores": {
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-python-zip/0": {
+        "turns": 3,
+        "sourceReviewedPass": 2
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-python-zip/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-git-diff/0": {
+        "turns": 3,
+        "sourceReviewedPass": 1
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-cargo-features/0": {
+        "turns": 3,
+        "sourceReviewedPass": 2
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-cargo-features/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-similar-name/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-similar-name/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-identical-name/0": {
+        "turns": 3,
+        "sourceReviewedPass": 0
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-french-conditions/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-french-conditions/1": {
+        "turns": 3,
+        "sourceReviewedPass": 0
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-spanish-dates/0": {
+        "turns": 3,
+        "sourceReviewedPass": 0
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-persian-recovery/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-persian-recovery/1": {
+        "turns": 3,
+        "sourceReviewedPass": 0
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-python-zip/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-python-zip/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-git-diff/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-cargo-features/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-cargo-features/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-similar-name/0": {
+        "turns": 3,
+        "sourceReviewedPass": 2
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-similar-name/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-identical-name/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-french-conditions/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-french-conditions/1": {
+        "turns": 3,
+        "sourceReviewedPass": 2
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-spanish-dates/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-persian-recovery/0": {
+        "turns": 3,
+        "sourceReviewedPass": 0
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-persian-recovery/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      }
+    },
+    "failures": [
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 1,
+        "id": "fresh-python-zip",
+        "turn": 0,
+        "pass": false,
+        "reason": "Default truncation and laziness are clear, but the ValueError quotation drops its strict=True antecedent and the answer never names that setting. Main completeness fails; lenient reading could infer the intended contrast from question/order.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 1,
+        "id": "fresh-cargo-features",
+        "turn": 0,
+        "pass": false,
+        "reason": "No validated report: bounded attempts failed findings-list and required-gaps schema checks, leaving the requested three-part Cargo answer incomplete."
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 1,
+        "id": "fresh-identical-name",
+        "turn": 0,
+        "pass": false,
+        "reason": "Duplicates the two profile quotations but never answers whether one identity is established or uncertainty remains. Separate quotations alone do not answer the explicit identity question."
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 1,
+        "id": "fresh-french-conditions",
+        "turn": 1,
+        "pass": false,
+        "reason": "Correct administrator condition, but the quote repeats the 60-day retention despite the correction asking only for restoration. Main scope failure; lenient reading could accept the extra sentence as context.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 1,
+        "id": "fresh-spanish-dates",
+        "turn": 0,
+        "pass": false,
+        "reason": "Calls the undated catalog current and never explicitly states that a current price cannot be established. Repeated exact quotations do not supply the requested temporal-uncertainty conclusion."
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 1,
+        "id": "fresh-persian-recovery",
+        "turn": 1,
+        "pass": false,
+        "reason": "Repeats 45-day retention after an explicit correction forbidding it. Recovery prerequisites are correct, but the requested narrowed scope is not followed."
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 2,
+        "id": "fresh-git-diff",
+        "turn": 0,
+        "pass": false,
+        "reason": "No validated Git report: both bounded attempts paired quotation references with mismatched anchors; the second referenced an unrelated inter-hunk-context passage. Validation correctly refused them."
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 2,
+        "id": "fresh-identical-name",
+        "turn": 0,
+        "pass": false,
+        "reason": "Only quotes both profiles; omits the explicitly requested conclusion that shared names do not establish one identity and uncertainty remains."
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 2,
+        "id": "fresh-french-conditions",
+        "turn": 1,
+        "pass": false,
+        "reason": "Repeats Opale retention alongside the correct administrator condition after a condition-only correction. Main scope failure; lenient context reading could accept the extra sentence.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 2,
+        "id": "fresh-spanish-dates",
+        "turn": 0,
+        "pass": false,
+        "reason": "Repeats both exact notes without explicitly concluding that the current price cannot be established. The requested temporal-uncertainty explanation is missing."
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 2,
+        "id": "fresh-persian-recovery",
+        "turn": 1,
+        "pass": false,
+        "reason": "Repeats 45-day retention despite the explicit condition-only correction forbidding that detail. Correct prerequisites do not resolve the scope failure."
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 7,
+        "id": "fresh-git-diff",
+        "turn": 0,
+        "pass": false,
+        "reason": "Uses the actual --exit-code rule and names --no-index, but does not establish outside-working-tree applicability or the implied --exit-code connection; first quote includes an unrelated object/work-tree clause. A lenient reading can infer the requested capability and statuses from the remaining text.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 7,
+        "id": "fresh-identical-name",
+        "turn": 0,
+        "pass": false,
+        "reason": "Quotes both same-name profiles but omits the explicit identity-uncertainty conclusion requested by the user."
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 7,
+        "id": "fresh-french-conditions",
+        "turn": 1,
+        "pass": false,
+        "reason": "Condition-only correction still quotes the 60-day retention sentence. Main scope failure; extra context can pass only the lenient reading.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 7,
+        "id": "fresh-spanish-dates",
+        "turn": 0,
+        "pass": false,
+        "reason": "Repeated source quotations never explicitly answer that the current price cannot be confirmed, omitting the requested temporal-uncertainty conclusion."
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 7,
+        "id": "fresh-persian-recovery",
+        "turn": 1,
+        "pass": false,
+        "reason": "Again repeats the forbidden retention detail instead of quoting only the recovery condition after correction/restart."
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 1,
+        "id": "fresh-french-conditions",
+        "turn": 1,
+        "pass": false,
+        "reason": "Repeats 60-day retention after the correction narrowed the answer to the administrator restoration condition.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 1,
+        "id": "fresh-persian-recovery",
+        "turn": 0,
+        "pass": false,
+        "reason": "Provides only retention; omits both recovery-code and device-owner approval requirements."
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 2,
+        "id": "fresh-similar-name",
+        "turn": 0,
+        "pass": false,
+        "reason": "The finding adds Dana Kent's robotics profession and a distinct-person conclusion while citing only Dana Keene's history profile; material parts lack their supporting citation."
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 2,
+        "id": "fresh-persian-recovery",
+        "turn": 0,
+        "pass": false,
+        "reason": "Quotes the recovery code and device-owner approval condition but omits the requested 45-day retention period."
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 7,
+        "id": "fresh-persian-recovery",
+        "turn": 0,
+        "pass": false,
+        "reason": "Quotes the recovery code and device-owner approval requirement but omits the requested 45-day retention period."
+      }
+    ],
+    "borderlineJudgments": [
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 1,
+        "id": "fresh-python-zip",
+        "turn": 0,
+        "pass": false,
+        "reason": "Default truncation and laziness are clear, but the ValueError quotation drops its strict=True antecedent and the answer never names that setting. Main completeness fails; lenient reading could infer the intended contrast from question/order.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 1,
+        "id": "fresh-similar-name",
+        "turn": 0,
+        "pass": true,
+        "reason": "Correct Keene historian/exhibition biography; Kent robotics facts are separately attributed, not merged. Extra namesake biography and profile/follow clutter fail the stricter target-only scope reading.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 1,
+        "id": "fresh-similar-name",
+        "turn": 1,
+        "pass": true,
+        "reason": "Continues substantive Keene biography from saved evidence without a merger. Separate Kent content and profile clutter remain unnecessary under stricter scope review.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 1,
+        "id": "fresh-french-conditions",
+        "turn": 1,
+        "pass": false,
+        "reason": "Correct administrator condition, but the quote repeats the 60-day retention despite the correction asking only for restoration. Main scope failure; lenient reading could accept the extra sentence as context.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 2,
+        "id": "fresh-similar-name",
+        "turn": 1,
+        "pass": true,
+        "reason": "Retains the correct saved Keene biography and separately labelled Kent quotations without an identity merger. Excessive duplication and unrequested Kent content fail stricter target-only relevance review.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 2,
+        "id": "fresh-french-conditions",
+        "turn": 1,
+        "pass": false,
+        "reason": "Repeats Opale retention alongside the correct administrator condition after a condition-only correction. Main scope failure; lenient context reading could accept the extra sentence.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 7,
+        "id": "fresh-git-diff",
+        "turn": 0,
+        "pass": false,
+        "reason": "Uses the actual --exit-code rule and names --no-index, but does not establish outside-working-tree applicability or the implied --exit-code connection; first quote includes an unrelated object/work-tree clause. A lenient reading can infer the requested capability and statuses from the remaining text.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 7,
+        "id": "fresh-similar-name",
+        "turn": 0,
+        "pass": true,
+        "reason": "Substantive Keene biography is correct; Kent is separately labelled rather than merged. Extra namesake content remains a stricter target-only scope failure.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 7,
+        "id": "fresh-french-conditions",
+        "turn": 1,
+        "pass": false,
+        "reason": "Condition-only correction still quotes the 60-day retention sentence. Main scope failure; extra context can pass only the lenient reading.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 1,
+        "id": "fresh-cargo-features",
+        "turn": 0,
+        "pass": true,
+        "reason": "Covers default-features=false, re-enablement and dep: suppressing the implicit feature. Borderline: 'must be defined explicitly' can misleadingly imply a same-named feature is mandatory rather than optional if desired.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 1,
+        "id": "fresh-similar-name",
+        "turn": 0,
+        "pass": true,
+        "reason": "Correct focused Keene historian/exhibition biography. The extra identification of the other link as Kent is present in saved evidence but not the displayed citation, so stricter claim-level review rejects it.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 1,
+        "id": "fresh-similar-name",
+        "turn": 1,
+        "pass": true,
+        "reason": "Correct saved Keene biography with separately cited Kent facts and no merger. Extra namesake biography is unnecessary under stricter target-only scope review.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 1,
+        "id": "fresh-french-conditions",
+        "turn": 1,
+        "pass": false,
+        "reason": "Repeats 60-day retention after the correction narrowed the answer to the administrator restoration condition.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 2,
+        "id": "fresh-similar-name",
+        "turn": 1,
+        "pass": true,
+        "reason": "Correct substantive Keene biography and separately cited Kent profile without merging them. The extra Kent biography exceeds the narrow continued Keene question.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 2,
+        "id": "fresh-french-conditions",
+        "turn": 0,
+        "pass": true,
+        "reason": "French answer covers both retention periods and both restoration conditions. The comparative phrase 'plus longue' cites only Opale in that finding, with the supporting Ardoise period quoted in the preceding finding.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 7,
+        "id": "fresh-git-diff",
+        "turn": 0,
+        "pass": true,
+        "reason": "Answers filesystem/outside-worktree --no-index, implied --exit-code and actual 0/1 statuses after bounded repair. One extra quote starts with an unrelated preceding object/work-tree clause; stricter quotation-context review excludes this answer.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 7,
+        "id": "fresh-similar-name",
+        "turn": 0,
+        "pass": true,
+        "reason": "Correct substantive Keene biography without transferring Kent's profession. The extra identification of the other profile as Kent lacks that profile's citation.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 7,
+        "id": "fresh-similar-name",
+        "turn": 1,
+        "pass": true,
+        "reason": "Correct Keene biography with a separately cited Kent biography and no merger. The extra namesake biography exceeds the narrow continued request.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 7,
+        "id": "fresh-french-conditions",
+        "turn": 0,
+        "pass": true,
+        "reason": "French answer covers both retention periods and restoration conditions. The comparison finding cites only Opale, while its Ardoise values/condition are quoted in earlier findings.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 7,
+        "id": "fresh-spanish-dates",
+        "turn": 0,
+        "pass": true,
+        "reason": "Correct explicit Spanish uncertainty: neither expired promotion nor undated catalog certifies current price. Borderline: the last finding calls capture time unknown despite recorded snapshot metadata and cites only the catalog while repeating the first note's expiry.",
+        "borderline": true
+      }
+    ],
+    "groups": {
+      "Qwen3.5-4B-Q4_K_M.gguf/all": {
+        "turns": 39,
+        "diagnosticPass": 30,
+        "validatedReports": 37,
+        "runtimeErrors": 0,
+        "failedToolCalls": 6,
+        "traceRejectedCalls": 15,
+        "sourceReviewedPass": 23,
+        "acceptedBorderlines": 4,
+        "borderlineFailures": 5,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 86,
+        "maxToolRounds": 4,
+        "maxToolCalls": 5,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 19,
+        "lenientSourceReviewedPass": 28,
+        "maxSeconds": 39.186587333,
+        "medianSeconds": 11.594939083,
+        "p95Seconds": 30.472775791
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-public-pages": {
+        "turns": 15,
+        "diagnosticPass": 13,
+        "validatedReports": 13,
+        "runtimeErrors": 0,
+        "failedToolCalls": 6,
+        "traceRejectedCalls": 8,
+        "sourceReviewedPass": 11,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 2,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 28,
+        "maxToolRounds": 4,
+        "maxToolCalls": 4,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 11,
+        "lenientSourceReviewedPass": 13,
+        "maxSeconds": 39.186587333,
+        "medianSeconds": 14.107112666999999,
+        "p95Seconds": 39.186587333
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-identity": {
+        "turns": 9,
+        "diagnosticPass": 5,
+        "validatedReports": 9,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 2,
+        "sourceReviewedPass": 6,
+        "acceptedBorderlines": 4,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 23,
+        "maxToolRounds": 4,
+        "maxToolCalls": 5,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 2,
+        "lenientSourceReviewedPass": 6,
+        "maxSeconds": 15.882064708,
+        "medianSeconds": 11.652202709,
+        "p95Seconds": 15.882064708
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-multilingual": {
+        "turns": 15,
+        "diagnosticPass": 12,
+        "validatedReports": 15,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 5,
+        "sourceReviewedPass": 6,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 3,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 35,
+        "maxToolRounds": 3,
+        "maxToolCalls": 3,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 6,
+        "lenientSourceReviewedPass": 9,
+        "maxSeconds": 22.76102725,
+        "medianSeconds": 10.305116667,
+        "p95Seconds": 22.76102725
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/all": {
+        "turns": 39,
+        "diagnosticPass": 35,
+        "validatedReports": 39,
+        "runtimeErrors": 0,
+        "failedToolCalls": 1,
+        "traceRejectedCalls": 3,
+        "sourceReviewedPass": 34,
+        "acceptedBorderlines": 10,
+        "borderlineFailures": 1,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 94,
+        "maxToolRounds": 4,
+        "maxToolCalls": 4,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 24,
+        "lenientSourceReviewedPass": 35,
+        "maxSeconds": 192.816338334,
+        "medianSeconds": 61.462825917,
+        "p95Seconds": 174.209799125
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-public-pages": {
+        "turns": 15,
+        "diagnosticPass": 15,
+        "validatedReports": 15,
+        "runtimeErrors": 0,
+        "failedToolCalls": 1,
+        "traceRejectedCalls": 3,
+        "sourceReviewedPass": 15,
+        "acceptedBorderlines": 2,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 42,
+        "maxToolRounds": 4,
+        "maxToolCalls": 4,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 13,
+        "lenientSourceReviewedPass": 15,
+        "maxSeconds": 192.816338334,
+        "medianSeconds": 94.511941292,
+        "p95Seconds": 192.816338334
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-identity": {
+        "turns": 9,
+        "diagnosticPass": 5,
+        "validatedReports": 9,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 8,
+        "acceptedBorderlines": 5,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 21,
+        "maxToolRounds": 3,
+        "maxToolCalls": 4,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 3,
+        "lenientSourceReviewedPass": 8,
+        "maxSeconds": 88.793613583,
+        "medianSeconds": 68.462078,
+        "p95Seconds": 88.793613583
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-multilingual": {
+        "turns": 15,
+        "diagnosticPass": 15,
+        "validatedReports": 15,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 11,
+        "acceptedBorderlines": 3,
+        "borderlineFailures": 1,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 31,
+        "maxToolRounds": 2,
+        "maxToolCalls": 2,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 8,
+        "lenientSourceReviewedPass": 12,
+        "maxSeconds": 89.600712583,
+        "medianSeconds": 45.951298042,
+        "p95Seconds": 89.600712583
+      }
+    }
+  },
+  "inference": {
+    "development": {
+      "turns": 162,
+      "passes": 328,
+      "verifiedInferenceQuotes": 312,
+      "maxPromptTokens": 3573,
+      "answerReservation": 512,
+      "clockDivergences": 0,
+      "coverage": {
+        "Qwen3.5-4B-Q4_K_M.gguf/public-sqlite-comparison-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 1,
+          "reportPasses": 5
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/late-comparison-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/late-conditions-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/public-sqlite-comparison-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 2,
+          "reportPasses": 4
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/late-comparison-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/late-conditions-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        }
+      },
+      "wallSeconds": {
+        "Qwen3.5-4B-Q4_K_M.gguf": {
+          "median": 7.671,
+          "p95": 13.506,
+          "max": 32.496
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf": {
+          "median": 40.305,
+          "p95": 89.822,
+          "max": 202.163
+        }
+      }
+    },
+    "exposed": {
+      "turns": 78,
+      "passes": 174,
+      "verifiedInferenceQuotes": 362,
+      "maxPromptTokens": 3582,
+      "answerReservation": 512,
+      "clockDivergences": 0,
+      "coverage": {
+        "Qwen3.5-4B-Q4_K_M.gguf/fresh-python-zip": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/fresh-git-diff": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 1,
+          "reportPasses": 5
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/fresh-cargo-features": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 4
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/fresh-python-zip": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/fresh-git-diff": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 4
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/fresh-cargo-features": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 5
+        }
+      },
+      "wallSeconds": {
+        "Qwen3.5-4B-Q4_K_M.gguf": {
+          "median": 11.595,
+          "p95": 30.473,
+          "max": 39.187
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf": {
+          "median": 61.463,
+          "p95": 174.211,
+          "max": 192.817
+        }
+      }
+    }
+  }
+}

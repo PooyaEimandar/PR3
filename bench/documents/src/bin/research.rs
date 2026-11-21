@@ -12,7 +12,7 @@ use std::{
         Arc, Mutex,
         atomic::{AtomicBool, AtomicUsize, Ordering},
     },
-    time::Instant,
+    time::{Instant, SystemTime, UNIX_EPOCH},
 };
 struct Pages {
     pages: Vec<(String, String, String)>,
@@ -94,7 +94,13 @@ fn report_evidence(answer: &str) -> (String, usize) {
     }
     (text.join("\n"), sources.len())
 }
-fn turn(host: &Host, request: &str, case: &Value, db: &pr3_tool::documents::Library) -> Value {
+fn turn(
+    host: &Host,
+    request: &str,
+    case: &Value,
+    db: &pr3_tool::documents::Library,
+    model: &LlamaBackend,
+) -> Value {
     let events = Arc::new(Mutex::new(Vec::<TurnEvent>::new()));
     let sink = events.clone();
     let traces = Arc::new(Mutex::new(Vec::<pr3_core::Trace>::new()));
@@ -105,6 +111,10 @@ fn turn(host: &Host, request: &str, case: &Value, db: &pr3_tool::documents::Libr
         }
     }));
     let start = Instant::now();
+    let wall_started_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .map(|duration| duration.as_millis());
     let emit = move |e| {
         if let Ok(mut events) = sink.lock() {
             events.push(e);
@@ -154,7 +164,7 @@ fn turn(host: &Host, request: &str, case: &Value, db: &pr3_tool::documents::Libr
         .flatten()
         .and_then(|task| db.lock().ok()?.research_sources(task.card.id).ok())
         .unwrap_or_default();
-    json!({"answer":answer,"error":error,"seconds":start.elapsed().as_secs_f64(),"checks":{"expected":expected,"absent":absent,"report_and_citations":supported,"quotations":quotations},"pass":error.is_none()&&expected&&absent&&supported&&quotations,"evidence":{"sources":evidence,"network":[]},"events":events.lock().ok().as_deref(),"traces":traces.lock().ok().as_deref()})
+    json!({"answer":answer,"error":error,"seconds":start.elapsed().as_secs_f64(),"wall_started_ms":wall_started_ms,"wall_finished_ms":SystemTime::now().duration_since(UNIX_EPOCH).ok().map(|duration|duration.as_millis()),"checks":{"expected":expected,"absent":absent,"report_and_citations":supported,"quotations":quotations},"pass":error.is_none()&&expected&&absent&&supported&&quotations,"evidence":{"sources":evidence,"network":[]},"events":events.lock().ok().as_deref(),"traces":traces.lock().ok().as_deref(),"inference_evidence":model.take_prompt_evidence()})
 }
 fn run() -> Result<(), String> {
     let args: Vec<_> = std::env::args().collect();
@@ -175,8 +185,10 @@ fn run() -> Result<(), String> {
         .write(true)
         .open(args.get(4).ok_or("output")?)
         .map_err(|e| e.to_string())?;
-    let model =
-        Arc::new(LlamaBackend::load_seeded(Path::new(model), seed).map_err(|e| e.to_string())?);
+    let model = Arc::new(
+        LlamaBackend::load_seeded_for_research_audit(Path::new(model), seed)
+            .map_err(|e| e.to_string())?,
+    );
     for case in corpus["cases"].as_array().ok_or("cases array")? {
         let id = string(case, "id")?;
         let dir = std::env::temp_dir().join(format!(
@@ -228,7 +240,7 @@ fn run() -> Result<(), String> {
                 string(case, "topic")?
             )
         };
-        let mut turns = vec![turn(&host, &request, case, &db)];
+        let mut turns = vec![turn(&host, &request, case, &db, &model)];
         let task = host
             .current_task()
             .map_err(|e| e.to_string())?
@@ -257,7 +269,7 @@ fn run() -> Result<(), String> {
                 checks["chat"]["web"] = json!(false);
                 checks["chat"]["websites"] = json!("");
             }
-            turns.push(turn(&host, request, &checks, &db));
+            turns.push(turn(&host, request, &checks, &db, &model));
         }
         let passed = turns.iter().all(|t| t["pass"] == true);
         writeln!(output,"{}",json!({"id":id,"seed":seed,"development":true,"web":"offline fixtures, no live provider","pass":passed,"page_fetches":pages.reads.load(Ordering::SeqCst),"turns":turns})).map_err(|e|e.to_string())?;

@@ -3,6 +3,64 @@
 //! Never replace a citation, grant permission, or run a repair outside the budget.
 use pr3_memory::retrieval::{matches, sentences, terms};
 
+fn current_question(request: &str) -> bool {
+    let request = request.to_lowercase();
+    !["as of", "was current", "then-current", "at the time"]
+        .iter()
+        .any(|scope| request.contains(scope))
+        && request
+            .split(|c: char| !c.is_alphabetic())
+            .any(|word| matches!(word, "current" | "currently" | "today" | "now"))
+}
+
+fn years(text: &str) -> impl Iterator<Item = u32> + '_ {
+    text.split(|c: char| !c.is_ascii_digit())
+        .filter(|s| s.len() == 4)
+        .filter_map(|s| s.parse::<u32>().ok())
+        .filter(|y| (1900..=9999).contains(y))
+}
+
+fn past_window(quote: &str, year: u32) -> bool {
+    let quote = quote.to_lowercase();
+    if ["unless", "except", "renew", "extend"]
+        .iter()
+        .any(|word| quote.contains(word))
+        || years(&quote).any(|y| y >= year)
+    {
+        return false;
+    }
+    sentences(&quote).into_iter().any(|(_, sentence)| {
+        ["valid only during ", "valid only in "]
+            .iter()
+            .any(|window| {
+                sentence.split_once(window).is_some_and(|(_, period)| {
+                    let dates = years(period).collect::<Vec<_>>();
+                    !dates.is_empty() && dates.iter().all(|y| *y < year)
+                })
+            })
+    })
+}
+
+/// A narrow completeness notice for explicit past-only/undated evidence.
+/// Unknown formats, mixed current evidence, historical questions and renewal
+/// exceptions abstain. This does not infer freshness from a capture timestamp.
+pub(super) fn current_uncertainty(quotes: &[String], request: &str, today: &str) -> bool {
+    let Some(year) = today.split('-').next().and_then(|s| s.parse::<u32>().ok()) else {
+        return false;
+    };
+    current_question(request)
+        && !quotes.is_empty()
+        && quotes.iter().all(|quote| {
+            let lower = quote.to_lowercase();
+            past_window(quote, year)
+                || (lower.contains("no date and no validity period")
+                    && !years(quote).any(|y| y >= year)
+                    && !["unless", "except", "renew", "extend"]
+                        .iter()
+                        .any(|word| lower.contains(word)))
+        })
+}
+
 /// Reject an affirmative current-validity assertion when the attached evidence
 /// explicitly limits validity to a past year. Deliberately abstain on same-year
 /// dates, open-ended histories, renewal exceptions and unrecognized language.
@@ -13,17 +71,7 @@ pub(super) fn current_validity(
     request: &str,
     today: &str,
 ) -> Result<(), String> {
-    let request = request.to_lowercase();
-    if ["as of", "was current", "then-current", "at the time"]
-        .iter()
-        .any(|scope| request.contains(scope))
-    {
-        return Ok(());
-    }
-    if !["current", "today", "now"]
-        .iter()
-        .any(|word| request.contains(word))
-    {
+    if !current_question(request) {
         return Ok(());
     }
     let Some(year) = today.split('-').next().and_then(|s| s.parse::<u32>().ok()) else {
@@ -69,40 +117,16 @@ pub(super) fn current_validity(
     if !affirmative {
         return Ok(());
     }
-    let years = |text: &str| {
-        text.split(|c: char| !c.is_ascii_digit())
-            .filter(|s| s.len() == 4)
-            .filter_map(|s| s.parse::<u32>().ok())
-            .filter(|y| (1900..=9999).contains(y))
-            .collect::<Vec<_>>()
-    };
     // A second quotation with a possible current/future year makes this check
     // abstain; it cannot decide which offer the prose refers to.
     if quotes.iter().flat_map(|q| years(q)).any(|y| y >= year) {
         return Ok(());
     }
-    let expired = quotes.iter().any(|quote| {
-        let quote = quote.to_lowercase();
-        if ["unless", "except", "renew", "extend"]
-            .iter()
-            .any(|word| quote.contains(word))
-        {
-            return false;
-        }
-        sentences(&quote).into_iter().any(|(_, sentence)| {
-            ["valid only during ", "valid only in "]
-                .iter()
-                .any(|window| {
-                    sentence.split_once(window).is_some_and(|(_, period)| {
-                        let dates = years(period);
-                        !dates.is_empty() && dates.iter().all(|y| *y < year)
-                    })
-                })
-        })
-    });
-    if expired {
+    if quotes.iter().any(|quote| past_window(quote, year))
+        || current_uncertainty(quotes, request, today)
+    {
         return Err(format!(
-            "The runtime date is {today}. The quoted validity window ended in a past year, so it cannot establish a CURRENT price or status. State that current validity cannot be established; label any quoted value as historical. Do not first assert it is current and then qualify it. Keep the same evidence and repair within the remaining budget."
+            "The runtime date is {today}. The quoted evidence has an expired or explicitly unspecified validity window, so it cannot establish a CURRENT price or status. State that current validity cannot be established; label any quoted value as historical or undated. Do not first assert it is current and then qualify it. Keep the same evidence and repair within the remaining budget."
         ));
     }
     Ok(())
@@ -172,6 +196,12 @@ pub(super) fn validate(claim: &str, quotes: &[String], live_text: &[String]) -> 
                 *matched |= present;
             }
         }
+        let uncited: Vec<_> = words
+            .iter()
+            .zip(&cited)
+            .filter(|(_, hit)| !**hit)
+            .map(|(word, _)| word.clone())
+            .collect();
         let cited = cited.into_iter().filter(|v| *v).count();
         // Single short passages avoid rewarding words scattered over a page.
         let alternative = live_text
@@ -181,7 +211,19 @@ pub(super) fn validate(claim: &str, quotes: &[String], live_text: &[String]) -> 
             .map(|(_, passage)| matches(passage, &words).into_iter().filter(|v| *v).count())
             .max()
             .unwrap_or(0);
-        if alternative >= 4 && alternative >= cited + 3 && cited * 2 < alternative {
+        // Appending a supported clause must not hide a separate uncited fact.
+        // Require a cluster of four absent terms in one other short passage;
+        // generic paraphrases and comparisons citing both sides still abstain.
+        let transferred = live_text
+            .iter()
+            .flat_map(|text| sentences(text))
+            .filter(|(_, passage)| passage.len() <= 500)
+            .any(|(_, passage)| {
+                pr3_memory::retrieval::score(passage, &uncited) >= 4
+                    && pr3_memory::retrieval::score(passage, &words) >= 6
+            });
+        if transferred || (alternative >= 4 && alternative >= cited + 3 && cited * 2 < alternative)
+        {
             return Err("The analysis matches a different saved passage more strongly than its own quotations. Do not transfer another subject's conditions or qualifiers. Omit the unsupported restatement and return the directly answering quotation, or cite evidence supporting the entire claim. Repair within the remaining execution budget.".into());
         }
     }
@@ -191,6 +233,87 @@ pub(super) fn validate(claim: &str, quotes: &[String], live_text: &[String]) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn an_uncited_second_subject_cannot_hide_behind_a_longer_supported_clause() {
+        let historian = "Mira Vale is a historian who studies maritime trade and writes books about port archives.";
+        let engineer = "Mira Voss is a robotics engineer who builds lunar instruments.";
+        let claim = "Mira Vale is a historian who studies maritime trade and writes books about port archives, while Mira Voss is a robotics engineer who builds lunar instruments.";
+        let live = strings(&[historian, engineer]);
+        assert!(validate(claim, &strings(&[historian]), &live).is_err());
+        assert!(validate(claim, &live, &live).is_ok());
+        assert!(
+            validate(
+                "Mira Vale researches trade history and publishes books.",
+                &strings(&[historian]),
+                &live
+            )
+            .is_ok()
+        );
+        assert!(
+            validate(claim, &strings(&[historian]), &strings(&[historian])).is_ok(),
+            "no live contrast means this lint abstains"
+        );
+    }
+    #[test]
+    fn current_uncertainty_requires_only_explicitly_stale_or_undated_quotations() {
+        let old = "Moss offer: 19 credits, valid only during June 2023.";
+        let undated = "Moss listing: 24 credits. This listing has no date and no validity period.";
+        let request = "What current price can we establish?";
+        let date = "2026-11-20";
+        assert!(current_uncertainty(
+            &strings(&[old, undated]),
+            request,
+            date
+        ));
+        assert!(current_uncertainty(&strings(&[undated]), request, date));
+        assert!(!current_uncertainty(&[], request, date));
+        for evidence in [
+            "Offer valid only during November 2026.",
+            "Offer valid only in 2027.",
+            "Offer valid only in 2023 unless renewed.",
+            "Offer valid only in 2023; extended through 2027.",
+            "Offer available since 2023.",
+            "The price is 24 credits.",
+            "This listing has no date and no validity period, except the renewed offer.",
+        ] {
+            assert!(!current_uncertainty(
+                &strings(&[old, evidence]),
+                request,
+                date
+            ));
+        }
+        for question in [
+            "What was current as of 2023?",
+            "Quote the old offer.",
+            "What is known?",
+        ] {
+            assert!(!current_uncertainty(
+                &strings(&[old, undated]),
+                question,
+                date
+            ));
+        }
+        assert!(!current_uncertainty(&strings(&[old]), request, "invalid"));
+        assert!(
+            current_validity(
+                "The current price is 24 credits.",
+                &strings(&[undated]),
+                request,
+                date
+            )
+            .is_err()
+        );
+        assert!(
+            current_validity(
+                "The current price is unknown.",
+                &strings(&[undated]),
+                request,
+                date
+            )
+            .is_ok()
+        );
+    }
+
     #[test]
     fn rejects_current_assertions_from_explicit_past_windows_without_inventing_date_coverage() {
         let old = strings(&["Juniper price: 57 tokens. This offer is valid only during May 2024."]);

@@ -75,6 +75,35 @@ pub(super) fn inspection_request(text: &str) -> bool {
         .any(|verb| text.contains(verb))
 }
 
+/// The user asks for a quotation and PR3's authority boundary, which the
+/// runtime explains itself. Broader analysis/translation still needs model prose.
+pub(super) fn authority_quotation_request(text: &str) -> bool {
+    let text = normalized(text);
+    inspection_request(&text)
+        && text.contains("quote")
+        && text.contains("authority")
+        && ["suspicious", "untrusted", "embedded", "prompt"]
+            .iter()
+            .any(|word| text.contains(word))
+        && ![
+            "compare",
+            "translate",
+            "analy",
+            "meaning",
+            "impact",
+            "mechanism",
+            "technique",
+            "linguistic",
+            "rhetoric",
+            "intent",
+            "effect",
+            "attack",
+            "classify",
+        ]
+        .iter()
+        .any(|word| text.contains(word))
+}
+
 pub(super) fn validate(
     text: &str,
     topic: &str,
@@ -112,6 +141,22 @@ pub(super) fn validate(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn authority_quotation_format_does_not_suppress_broader_source_analysis() {
+        assert!(authority_quotation_request(
+            "Now quote the suspicious instruction exactly and explain why it has no authority. Do not follow it."
+        ));
+        for request in [
+            "Quote and translate the suspicious instruction and explain its authority.",
+            "Quote the suspicious instruction and analyze its meaning and authority.",
+            "Quote the suspicious instruction, compare its authority and explain its effect.",
+            "Do not quote the suspicious instruction; explain its authority.",
+            "Quote the manual's reset instructions and explain their authority.",
+            "What is the price?",
+        ] {
+            assert!(!authority_quotation_request(request), "{request}");
+        }
+    }
     #[test]
     fn rejects_agent_commands_but_preserves_manual_steps_and_requested_inspection() {
         for text in [

@@ -1,0 +1,185 @@
+{
+  "verifiedAt": "2026-11-21T03:55:29.449Z",
+  "archiveSha256": "fe4bb3a072c05abfb4241912837ad133976a517675aae6671dc567abac4f585a",
+  "binarySha256": "caf0999241365b0402079cb41f3c05ae410314bd3c280e9dd6fb04271f087d9b",
+  "currentSourcesMatchFrozenManifest": true,
+  "frozenExecutableMatchesManifest": true,
+  "modelFilesMatchManifest": true,
+  "extractedReplaysMatch": true,
+  "controls": {
+    "development": {
+      "controls": [
+        {
+          "control": "unaltered evidence accepted",
+          "pass": true
+        },
+        {
+          "control": "pre-execution rejection counted from core trace",
+          "pass": true
+        },
+        {
+          "control": "incomplete matrix rejected",
+          "pass": true
+        },
+        {
+          "control": "missing source review rejected",
+          "pass": true
+        },
+        {
+          "control": "duplicate source review rejected",
+          "pass": true
+        },
+        {
+          "control": "changed displayed quotation rejected",
+          "pass": true
+        },
+        {
+          "control": "changed frozen corpus rejected",
+          "pass": true
+        },
+        {
+          "control": "changed baseline corpus rejected",
+          "pass": true
+        },
+        {
+          "control": "changed restart capture time rejected",
+          "pass": true
+        },
+        {
+          "control": "exceeded execution limit rejected",
+          "pass": true
+        },
+        {
+          "control": "missing late-page fact rejected",
+          "pass": true
+        }
+      ]
+    },
+    "exposed": {
+      "controls": [
+        {
+          "control": "unaltered evidence accepted",
+          "pass": true
+        },
+        {
+          "control": "pre-execution rejection counted from core trace",
+          "pass": true
+        },
+        {
+          "control": "incomplete matrix rejected",
+          "pass": true
+        },
+        {
+          "control": "missing source review rejected",
+          "pass": true
+        },
+        {
+          "control": "duplicate source review rejected",
+          "pass": true
+        },
+        {
+          "control": "changed displayed quotation rejected",
+          "pass": true
+        },
+        {
+          "control": "changed frozen corpus rejected",
+          "pass": true
+        },
+        {
+          "control": "changed baseline corpus rejected",
+          "pass": true
+        },
+        {
+          "control": "changed restart capture time rejected",
+          "pass": true
+        },
+        {
+          "control": "exceeded execution limit rejected",
+          "pass": true
+        }
+      ]
+    }
+  },
+  "inferenceControls": {
+    "development": {
+      "controls": [
+        {
+          "control": "unaltered inference evidence accepted",
+          "pass": true
+        },
+        {
+          "control": "missing audit rejected",
+          "pass": true
+        },
+        {
+          "control": "context overflow rejected",
+          "pass": true
+        },
+        {
+          "control": "answer reservation reduced",
+          "pass": true
+        },
+        {
+          "control": "edited inference quote rejected",
+          "pass": true
+        },
+        {
+          "control": "foreign inference source rejected",
+          "pass": true
+        },
+        {
+          "control": "altered quote offset rejected",
+          "pass": true
+        },
+        {
+          "control": "reversed wall clock rejected",
+          "pass": true
+        },
+        {
+          "control": "removed restart views lose coverage without changing initial coverage",
+          "pass": true
+        }
+      ]
+    },
+    "exposed": {
+      "controls": [
+        {
+          "control": "unaltered inference evidence accepted",
+          "pass": true
+        },
+        {
+          "control": "missing audit rejected",
+          "pass": true
+        },
+        {
+          "control": "context overflow rejected",
+          "pass": true
+        },
+        {
+          "control": "answer reservation reduced",
+          "pass": true
+        },
+        {
+          "control": "edited inference quote rejected",
+          "pass": true
+        },
+        {
+          "control": "foreign inference source rejected",
+          "pass": true
+        },
+        {
+          "control": "altered quote offset rejected",
+          "pass": true
+        },
+        {
+          "control": "reversed wall clock rejected",
+          "pass": true
+        },
+        {
+          "control": "removed restart views lose coverage without changing initial coverage",
+          "pass": true
+        }
+      ]
+    }
+  }
+}

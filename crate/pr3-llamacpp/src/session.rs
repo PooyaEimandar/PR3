@@ -163,6 +163,7 @@ struct Prompt {
     checkpoints: Vec<usize>,
     /// Where the system turn ends, if there is one.
     system_end: Option<usize>,
+    evidence: Option<crate::PromptEvidence>,
 }
 
 impl<'m> Session<'m> {
@@ -350,6 +351,7 @@ impl<'m> Session<'m> {
             n_ctx,
             &mut || true,
         )?;
+        let evidence = prompt.evidence;
         let prompt = prompt.tokens;
 
         let mut samplers = Vec::new();
@@ -421,6 +423,7 @@ impl<'m> Session<'m> {
         let _ = emit(calls.finish(), &mut answer);
 
         Ok(ChatOutput {
+            prompt_evidence: evidence.into_iter().collect(),
             inference_passes: 1,
             first_pass_prompt_tokens: count(prompt.len()),
             first_pass_reused_tokens: count(reused),
@@ -567,7 +570,36 @@ impl<'m> Session<'m> {
             tokens,
             checkpoints,
             system_end,
+            evidence: None,
         }
+    }
+
+    fn capture_evidence(
+        &self,
+        mut prompt: Prompt,
+        messages: &[&ChatMessage],
+        tools: &[ToolDef],
+    ) -> Prompt {
+        if self.config.capture_prompt_evidence {
+            let report = tools.iter().any(|tool| tool.report && tool.read_only);
+            prompt.evidence = Some(crate::PromptEvidence {
+                prompt_tokens: count(prompt.tokens.len()),
+                answer_reservation: self.config.max_new_tokens.min(self.config.n_ctx / 2),
+                source_views: messages
+                    .iter()
+                    .filter(|m| m.role == ChatRole::Tool && m.saved_evidence)
+                    .map(|m| {
+                        if report {
+                            crate::evidence::citation_view(&m.content)
+                                .unwrap_or_else(|| m.content.clone())
+                        } else {
+                            m.content.clone()
+                        }
+                    })
+                    .collect(),
+            });
+        }
+        prompt
     }
 
     /// Builds and tokenizes the prompt. If it would not leave room for an answer, whole
@@ -598,7 +630,7 @@ impl<'m> Session<'m> {
                 self.config.thinking,
             ));
             if prompt.tokens.len() + room_for_answer <= n_ctx {
-                return Ok(prompt);
+                return Ok(self.capture_evidence(prompt, &window, tools));
             }
             longest = longest.max(prompt.tokens.len());
             // A saved-source view can be reduced without changing the stored evidence,
@@ -615,23 +647,50 @@ impl<'m> Session<'m> {
             // Keep complete conditional passages from distinct sources before
             // shrinking every passage to a fragment. Source diversity still
             // reserves one slot per origin in each candidate view.
-            for (bytes, count) in [
-                (800, 4),
-                (500, 4),
-                (500, 3),
-                (500, 2),
-                (300, 4),
-                (200, 4),
-                (300, 2),
-                (160, 1),
-            ] {
+            let preferred = [
+                &[800, 800, 800, 800][..],
+                &[800, 800, 800],
+                &[800, 500, 400],
+                &[500, 500, 500, 500],
+                &[800, 800],
+                &[500, 500, 500],
+                &[500, 500],
+                &[300, 300, 300, 300],
+                &[200, 200, 200, 200],
+                &[300, 300],
+                &[160],
+            ];
+            // A repair error adds trusted context and can make a two-source view
+            // fit before a balanced three-source view. Keep the first fit as the
+            // fallback, then try a bounded set of refinements from the original
+            // evidence. Replace it only if primary quotations and existing lexical
+            // coverage survive and the fully tokenized prompt still fits.
+            let refinements = [
+                &[500, 500, 500][..],
+                &[400, 500, 400],
+                &[500, 400, 400],
+                &[400, 400, 400],
+            ];
+            let mut selected: Option<(Prompt, Vec<ChatMessage>)> = None;
+            for (refinement, budgets) in preferred
+                .into_iter()
+                .map(|b| (false, b))
+                .chain(refinements.into_iter().map(|b| (true, b)))
+            {
+                if selected.is_some() && !refinement {
+                    continue;
+                }
                 let mut compact = window.clone();
                 let mut changed = false;
                 for message in &mut compact {
                     if message.role == ChatRole::Tool
                         && message.saved_evidence
-                        && let Some(content) =
-                            crate::saved_evidence_view(&message.content, query, "", bytes, count)
+                        && let Some(content) = crate::evidence::saved_evidence_with_budgets(
+                            &message.content,
+                            query,
+                            "",
+                            budgets,
+                        )
                     {
                         message.content = content;
                         changed = true;
@@ -640,6 +699,26 @@ impl<'m> Session<'m> {
                 if !changed {
                     break;
                 }
+                if let Some((_, prior)) = &selected {
+                    let mut added = false;
+                    let preserves = compact.iter().zip(prior).all(|(candidate, baseline)| {
+                        if candidate.content == baseline.content {
+                            return true;
+                        }
+                        let improved = candidate.role == ChatRole::Tool
+                            && candidate.saved_evidence
+                            && crate::evidence::extends_coverage(
+                                &candidate.content,
+                                &baseline.content,
+                                query,
+                            );
+                        added |= improved;
+                        improved
+                    });
+                    if !preserves || !added {
+                        continue;
+                    }
+                }
                 let prompt = self.tokenize(&prompt::render(
                     self.format,
                     &compact.iter().collect::<Vec<_>>(),
@@ -647,8 +726,15 @@ impl<'m> Session<'m> {
                     self.config.thinking,
                 ));
                 if prompt.tokens.len() + room_for_answer <= n_ctx {
-                    return Ok(prompt);
+                    selected = Some((prompt, compact));
                 }
+            }
+            if let Some((prompt, compact)) = selected {
+                return Ok(self.capture_evidence(
+                    prompt,
+                    &compact.iter().collect::<Vec<_>>(),
+                    tools,
+                ));
             }
         }
         Err(EngineError::ContextFull {
@@ -702,7 +788,7 @@ mod tests {
         };
         let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../model/Qwen3.5-4B-Q4_K_M.gguf");
         let model = load(&path, &config).unwrap();
-        let session = Session::new(&model, config).unwrap();
+        let mut session = Session::new(&model, config).unwrap();
         let content=serde_json::json!({"source_count":4,"sources":(0..4).map(|i|serde_json::json!({"source":format!("research:1:{i}"),"text":"Unrelated background sentence. ".repeat(100)})).collect::<Vec<_>>()}).to_string();
         let mut messages = vec![
             ChatMessage::new(ChatRole::System, "Keep the trusted rules. ".repeat(240)),
@@ -717,6 +803,22 @@ mod tests {
         let original = messages.clone();
         let fitted = session.prompt_tokens(&messages, &[]).unwrap();
         assert!(fitted.tokens.len() + 512 <= 4096);
+        assert!(
+            fitted.evidence.is_none(),
+            "production inference does not retain diagnostics"
+        );
+        session.config.capture_prompt_evidence = true;
+        let audited = session.prompt_tokens(&messages, &[]).unwrap();
+        assert_eq!(
+            fitted.tokens, audited.tokens,
+            "diagnostics must not change inference"
+        );
+        let evidence = audited.evidence.unwrap();
+        assert_eq!(evidence.prompt_tokens as usize, fitted.tokens.len());
+        assert_eq!(evidence.answer_reservation, 512);
+        assert_eq!(evidence.source_views.len(), 1);
+        assert!(evidence.source_views[0].len() < messages[2].content.len());
+        assert!(!evidence.source_views[0].contains("Keep the trusted rules"));
         let report = ToolDef {
             name: "answer_research".into(),
             description: "Report checked quotations".into(),
@@ -744,6 +846,99 @@ mod tests {
                 Err(EngineError::ContextFull { .. })
             ),
             "a flag cannot turn user text into expendable tool data"
+        );
+    }
+
+    #[test]
+    #[ignore = "requires the local 4B tokenizer; no generation or network"]
+    fn actual_token_budget_keeps_complementary_sources_during_report_repair() {
+        let config = EngineConfig {
+            n_ctx: 4096,
+            max_new_tokens: 512,
+            gpu_layers: 0,
+            capture_prompt_evidence: true,
+            ..EngineConfig::default()
+        };
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../model/Qwen3.5-4B-Q4_K_M.gguf");
+        let model = load(&path, &config).unwrap();
+        let session = Session::new(&model, config).unwrap();
+        let fixtures: serde_json::Value =
+            serde_json::from_str(include_str!("../tests/fixtures/technical-evidence.json"))
+                .unwrap();
+        let case = fixtures["cases"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|case| case["id"] == "fresh-git-diff")
+            .unwrap();
+        let query = case["query"].as_str().unwrap();
+        let packet = serde_json::json!({"sources":case["sources"]}).to_string();
+        let host = crate::saved_evidence_view(&packet, query, "", 1200, 4).unwrap();
+        let balanced =
+            crate::evidence::saved_evidence_with_budgets(&host, query, "", &[400, 500, 400])
+                .unwrap();
+        let expected_view = crate::evidence::citation_view(&balanced).unwrap();
+        let report = ToolDef {
+            name: "answer_research".into(),
+            description: "Report checked quotations".into(),
+            parameters: r#"{"type":"object","properties":{}}"#.into(),
+            read_only: true,
+            report: true,
+        };
+        let mut checked = 0;
+        let mut compressed = 0;
+        for padding in (0..512).step_by(4) {
+            let mut messages = vec![
+                ChatMessage::new(ChatRole::System, "Keep the trusted rules. ".repeat(padding)),
+                ChatMessage::new(U, query),
+                ChatMessage::new(T, host.clone()),
+                ChatMessage::new(
+                    T,
+                    "error: The previous citation reference was rejected. Repair only this citation using the exact saved source and quotation. Keep the other supported findings within the existing execution budget.",
+                ),
+            ];
+            messages[2].saved_evidence = true;
+            let original = messages.clone();
+            let mut explicit = messages.clone();
+            explicit[2].content = balanced.clone();
+            let Ok(expected) = session.prompt_tokens(&explicit, std::slice::from_ref(&report))
+            else {
+                continue;
+            };
+            if expected.evidence.unwrap().source_views != vec![expected_view.clone()] {
+                continue;
+            }
+            checked += 1;
+            let fitted = session
+                .prompt_tokens(&messages, std::slice::from_ref(&report))
+                .unwrap();
+            assert!(fitted.tokens.len() + 512 <= 4096);
+            let evidence = fitted.evidence.unwrap();
+            let view: serde_json::Value = serde_json::from_str(&evidence.source_views[0]).unwrap();
+            let sources = view["sources"].as_array().unwrap();
+            compressed += usize::from(sources.len() < 4);
+            let quotes = sources
+                .iter()
+                .flat_map(|s| s["quotes"].as_array().unwrap())
+                .map(|q| q["text"].as_str().unwrap())
+                .collect::<Vec<_>>();
+            for required in [
+                "--no-index",
+                "outside a working tree controlled by Git",
+                "--exit-code\nMake the program exit",
+                "0 means no differences",
+            ] {
+                assert!(
+                    quotes.iter().any(|quote| quote.contains(required)),
+                    "padding {padding}, prompt {} lost {required}: {view}",
+                    evidence.prompt_tokens
+                );
+            }
+            assert_eq!(messages, original, "fitting changes only inference copies");
+        }
+        assert!(
+            checked > 0 && compressed > 0,
+            "exercise actual context pressure"
         );
     }
 

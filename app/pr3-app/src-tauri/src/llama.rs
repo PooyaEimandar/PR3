@@ -63,6 +63,8 @@ are different outcomes; PR3 reports only the recorded result.";
 
 pub struct LlamaBackend {
     engine: Engine,
+    #[cfg(feature = "research-audit")]
+    prompt_evidence: std::sync::Mutex<Vec<serde_json::Value>>,
 }
 
 impl LlamaBackend {
@@ -72,7 +74,30 @@ impl LlamaBackend {
 
     /// Like `load`, but sampling from `seed`, so a benchmark run can be repeated.
     pub fn load_seeded(path: &Path, seed: u32) -> Result<Self, EngineError> {
+        Self::load_configured(path, seed, false)
+    }
+
+    /// Offline-fixture diagnostics only. Ordinary app loads never enable this.
+    #[cfg(feature = "research-audit")]
+    pub fn load_seeded_for_research_audit(path: &Path, seed: u32) -> Result<Self, EngineError> {
+        Self::load_configured(path, seed, true)
+    }
+
+    #[cfg(feature = "research-audit")]
+    pub fn take_prompt_evidence(&self) -> Vec<serde_json::Value> {
+        self.prompt_evidence
+            .lock()
+            .map(|mut v| std::mem::take(&mut *v))
+            .unwrap_or_default()
+    }
+
+    fn load_configured(
+        path: &Path,
+        seed: u32,
+        capture_prompt_evidence: bool,
+    ) -> Result<Self, EngineError> {
         let config = EngineConfig {
+            capture_prompt_evidence,
             // Metal on Macs and iPhones. CPU on Android until a Vulkan build is measured
             // per device class (docs Sec. 4.3), and in the iOS simulator, whose Metal
             // produces wrong results for llama.cpp's kernels.
@@ -86,6 +111,8 @@ impl LlamaBackend {
         };
         Ok(Self {
             engine: Engine::load(path, config)?,
+            #[cfg(feature = "research-audit")]
+            prompt_evidence: std::sync::Mutex::new(Vec::new()),
         })
     }
 }
@@ -169,6 +196,16 @@ impl Backend for LlamaBackend {
 
 impl LlamaBackend {
     fn generation(&self, out: ChatOutput) -> Generation {
+        #[cfg(feature = "research-audit")]
+        if let Ok(mut evidence) = self.prompt_evidence.lock() {
+            evidence.extend(out.prompt_evidence.iter().map(|p| {
+                serde_json::json!({
+                    "prompt_tokens":p.prompt_tokens,
+                    "answer_reservation":p.answer_reservation,
+                    "source_views":p.source_views,
+                })
+            }));
+        }
         Generation {
             content: out.text,
             tool_calls: out
