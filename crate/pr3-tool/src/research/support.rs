@@ -8,9 +8,22 @@ fn current_question(request: &str) -> bool {
     !["as of", "was current", "then-current", "at the time"]
         .iter()
         .any(|scope| request.contains(scope))
-        && request
+        && (request
             .split(|c: char| !c.is_alphabetic())
             .any(|word| matches!(word, "current" | "currently" | "today" | "now"))
+            || ["precio actual", "actualmente"]
+                .iter()
+                .any(|p| request.contains(p)))
+}
+
+pub(super) fn current_notice(request: &str) -> &'static str {
+    if request.to_lowercase().contains("precio actual")
+        || request.to_lowercase().contains("actualmente")
+    {
+        "No se puede establecer el precio actual con estas citas: sus periodos de validez han terminado o no están especificados. Se necesita una fuente vigente."
+    } else {
+        "Current validity cannot be established from these quotations: their validity windows are expired or explicitly unspecified. A current source is still needed."
+    }
 }
 
 fn years(text: &str) -> impl Iterator<Item = u32> + '_ {
@@ -22,15 +35,17 @@ fn years(text: &str) -> impl Iterator<Item = u32> + '_ {
 
 fn past_window(quote: &str, year: u32) -> bool {
     let quote = quote.to_lowercase();
-    if ["unless", "except", "renew", "extend"]
-        .iter()
-        .any(|word| quote.contains(word))
+    if [
+        "unless", "except", "renew", "extend", "salvo", "excepto", "renov", "prorrog",
+    ]
+    .iter()
+    .any(|word| quote.contains(word))
         || years(&quote).any(|y| y >= year)
     {
         return false;
     }
     sentences(&quote).into_iter().any(|(_, sentence)| {
-        ["valid only during ", "valid only in "]
+        ["valid only during ", "valid only in ", "terminó el "]
             .iter()
             .any(|window| {
                 sentence.split_once(window).is_some_and(|(_, period)| {
@@ -53,11 +68,20 @@ pub(super) fn current_uncertainty(quotes: &[String], request: &str, today: &str)
         && quotes.iter().all(|quote| {
             let lower = quote.to_lowercase();
             past_window(quote, year)
-                || (lower.contains("no date and no validity period")
+                || ([
+                    "no date and no validity period",
+                    "no incluye fecha ni periodo de validez",
+                    "sin fecha ni periodo de validez",
+                ]
+                .iter()
+                .any(|p| lower.contains(p))
                     && !years(quote).any(|y| y >= year)
-                    && !["unless", "except", "renew", "extend"]
-                        .iter()
-                        .any(|word| lower.contains(word)))
+                    && ![
+                        "unless", "except", "renew", "extend", "salvo", "excepto", "renov",
+                        "prorrog",
+                    ]
+                    .iter()
+                    .any(|word| lower.contains(word)))
         })
 }
 
@@ -90,6 +114,9 @@ pub(super) fn current_validity(
         "currently costs",
         "currently applies",
         "is currently valid",
+        "precio actual",
+        "actualmente cuesta",
+        "está vigente",
     ]
     .iter()
     .any(|pattern| {
@@ -106,10 +133,12 @@ pub(super) fn current_validity(
             !before
                 .split(|c: char| !c.is_alphabetic() && c != '\'')
                 .any(|word| {
-                    matches!(word, "no" | "not" | "neither" | "none" | "cannot")
-                        || word.ends_with("n't")
+                    matches!(
+                        word,
+                        "no" | "not" | "neither" | "none" | "cannot" | "ninguna" | "ninguno"
+                    ) || word.ends_with("n't")
                 })
-                && !["not ", "unknown", "unestablished", "n't"]
+                && !["not ", "unknown", "unestablished", "n't", "no "]
                     .iter()
                     .any(|negative| after.starts_with(negative))
         })
@@ -159,6 +188,7 @@ pub(super) fn quotes_only(request: &str) -> bool {
 
 pub(super) fn validate(claim: &str, quotes: &[String], live_text: &[String]) -> Result<(), String> {
     for (_, clause) in sentences(claim) {
+        approval_subject(clause, quotes)?;
         let lower = clause.to_lowercase();
         // An explicitly attributed literal must occur in the attached quotation.
         // Host/tool labels are not source text. Limit this to positive attribution;
@@ -230,8 +260,145 @@ pub(super) fn validate(claim: &str, quotes: &[String], live_text: &[String]) -> 
     Ok(())
 }
 
+// A narrow contradiction check: verifying ownership is not consent from the
+// owner. This only validates report prose; it never changes action permissions.
+fn approval_subject(claim: &str, quotes: &[String]) -> Result<(), String> {
+    let lower = claim.to_lowercase();
+    let cited = quotes.join(" ").to_lowercase();
+    let persian = cited.contains("تأیید مالک")
+        && !cited.contains("مالکیت")
+        && [
+            "مالکیت دستگاه تأیید شود",
+            "مالک دستگاه تأیید شود",
+            "تأیید مالکیت دستگاه",
+        ]
+        .iter()
+        .any(|p| lower.contains(p))
+        && !["کافی نیست", "جایگزین", "نیازی نیست", "نیاز نیست"]
+            .iter()
+            .any(|p| lower.contains(p));
+    let english = (cited.contains("owner approval") || cited.contains("owner's approval"))
+        && !cited.contains("ownership")
+        && [
+            "requires ownership verification",
+            "must verify ownership",
+            "ownership must be verified",
+        ]
+        .iter()
+        .any(|p| lower.contains(p))
+        && ![
+            "does not require",
+            "not required",
+            "must not",
+            "cannot replace",
+            "does not replace",
+        ]
+        .iter()
+        .any(|p| lower.contains(p));
+    if persian || english {
+        return Err("The quotation requires approval FROM the device owner, not verification OF ownership or identity. Preserve the actor and condition exactly. Return the supporting quotation without a restatement, or correct the explanation within the remaining budget.".into());
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn owner_consent_cannot_be_rephrased_as_ownership_verification() {
+        let quotes = vec!["بازیابی فقط با کد بازیابی و تأیید مالک دستگاه امکان‌پذیر است.".into()];
+        for claim in [
+            "برای بازیابی مالکیت دستگاه تأیید شود.",
+            "باید مالک دستگاه تأیید شود.",
+            "تأیید مالکیت دستگاه لازم است.",
+        ] {
+            assert!(super::validate(claim, &quotes, &quotes).is_err(), "{claim}");
+        }
+        assert!(
+            super::validate("بازیابی نیازمند تأیید مالک دستگاه است.", &quotes, &quotes).is_ok()
+        );
+        assert!(
+            super::validate(
+                "تأیید مالکیت دستگاه کافی نیست؛ تأیید مالک لازم است.",
+                &quotes,
+                &quotes
+            )
+            .is_ok()
+        );
+        assert!(
+            super::validate(
+                "تأیید مالکیت دستگاه کافی نیست. برای بازیابی مالکیت دستگاه تأیید شود.",
+                &quotes,
+                &quotes
+            )
+            .is_err()
+        );
+        let quotes = vec!["Recovery requires the owner's approval.".into()];
+        assert!(
+            super::validate(
+                "A password is not required. Recovery requires ownership verification.",
+                &quotes,
+                &quotes
+            )
+            .is_err()
+        );
+        assert!(
+            super::validate(
+                "Recovery requires ownership verification.",
+                &quotes,
+                &quotes
+            )
+            .is_err()
+        );
+        assert!(
+            super::validate(
+                "Ownership verification does not replace the owner's approval.",
+                &quotes,
+                &quotes
+            )
+            .is_ok()
+        );
+        let quotes = vec![String::from("Recovery requires ownership verification.")];
+        assert!(super::validate(&quotes[0], &quotes, &quotes).is_ok());
+    }
+    #[test]
+    fn spanish_undated_prices_do_not_become_current_in_prose_or_quotes_only_reports() {
+        let query = "¿Podemos confirmar el precio actual?";
+        let quotes = vec![
+            "La promoción costaba 18 euros y terminó el 3 de abril de 2021.".into(),
+            "El catálogo indica 29 euros. El catálogo no incluye fecha ni periodo de validez."
+                .into(),
+        ];
+        assert!(super::current_uncertainty(&quotes, query, "2026-11-21"));
+        assert!(
+            super::current_validity(
+                "Esta nota menciona un precio actual de 29 euros pero carece de fecha.",
+                &quotes,
+                query,
+                "2026-11-21"
+            )
+            .is_err()
+        );
+        for claim in [
+            "No podemos confirmar el precio actual.",
+            "Un precio actual no puede confirmarse con estas notas.",
+            "El precio histórico era 18 euros; el catálogo sin fecha indica 29.",
+        ] {
+            assert!(
+                super::current_validity(claim, &quotes, query, "2026-11-21").is_ok(),
+                "{claim}"
+            );
+        }
+        assert!(!super::current_uncertainty(
+            &quotes,
+            "Quote only the historical price",
+            "2026-11-21"
+        ));
+        assert!(!super::current_uncertainty(
+            &["El precio se renovó en 2026.".into()],
+            query,
+            "2026-11-21"
+        ));
+    }
     use super::*;
     #[test]
     fn an_uncited_second_subject_cannot_hide_behind_a_longer_supported_clause() {

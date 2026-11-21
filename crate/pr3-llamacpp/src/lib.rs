@@ -16,6 +16,7 @@
 mod cache;
 mod evidence;
 mod prompt;
+mod report_grammar;
 mod session;
 mod text;
 mod tool;

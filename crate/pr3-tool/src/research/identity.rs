@@ -116,6 +116,12 @@ fn relationship(text: &str) -> Option<Relationship> {
         " refer to different people ",
         " are distinct people ",
         " are not the same person ",
+        " two different people ",
+        " distinct individuals ",
+        " separate individuals ",
+        " establish different people ",
+        " establishes different people ",
+        " prove different people ",
     ]
     .iter()
     .any(|phrase| text.contains(phrase))
@@ -126,6 +132,10 @@ fn relationship(text: &str) -> Option<Relationship> {
         " is the same person ",
         " describe the same person ",
         " refer to the same person ",
+        " establish the same person ",
+        " establishes the same person ",
+        " prove the same person ",
+        " proves the same person ",
     ]
     .iter()
     .any(|phrase| text.contains(phrase))
@@ -152,6 +162,8 @@ fn uncertain(text: &str) -> bool {
         " not establish ",
         " not prove ",
         " no evidence ",
+        " neither ",
+        " nor ",
         " not necessarily ",
         " if ",
     ]
@@ -241,6 +253,43 @@ pub(super) fn source_matches(subject: &str, source: &Evidence, live: &[Evidence]
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn categorical_identity_variants_do_not_turn_missing_mentions_into_proof() {
+        let query = "Who is Arden Hale? Do these profiles establish one person?";
+        let quotes = vec![
+            "Arden Hale is a sculptor. The page does not mention astronomy.".into(),
+            "Arden Hale is an astronomer. No sculpture work is mentioned.".into(),
+        ];
+        for claim in [
+            "The profiles establish two different people.",
+            "These are distinct individuals.",
+            "These are separate individuals.",
+            "The profiles prove the same person.",
+        ] {
+            assert!(
+                validate_relationship(claim, &quotes, query).is_err(),
+                "{claim}"
+            );
+        }
+        for claim in [
+            "The profiles do not establish two different people.",
+            "They could be distinct individuals.",
+            "Neither page proves the same person.",
+        ] {
+            assert!(
+                validate_relationship(claim, &quotes, query).is_ok(),
+                "{claim}"
+            );
+        }
+        assert!(
+            validate_relationship(
+                "These are distinct individuals.",
+                &["These are distinct individuals.".into()],
+                query
+            )
+            .is_ok()
+        );
+    }
     #[test]
     fn separate_biographies_do_not_prove_a_categorical_identity_relationship() {
         let query =

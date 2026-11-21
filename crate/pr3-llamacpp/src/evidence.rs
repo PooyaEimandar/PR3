@@ -60,6 +60,42 @@ fn spans(source: &Value) -> Vec<(u64, &str)> {
     spans
 }
 
+// Explicit function syntax is a stronger subject hint than generic words such
+// as "length" or "default". Only narrow parts of the same origin when it has
+// matching body evidence; unknown subjects and explicitly selected reads stay.
+fn function_subjects(query: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    for word in query.split_whitespace().filter(|w| !w.contains("://")) {
+        for (at, _) in word.match_indices("()") {
+            let name = word[..at]
+                .rsplit(|c: char| !c.is_ascii_alphanumeric() && c != '_' && c != '.')
+                .next()
+                .unwrap_or_default();
+            if name
+                .as_bytes()
+                .first()
+                .is_some_and(|c| c.is_ascii_alphabetic() || *c == b'_')
+                && !names.iter().any(|n| n == name)
+            {
+                names.push(name.to_string());
+            }
+        }
+    }
+    names
+}
+
+fn mentions_function(text: &str, names: &[String]) -> bool {
+    names.iter().any(|name| {
+        text.match_indices(&format!("{name}(")).any(|(at, _)| {
+            at == 0
+                || text[..at]
+                    .chars()
+                    .next_back()
+                    .is_none_or(|c| !c.is_alphanumeric() && c != '_' && c != '.')
+        })
+    })
+}
+
 /// A refinement may add requested concepts only while preserving every primary
 /// quotation already selected. Source metadata is not evidence for coverage.
 pub(crate) fn extends_coverage(candidate: &str, baseline: &str, query: &str) -> bool {
@@ -274,9 +310,14 @@ fn excerpts(
             break;
         };
         let (offset, text) = candidates.remove(index);
-        if (focused || source["split_quotes"].as_bool().unwrap_or(false))
+        // Once a long passage's requested concepts are covered, extra lexical
+        // matches are distractions, not extra evidence. Preserve genuinely new
+        // options, conditions and short procedural context.
+        if (focused || source["split_quotes"].as_bool().unwrap_or(false) || !fits)
             && !selected.is_empty()
             && weighted(text, &missing) == 0
+            && phrase_score(text, &missing_phrases) == 0
+            && rule_scope_score(text, &missing_scopes) == 0
         {
             break;
         }
@@ -348,6 +389,31 @@ pub(crate) fn saved_evidence_with_budgets(
     } else {
         query
     });
+    let functions = function_subjects(if terms(query).is_empty() {
+        fallback
+    } else {
+        query
+    });
+    if !functions.is_empty() {
+        let matched_origins = sources
+            .iter()
+            .filter(|s| {
+                spans(s)
+                    .iter()
+                    .any(|(_, text)| mentions_function(text, &functions))
+            })
+            .filter_map(|s| s["origin"].as_str().map(str::to_owned))
+            .collect::<std::collections::BTreeSet<_>>();
+        sources.retain(|s| {
+            s["selected"].as_bool().unwrap_or(false)
+                || !s["origin"]
+                    .as_str()
+                    .is_some_and(|o| matched_origins.contains(o))
+                || spans(s)
+                    .iter()
+                    .any(|(_, text)| mentions_function(text, &functions))
+        });
+    }
     // A request to quote only one detail must not add lower-ranked passages
     // just because they repeat a subject name. Keep ties, so equally relevant
     // conflicting sources remain available. Other requests keep broad coverage.
@@ -548,6 +614,60 @@ pub(crate) fn saved_evidence_with_budgets(
                 .collect::<Vec<_>>()
         );
     }
+    // Primary excerpts carry each selected passage's best answer. Extra
+    // matches from long pages should add a requested concept, not compete with
+    // another primary using the same keywords in an irrelevant context.
+    // Keep all primaries (including conflicting sources) and short procedures.
+    let mut missing = words.clone();
+    let mut missing_phrases = phrases.clone();
+    let mut missing_scopes = words.clone();
+    let cover = |text: &str,
+                 words: &mut Vec<String>,
+                 pairs: &mut Vec<(String, String)>,
+                 scopes: &mut Vec<String>| {
+        words.retain(|w| score(text, std::slice::from_ref(w)) == 0);
+        pairs.retain(|p| phrase_score(text, std::slice::from_ref(p)) == 0);
+        scopes.retain(|w| rule_scope_score(text, std::slice::from_ref(w)) == 0);
+    };
+    for source in sources.iter() {
+        cover(
+            source["text"].as_str()?,
+            &mut missing,
+            &mut missing_phrases,
+            &mut missing_scopes,
+        );
+    }
+    let compared_origins = comparison_request(query)
+        && sources
+            .iter()
+            .filter_map(|s| s["origin"].as_str())
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            > 1;
+    for source in sources
+        .iter_mut()
+        .filter(|s| compared_origins && s["text_bytes"].as_u64().unwrap_or(0) > 500)
+    {
+        if let Some(extras) = source["additional_excerpts"].as_array_mut() {
+            extras.retain(|extra| {
+                let text = extra["text"].as_str().unwrap_or_default();
+                let adds = score(text, &missing) > 0
+                    || phrase_score(text, &missing_phrases) > 0
+                    || rule_scope_score(text, &words) > 0
+                    // Equal keywords do not make a rule's condition redundant.
+                    || text.to_lowercase().split(|c: char| !c.is_alphabetic()).any(|w| matches!(w, "if" | "unless" | "only" | "except" | "must" | "requires" | "without"));
+                if adds {
+                    cover(
+                        text,
+                        &mut missing,
+                        &mut missing_phrases,
+                        &mut missing_scopes,
+                    );
+                }
+                adds
+            });
+        }
+    }
     // Guidance belongs in the trusted prompt, not among quotable source text.
     packet.as_object_mut()?.remove("view");
     packet["snapshot"] = json!(true);
@@ -557,6 +677,57 @@ pub(crate) fn saved_evidence_with_budgets(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn explicit_function_subject_keeps_comparisons_and_pins_without_other_api_defaults() {
+        let packet = json!({"sources":[
+            {"source":"s:fold","origin":"manual","text":"fold() is lazy by default and requires equal lengths."},
+            {"source":"s:run","origin":"manual","text":"run() executes code. The default tuple length must match its closure."},
+            {"source":"s:other","origin":"other","text":"The library's iterator behavior is documented separately."}
+        ]});
+        let select = |packet: &Value, query: &str, fallback: &str| {
+            let view = saved_evidence_view(&packet.to_string(), query, fallback, 800, 4).unwrap();
+            serde_json::from_str::<Value>(&view).unwrap()["sources"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|s| s["source"].as_str().unwrap().to_string())
+                .collect::<Vec<_>>()
+        };
+        let query = "Explain fold() defaults and lengths and the library's iterator behavior.";
+        let ids = select(&packet, query, "");
+        assert!(ids.contains(&"s:fold".to_string()) && ids.contains(&"s:other".to_string()));
+        assert!(!ids.contains(&"s:run".to_string()));
+        assert_eq!(ids, select(&packet, "Continue.", query));
+        assert!(
+            select(&packet, "Compare fold() and run() defaults.", "")
+                .contains(&"s:run".to_string())
+        );
+        let mut pinned = packet.clone();
+        pinned["sources"][1]["selected"] = json!(true);
+        assert!(select(&pinned, query, "").contains(&"s:run".to_string()));
+        assert!(!mentions_function("unfold()", &["fold".into()]));
+        assert!(function_subjects("Use https://example.test/fold().").is_empty());
+        assert!(
+            select(&packet, "Explain missing() and tuple lengths.", "")
+                .contains(&"s:run".to_string())
+        );
+    }
+
+    #[test]
+    fn long_passage_does_not_offer_background_in_place_of_commit_condition() {
+        let rule = "Before a writer commits changes, all readers must finish reading the database.";
+        let text = format!(
+            "The database allows readers while changes are prepared.\n{rule}\n{}",
+            "Background notes. ".repeat(100)
+        );
+        let offset = text.find(rule).unwrap() as u64;
+        let packet = json!({"sources":[{"source":"s:writer","text":text}]}).to_string();
+        let view =
+            saved_evidence_view(&packet, "writer commit readers database", "", 800, 4).unwrap();
+        let view: Value = serde_json::from_str(&view).unwrap();
+        assert_eq!(spans(&view["sources"][0]), vec![(offset, rule)]);
+    }
 
     #[test]
     fn coverage_refinement_adds_a_complementary_source_without_replacing_the_rule() {
@@ -675,6 +846,10 @@ mod tests {
             );
         }
         for source in view["sources"].as_array().unwrap() {
+            assert!(
+                source["additional_excerpts"].as_array().unwrap().is_empty(),
+                "background competes with the complete condition: {source}"
+            );
             let original = fixture["sources"]
                 .as_array()
                 .unwrap()

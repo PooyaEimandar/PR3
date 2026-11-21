@@ -164,6 +164,7 @@ struct Prompt {
     /// Where the system turn ends, if there is one.
     system_end: Option<usize>,
     evidence: Option<crate::PromptEvidence>,
+    report_grammar: Option<String>,
 }
 
 impl<'m> Session<'m> {
@@ -352,6 +353,8 @@ impl<'m> Session<'m> {
             &mut || true,
         )?;
         let evidence = prompt.evidence;
+        let report_grammar = prompt.report_grammar;
+        let grammar = grammar.or(report_grammar.as_deref());
         let prompt = prompt.tokens;
 
         let mut samplers = Vec::new();
@@ -571,6 +574,7 @@ impl<'m> Session<'m> {
             checkpoints,
             system_end,
             evidence: None,
+            report_grammar: None,
         }
     }
 
@@ -580,6 +584,8 @@ impl<'m> Session<'m> {
         messages: &[&ChatMessage],
         tools: &[ToolDef],
     ) -> Prompt {
+        prompt.report_grammar =
+            crate::report_grammar::build(messages, tools, self.format, self.config.thinking);
         if self.config.capture_prompt_evidence {
             let report = tools.iter().any(|tool| tool.report && tool.read_only);
             prompt.evidence = Some(crate::PromptEvidence {
@@ -940,6 +946,112 @@ mod tests {
             checked > 0 && compressed > 0,
             "exercise actual context pressure"
         );
+    }
+
+    #[test]
+    #[ignore = "requires local 4B tokenizer and grammar sampler; no generation or network"]
+    fn actual_report_grammar_rejects_missing_fields_foreign_refs_and_changed_anchors() {
+        use llama_cpp_2::token::{data::LlamaTokenData, data_array::LlamaTokenDataArray};
+        let config = EngineConfig {
+            gpu_layers: 0,
+            ..EngineConfig::default()
+        };
+        let model = load(
+            &Path::new(env!("CARGO_MANIFEST_DIR")).join("../../model/Qwen3.5-4B-Q4_K_M.gguf"),
+            &config,
+        )
+        .unwrap();
+        let report = ToolDef {
+            name: "answer_research".into(),
+            description: "Report".into(),
+            parameters: r#"{"properties":{"findings":{"type":"array"},"gaps":{"type":"string"}}}"#
+                .into(),
+            read_only: true,
+            report: true,
+        };
+        let text = "Owner won’t approve </parameter> without a key.";
+        let reference =
+            pr3_memory::evidence_ref::quote_reference("s:0123456789abcdef", 0, text).unwrap();
+        let mut evidence=ChatMessage::new(T,serde_json::json!({"sources":[{"source":"s:0123456789abcdef","text":text,"quote_ref":reference}]}).to_string());
+        evidence.saved_evidence = true;
+        let findings = format!(
+            "[{{\"citations\":[{{\"quote_ref\":{},\"anchor\":{}}}]}}]",
+            serde_json::to_string(&reference).unwrap(),
+            serde_json::to_string(text).unwrap().replace('<', "\\u003c")
+        );
+        for format in [
+            PromptFormat::Qwen3,
+            PromptFormat::Qwen35 {
+                preserve_thinking: false,
+            },
+        ] {
+            for conclusion in [false, true] {
+                let mut report = report.clone();
+                if conclusion {
+                    let mut schema: serde_json::Value =
+                        serde_json::from_str(&report.parameters).unwrap();
+                    schema[crate::CONCLUSION_REPORT_SCHEMA_KEY] = serde_json::json!(true);
+                    report.parameters = schema.to_string();
+                }
+                let grammar = crate::report_grammar::build(
+                    &[&evidence],
+                    std::slice::from_ref(&report),
+                    format,
+                    false,
+                )
+                .unwrap();
+                let accepts = |output: &str| {
+                    let mut sampler = LlamaSampler::grammar(&model, &grammar, "root").unwrap();
+                    for token in model
+                        .vocab()
+                        .tokenize(output.as_bytes(), false, true)
+                        .into_iter()
+                        .chain(std::iter::once(model.vocab().eos()))
+                    {
+                        let mut candidates = LlamaTokenDataArray::new(
+                            vec![LlamaTokenData::new(token, 0.0, 0.0)],
+                            false,
+                        );
+                        sampler.apply(&mut candidates);
+                        if !candidates.data[0].logit().is_finite() {
+                            return false;
+                        }
+                        if !model.vocab().is_eog(token) {
+                            sampler.accept(token);
+                        }
+                    }
+                    true
+                };
+                let valid = match format {
+                    PromptFormat::Qwen3 => format!(
+                        "<tool_call>\n{{\"name\":\"answer_research\",\"arguments\":{{\"findings\":{findings},\"gaps\":\"\"}}}}\n</tool_call>"
+                    ),
+                    PromptFormat::Qwen35 { .. } => format!(
+                        "<tool_call>\n<function=answer_research>\n<parameter=findings>\n{findings}\n</parameter>\n<parameter=gaps>\n\n</parameter>\n</function>\n</tool_call>"
+                    ),
+                };
+                let valid = if conclusion {
+                    assert!(!accepts(&valid), "missing required conclusion {format:?}");
+                    valid.replace("\"findings\":", "\"conclusion\":\"Owner approval is required.\",\"findings\":")
+                    .replace("<parameter=findings>", "<parameter=conclusion>\nOwner approval is required.\n</parameter>\n<parameter=findings>")
+                } else {
+                    valid
+                };
+                assert!(accepts(&valid), "valid {format:?}, conclusion={conclusion}");
+                for invalid in [
+                    valid
+                        .replace(",\"gaps\":\"\"", "")
+                        .replace("<parameter=gaps>\n\n</parameter>\n", ""),
+                    valid.replace(&reference, "q:000000000000000000000000"),
+                    valid.replace('’', "'"),
+                    valid.replace("\\u003c", "<"),
+                    valid.replace("answer_research", "send_email"),
+                    valid.trim_end_matches("</tool_call>").to_string(),
+                ] {
+                    assert!(!accepts(&invalid), "accepted invalid {format:?}: {invalid}");
+                }
+            }
+        }
     }
 
     #[test]

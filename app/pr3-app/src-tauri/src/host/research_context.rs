@@ -28,6 +28,10 @@ impl Host {
                     schema.remove(pr3_llamacpp::QUOTATION_REPORT_SCHEMA_KEY);
                     schema.remove(pr3_llamacpp::CONCLUSION_REPORT_SCHEMA_KEY);
                 }
+                parameters["required"] = json!(["findings", "gaps"]);
+                if let Some(properties) = parameters["properties"].as_object_mut() {
+                    properties.remove("conclusion");
+                }
                 parameters["properties"]["findings"] = json!({"type":"array","maxItems":4,
                     "description":"A JSON list, never a string. Cover each requested part. Omit text when its quotation already explains it. Always also supply gaps, using an empty string when complete.",
                     "items":{"type":"object","properties":{
@@ -144,13 +148,17 @@ impl Host {
             .unwrap_or(question);
         let conclusion = asks_current(question)
             || (subject.is_none() && question.trim().to_lowercase().starts_with("who is "));
-        if conclusion && let Some(tool) = request.tools.iter_mut().find(|tool| tool.name == ANSWER)
+        if conclusion
+            && !sources.is_empty()
+            && let Some(tool) = request.tools.iter_mut().find(|tool| tool.name == ANSWER)
         {
             let mut parameters: Value = serde_json::from_str(&tool.parameters)
                 .map_err(|e| HostError::Host(e.to_string()))?;
             parameters[pr3_llamacpp::CONCLUSION_REPORT_SCHEMA_KEY] = json!(true);
+            parameters["required"] = json!(["conclusion", "findings", "gaps"]);
+            parameters["properties"]["conclusion"] = json!({"type":"string","description":"First answer the question directly: what do these cited sources establish, or what cannot be established? Preserve uncertainty; different roles/locations do not prove different people, and undated/expired values do not prove a current value. Nonempty, at most 700 bytes."});
             parameters["properties"]["findings"]["description"] = json!(
-                "A JSON list with an explicit answer to the requested conclusion in at least one finding's text, supported by its citations. Quotations alone do not answer an inference or uncertainty question. Alternatively state what cannot be established in gaps. Always supply gaps as a string."
+                "A JSON list of the exact quotations supporting the explicit conclusion. Cover each requested source and condition. Omit text that merely repeats the conclusion or quotations. Always supply gaps as a string."
             );
             tool.parameters = parameters.to_string();
         }
@@ -231,6 +239,10 @@ impl Host {
                 let mut parameters: Value = serde_json::from_str(&tool.parameters)
                     .map_err(|e| HostError::Host(e.to_string()))?;
                 parameters[pr3_llamacpp::QUOTATION_REPORT_SCHEMA_KEY] = json!(true);
+                parameters["required"] = json!(["findings", "gaps"]);
+                if let Some(properties) = parameters["properties"].as_object_mut() {
+                    properties.remove("conclusion");
+                }
                 parameters["properties"]["findings"] = json!({
                     "type":"array", "maxItems":4,
                     "description":"A JSON list containing only the requested original source quotation(s). Also supply gaps as an empty string when the quotation is available. PR3 supplies the authority explanation automatically: do NOT create a separate finding or citation for policy, metadata or tool labels.",
@@ -813,6 +825,19 @@ mod tests {
                 schema[pr3_llamacpp::CONCLUSION_REPORT_SCHEMA_KEY] == true,
                 conclusion,
                 "{query}"
+            );
+            assert_eq!(
+                schema["required"]
+                    .as_array()
+                    .unwrap()
+                    .contains(&json!("conclusion")),
+                conclusion,
+                "{query}"
+            );
+            assert_eq!(
+                schema["properties"]["conclusion"].is_object(),
+                conclusion,
+                "a previous conclusion requirement or source command cannot survive a correction: {query}"
             );
             assert_eq!(
                 schema[pr3_llamacpp::QUOTATION_REPORT_SCHEMA_KEY] == true,
