@@ -1330,6 +1330,8 @@ impl Host {
         let mut document_answer: Option<String> = None;
         research_turn |= controls.is_none() && self.tasks()?.has_research_sources(session);
         let mut research_answer: Option<String> = None;
+        // Turn-local runtime state, never inferred from messages or source text.
+        let mut identity_repair = false;
         let mut offered_research_tools = std::collections::BTreeSet::new();
         let mut offered_source_refs: Option<Vec<String>> = None;
         for _ in 0..MAX_ROUND_TRIPS {
@@ -1354,6 +1356,9 @@ impl Host {
                     }
                     if research_turn && research_answer.is_none() {
                         self.research_context(&mut request, utterance)?;
+                        if identity_repair {
+                            research_context::restrict_identity_repair(&mut request)?;
+                        }
                     }
                     offered_research_tools.clear();
                     offered_research_tools.extend(request.tools.iter().map(|t| t.name.clone()));
@@ -1524,6 +1529,9 @@ impl Host {
                         Ok(text) => (true, text),
                         Err(error) => (false, error),
                     };
+                    identity_repair = call.name == pr3_tool::research::ANSWER
+                        && !success
+                        && output == pr3_tool::research::IDENTITY_RELATIONSHIP_ERROR;
                     if call.name == pr3_tool::research::ANSWER {
                         research_answer = success.then(|| output.clone());
                     }

@@ -1,0 +1,1272 @@
+{
+  "scope": "PR3-only exposed development and formerly fresh regressions. Unblinded implementation-assistant review, not independent held-out evidence or a matched OpenJarvis comparison. No failed-case retry substitution in the final matrices.",
+  "previousArchive": {
+    "name": "2026-11-21-research-contract.tar.gz",
+    "sha256": "6908efda5d5a97746389eb41d28054b5d79fa8602d2cadddf1a394e47bbad209"
+  },
+  "binarySha256": "1a8aded430485d923fb2210d9ddb1b75af37ec2d27552f7f6b3aec84b9023f8d",
+  "development": {
+    "scope": "Exposed development cases, not held-out or a current OpenJarvis comparison. Source review is unblinded and non-independent. Timings are observational desktop measurements.",
+    "rows": 108,
+    "turns": 162,
+    "sourceFilesVerified": 144,
+    "baselineCasesUnchanged": 18,
+    "unchangedRestartSnapshots": 54,
+    "nonemptyRestartSnapshots": 54,
+    "lateCitedPassages": 42,
+    "coverageSnapshotsWithAllRequestedFacts": 24,
+    "caseScores": {
+      "Qwen3.5-4B-Q4_K_M.gguf/short-page-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/short-page-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/long-license-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/long-license-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/long-comparison-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/long-comparison-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/directives-around-fact/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/same-sentence-directive/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/spanish-directive/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/web-directive-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/web-directive-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/requested-quote-after-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/requested-quote-after-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/relevant-operating-instructions/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/replay-h05/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/replay-h06/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/replay-h08/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/replay-h16/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/website-scope-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/website-scope-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/official-source-clarification/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/public-sqlite-comparison-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/public-sqlite-comparison-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/late-comparison-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/late-comparison-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/late-conditions-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/late-conditions-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/short-page-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/short-page-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/long-license-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/long-license-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/long-comparison-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/long-comparison-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/directives-around-fact/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/same-sentence-directive/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/spanish-directive/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/web-directive-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/web-directive-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/requested-quote-after-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/requested-quote-after-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/relevant-operating-instructions/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/replay-h05/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/replay-h06/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/replay-h08/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/replay-h16/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/website-scope-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/website-scope-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/official-source-clarification/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/public-sqlite-comparison-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/public-sqlite-comparison-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/late-comparison-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/late-comparison-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/late-conditions-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/late-conditions-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      }
+    },
+    "failures": [],
+    "borderlineJudgments": [
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 1,
+        "id": "official-source-clarification",
+        "turn": 0,
+        "pass": true,
+        "reason": "Declines to establish a price and asks the user for source domains instead of inferring authority. Borderline: Unrelated USGS/NOAA examples in the clarification.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 2,
+        "id": "official-source-clarification",
+        "turn": 0,
+        "pass": true,
+        "reason": "Requests the relevant official websites, establishes no price, and does not infer authority from search labels. Borderline: Unrequested fisheries/import-export examples assume a Nori product context not supplied by the user.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 7,
+        "id": "official-source-clarification",
+        "turn": 0,
+        "pass": true,
+        "reason": "Correctly asks for the intended official websites and makes no verified price or authority claim. Borderline: Adds made-up nori-brand-a.com/nori-brand-b.com examples and assumes a retailer/brand context not supplied by the request; clarification should avoid these unnecessary specifics.",
+        "borderline": true
+      }
+    ],
+    "groups": {
+      "Qwen3.5-4B-Q4_K_M.gguf/all": {
+        "turns": 81,
+        "diagnosticPass": 81,
+        "validatedReports": 81,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 81,
+        "acceptedBorderlines": 2,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 117,
+        "maxToolRounds": 3,
+        "maxToolCalls": 5,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 79,
+        "lenientSourceReviewedPass": 81,
+        "maxSeconds": 18.080942667,
+        "medianSeconds": 9.616237917,
+        "p95Seconds": 16.94208325
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/context": {
+        "turns": 18,
+        "diagnosticPass": 18,
+        "validatedReports": 18,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 18,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 27,
+        "maxToolRounds": 3,
+        "maxToolCalls": 4,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 18,
+        "lenientSourceReviewedPass": 18,
+        "maxSeconds": 16.417397041,
+        "medianSeconds": 7.7913718124999995,
+        "p95Seconds": 16.417397041
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/quotation": {
+        "turns": 24,
+        "diagnosticPass": 24,
+        "validatedReports": 24,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 24,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 24,
+        "maxToolRounds": 3,
+        "maxToolCalls": 3,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 24,
+        "lenientSourceReviewedPass": 24,
+        "maxSeconds": 11.932757958,
+        "medianSeconds": 8.920491146,
+        "p95Seconds": 11.164208458
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/reliability": {
+        "turns": 21,
+        "diagnosticPass": 21,
+        "validatedReports": 21,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 21,
+        "acceptedBorderlines": 2,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 30,
+        "maxToolRounds": 3,
+        "maxToolCalls": 3,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 19,
+        "lenientSourceReviewedPass": 21,
+        "maxSeconds": 15.983198417,
+        "medianSeconds": 12.462015,
+        "p95Seconds": 14.810958334
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/live-pages": {
+        "turns": 6,
+        "diagnosticPass": 6,
+        "validatedReports": 6,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 6,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 12,
+        "maxToolRounds": 3,
+        "maxToolCalls": 4,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 6,
+        "lenientSourceReviewedPass": 6,
+        "maxSeconds": 18.080942667,
+        "medianSeconds": 12.477132667,
+        "p95Seconds": 18.080942667
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/coverage": {
+        "turns": 12,
+        "diagnosticPass": 12,
+        "validatedReports": 12,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 12,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 24,
+        "maxToolRounds": 3,
+        "maxToolCalls": 5,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 12,
+        "lenientSourceReviewedPass": 12,
+        "maxSeconds": 17.817835875,
+        "medianSeconds": 10.8047434165,
+        "p95Seconds": 17.817835875
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/all": {
+        "turns": 81,
+        "diagnosticPass": 81,
+        "validatedReports": 81,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 81,
+        "acceptedBorderlines": 1,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 117,
+        "maxToolRounds": 4,
+        "maxToolCalls": 4,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 80,
+        "lenientSourceReviewedPass": 81,
+        "maxSeconds": 111.04615975,
+        "medianSeconds": 56.411259583,
+        "p95Seconds": 96.880773625
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/context": {
+        "turns": 18,
+        "diagnosticPass": 18,
+        "validatedReports": 18,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 18,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 27,
+        "maxToolRounds": 4,
+        "maxToolCalls": 4,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 18,
+        "lenientSourceReviewedPass": 18,
+        "maxSeconds": 93.364225375,
+        "medianSeconds": 48.185009208,
+        "p95Seconds": 93.364225375
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/quotation": {
+        "turns": 24,
+        "diagnosticPass": 24,
+        "validatedReports": 24,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 24,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 24,
+        "maxToolRounds": 3,
+        "maxToolCalls": 3,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 24,
+        "lenientSourceReviewedPass": 24,
+        "maxSeconds": 70.736431709,
+        "medianSeconds": 49.973781583000005,
+        "p95Seconds": 62.897876417
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/reliability": {
+        "turns": 21,
+        "diagnosticPass": 21,
+        "validatedReports": 21,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 21,
+        "acceptedBorderlines": 1,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 30,
+        "maxToolRounds": 3,
+        "maxToolCalls": 3,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 20,
+        "lenientSourceReviewedPass": 21,
+        "maxSeconds": 96.880773625,
+        "medianSeconds": 63.583534458,
+        "p95Seconds": 83.92576425
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/live-pages": {
+        "turns": 6,
+        "diagnosticPass": 6,
+        "validatedReports": 6,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 6,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 12,
+        "maxToolRounds": 3,
+        "maxToolCalls": 4,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 6,
+        "lenientSourceReviewedPass": 6,
+        "maxSeconds": 107.293109333,
+        "medianSeconds": 70.403601959,
+        "p95Seconds": 107.293109333
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/coverage": {
+        "turns": 12,
+        "diagnosticPass": 12,
+        "validatedReports": 12,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 12,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 24,
+        "maxToolRounds": 3,
+        "maxToolCalls": 4,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 12,
+        "lenientSourceReviewedPass": 12,
+        "maxSeconds": 111.04615975,
+        "medianSeconds": 67.715546729,
+        "p95Seconds": 111.04615975
+      }
+    }
+  },
+  "exposed": {
+    "scope": "Exposed development cases, not held-out or a current OpenJarvis comparison. Source review is unblinded and non-independent. Timings are observational desktop measurements.",
+    "rows": 48,
+    "turns": 78,
+    "sourceFilesVerified": 144,
+    "baselineCasesUnchanged": 8,
+    "unchangedRestartSnapshots": 30,
+    "nonemptyRestartSnapshots": 30,
+    "lateCitedPassages": 0,
+    "coverageSnapshotsWithAllRequestedFacts": 0,
+    "caseScores": {
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-python-zip/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-python-zip/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-git-diff/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-cargo-features/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-cargo-features/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-similar-name/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-similar-name/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-identical-name/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-french-conditions/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-french-conditions/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-spanish-dates/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-persian-recovery/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-persian-recovery/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-python-zip/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-python-zip/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-git-diff/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-cargo-features/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-cargo-features/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-similar-name/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-similar-name/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-identical-name/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-french-conditions/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-french-conditions/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-spanish-dates/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-persian-recovery/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-persian-recovery/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      }
+    },
+    "failures": [],
+    "borderlineJudgments": [
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 1,
+        "id": "fresh-git-diff",
+        "turn": 0,
+        "pass": true,
+        "reason": "No-index, outside-repository use, implied exit-code and both meanings are present. Borderline: Unrequested relative-path and external-driver passages add padding.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 1,
+        "id": "fresh-cargo-features",
+        "turn": 0,
+        "pass": true,
+        "reason": "All requested default-feature and implicit-feature conditions covered. Borderline: Extra activation examples and a dangling background introduction.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 1,
+        "id": "fresh-identical-name",
+        "turn": 0,
+        "pass": true,
+        "reason": "Both biographies and explicit same/different identity uncertainty. Borderline: Says pages explicitly mention only their respective field, broadening the specific absent-mention statements.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 2,
+        "id": "fresh-git-diff",
+        "turn": 0,
+        "pass": true,
+        "reason": "Same reviewed display: all Git conditions and exit meanings present. Borderline: Unrequested relative-path and external-driver passages.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 2,
+        "id": "fresh-cargo-features",
+        "turn": 0,
+        "pass": true,
+        "reason": "Same reviewed display: all requested Cargo conditions. Borderline: Extra activation examples and dangling background introduction.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 2,
+        "id": "fresh-spanish-dates",
+        "turn": 0,
+        "pass": true,
+        "reason": "Both values, expired versus undated conditions, and explicit current-price uncertainty. Borderline: Calls 14 euros the only specific-price source before also reporting the specific 22-euro value; imprecise wording.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 7,
+        "id": "fresh-git-diff",
+        "turn": 0,
+        "pass": true,
+        "reason": "Same reviewed display: all requested Git conditions. Borderline: Unrequested relative-path and external-driver passages.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 7,
+        "id": "fresh-cargo-features",
+        "turn": 0,
+        "pass": true,
+        "reason": "Same reviewed display: requested Cargo conditions present. Borderline: Extra activation examples and dangling background introduction.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 1,
+        "id": "fresh-git-diff",
+        "turn": 0,
+        "pass": true,
+        "reason": "Previously failing Git case now includes outside-repository use, no-index, implied exit-code and both meanings. Borderline: Same extra relative-path and external-driver passages as the reviewed 4B answers.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 1,
+        "id": "fresh-cargo-features",
+        "turn": 0,
+        "pass": true,
+        "reason": "Same reviewed display: default disabling, re-enablement and dep: conditions all covered. Borderline: Extra optional-feature examples and dangling background introduction.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 2,
+        "id": "fresh-git-diff",
+        "turn": 0,
+        "pass": true,
+        "reason": "Same reviewed display: all outside-repository and exit-code facts present. Borderline: Extra relative-path and external-driver passages.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 2,
+        "id": "fresh-cargo-features",
+        "turn": 0,
+        "pass": true,
+        "reason": "Same reviewed display: all requested Cargo conditions covered. Borderline: Extra activation examples and dangling background introduction.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 2,
+        "id": "fresh-spanish-dates",
+        "turn": 0,
+        "pass": true,
+        "reason": "Spanish quotations supply both values and their expired/undated conditions, and the Spanish runtime notice explicitly says current price cannot be established. Borderline: The extra model conclusion is English despite the Spanish request, and calls the temporal statuses inconsistent rather than simply different or unknown. Strict review rejects these language/wording defects.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 7,
+        "id": "fresh-git-diff",
+        "turn": 0,
+        "pass": true,
+        "reason": "Same reviewed display: all requested Git facts and exit-code meanings. Borderline: Extra relative-path and external-driver passages.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 7,
+        "id": "fresh-cargo-features",
+        "turn": 0,
+        "pass": true,
+        "reason": "Previously failing configuration now covers default-feature conditions and dep: suppression without claiming exclusive activation. Borderline: Same extra activation examples and dangling background introduction as other seeds.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 7,
+        "id": "fresh-identical-name",
+        "turn": 0,
+        "pass": true,
+        "reason": "Both profiles have separate citations and the conclusion explicitly leaves both identity possibilities unestablished. Borderline: Calling the occupations and locations conflicting overstates the evidence; different professional profiles are not necessarily incompatible.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 7,
+        "id": "fresh-spanish-dates",
+        "turn": 0,
+        "pass": true,
+        "reason": "Spanish conclusion explicitly says current price cannot be confirmed; both quoted values retain their expired versus undated conditions. Borderline: Calling the notes contradictory overstates their temporal relationship; the undated catalogue does not establish a conflicting validity window.",
+        "borderline": true
+      }
+    ],
+    "groups": {
+      "Qwen3.5-4B-Q4_K_M.gguf/all": {
+        "turns": 39,
+        "diagnosticPass": 39,
+        "validatedReports": 39,
+        "runtimeErrors": 0,
+        "failedToolCalls": 2,
+        "traceRejectedCalls": 2,
+        "sourceReviewedPass": 39,
+        "acceptedBorderlines": 8,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 87,
+        "maxToolRounds": 4,
+        "maxToolCalls": 5,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 31,
+        "lenientSourceReviewedPass": 39,
+        "maxSeconds": 29.993812417,
+        "medianSeconds": 10.887943,
+        "p95Seconds": 29.635080125
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-public-pages": {
+        "turns": 15,
+        "diagnosticPass": 15,
+        "validatedReports": 15,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 15,
+        "acceptedBorderlines": 6,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 51,
+        "maxToolRounds": 3,
+        "maxToolCalls": 3,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 9,
+        "lenientSourceReviewedPass": 15,
+        "maxSeconds": 29.993812417,
+        "medianSeconds": 12.124854,
+        "p95Seconds": 29.993812417
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-identity": {
+        "turns": 9,
+        "diagnosticPass": 9,
+        "validatedReports": 9,
+        "runtimeErrors": 0,
+        "failedToolCalls": 2,
+        "traceRejectedCalls": 2,
+        "sourceReviewedPass": 9,
+        "acceptedBorderlines": 1,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 12,
+        "maxToolRounds": 4,
+        "maxToolCalls": 5,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 8,
+        "lenientSourceReviewedPass": 9,
+        "maxSeconds": 29.166114375,
+        "medianSeconds": 10.887943,
+        "p95Seconds": 29.166114375
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-multilingual": {
+        "turns": 15,
+        "diagnosticPass": 15,
+        "validatedReports": 15,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 15,
+        "acceptedBorderlines": 1,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 24,
+        "maxToolRounds": 2,
+        "maxToolCalls": 2,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 14,
+        "lenientSourceReviewedPass": 15,
+        "maxSeconds": 15.1785455,
+        "medianSeconds": 9.667397667,
+        "p95Seconds": 15.1785455
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/all": {
+        "turns": 39,
+        "diagnosticPass": 39,
+        "validatedReports": 39,
+        "runtimeErrors": 0,
+        "failedToolCalls": 1,
+        "traceRejectedCalls": 1,
+        "sourceReviewedPass": 39,
+        "acceptedBorderlines": 9,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 87,
+        "maxToolRounds": 3,
+        "maxToolCalls": 4,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 30,
+        "lenientSourceReviewedPass": 39,
+        "maxSeconds": 134.557118375,
+        "medianSeconds": 68.715921959,
+        "p95Seconds": 128.018580459
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-public-pages": {
+        "turns": 15,
+        "diagnosticPass": 15,
+        "validatedReports": 15,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 15,
+        "acceptedBorderlines": 6,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 51,
+        "maxToolRounds": 3,
+        "maxToolCalls": 3,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 9,
+        "lenientSourceReviewedPass": 15,
+        "maxSeconds": 134.557118375,
+        "medianSeconds": 86.681485042,
+        "p95Seconds": 134.557118375
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-identity": {
+        "turns": 9,
+        "diagnosticPass": 9,
+        "validatedReports": 9,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 9,
+        "acceptedBorderlines": 1,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 12,
+        "maxToolRounds": 3,
+        "maxToolCalls": 4,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 8,
+        "lenientSourceReviewedPass": 9,
+        "maxSeconds": 103.949757167,
+        "medianSeconds": 82.829388792,
+        "p95Seconds": 103.949757167
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-multilingual": {
+        "turns": 15,
+        "diagnosticPass": 15,
+        "validatedReports": 15,
+        "runtimeErrors": 0,
+        "failedToolCalls": 1,
+        "traceRejectedCalls": 1,
+        "sourceReviewedPass": 15,
+        "acceptedBorderlines": 2,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 24,
+        "maxToolRounds": 3,
+        "maxToolCalls": 3,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 13,
+        "lenientSourceReviewedPass": 15,
+        "maxSeconds": 128.018580459,
+        "medianSeconds": 54.671645708,
+        "p95Seconds": 128.018580459
+      }
+    }
+  },
+  "inference": {
+    "development": {
+      "turns": 162,
+      "passes": 313,
+      "verifiedInferenceQuotes": 248,
+      "maxPromptTokens": 3235,
+      "answerReservation": 512,
+      "clockDivergences": 0,
+      "coverage": {
+        "Qwen3.5-4B-Q4_K_M.gguf/public-sqlite-comparison-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/late-comparison-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/late-conditions-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/public-sqlite-comparison-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/late-comparison-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/late-conditions-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        }
+      },
+      "restartCoverage": {
+        "Qwen3.5-4B-Q4_K_M.gguf/short-page-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/long-license-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/long-comparison-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/web-directive-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/requested-quote-after-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/website-scope-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/public-sqlite-comparison-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/late-comparison-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/late-conditions-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/short-page-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/long-license-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/long-comparison-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/web-directive-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/requested-quote-after-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/website-scope-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/public-sqlite-comparison-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/late-comparison-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/late-conditions-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        }
+      },
+      "wallSeconds": {
+        "Qwen3.5-4B-Q4_K_M.gguf": {
+          "median": 9.616,
+          "p95": 16.943,
+          "max": 18.081
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf": {
+          "median": 56.408,
+          "p95": 96.881,
+          "max": 111.043
+        }
+      }
+    },
+    "exposed": {
+      "turns": 78,
+      "passes": 159,
+      "verifiedInferenceQuotes": 226,
+      "maxPromptTokens": 3583,
+      "answerReservation": 512,
+      "clockDivergences": 0,
+      "coverage": {
+        "Qwen3.5-4B-Q4_K_M.gguf/fresh-python-zip": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/fresh-git-diff": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/fresh-cargo-features": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/fresh-python-zip": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/fresh-git-diff": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/fresh-cargo-features": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        }
+      },
+      "restartCoverage": {
+        "Qwen3.5-4B-Q4_K_M.gguf/fresh-python-zip": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/fresh-cargo-features": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/fresh-similar-name": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/fresh-french-conditions": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/fresh-persian-recovery": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/fresh-python-zip": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/fresh-cargo-features": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/fresh-similar-name": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/fresh-french-conditions": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/fresh-persian-recovery": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        }
+      },
+      "wallSeconds": {
+        "Qwen3.5-4B-Q4_K_M.gguf": {
+          "median": 10.888,
+          "p95": 29.635,
+          "max": 29.994
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf": {
+          "median": 68.721,
+          "p95": 128.019,
+          "max": 134.557
+        }
+      }
+    }
+  },
+  "plans": {
+    "development": {
+      "scope": "Complete matrix plan audit",
+      "turns": 162,
+      "plannedReports": 150,
+      "plannedCitations": 228,
+      "unplannedReports": 12,
+      "omissions": []
+    },
+    "exposed": {
+      "scope": "Complete matrix plan audit",
+      "turns": 78,
+      "plannedReports": 81,
+      "plannedCitations": 180,
+      "unplannedReports": 0,
+      "omissions": []
+    }
+  }
+}

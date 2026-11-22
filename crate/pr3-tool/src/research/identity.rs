@@ -109,16 +109,25 @@ enum Relationship {
 }
 
 fn relationship(text: &str) -> Option<Relationship> {
-    let text = format!(" {} ", words(text).join(" "));
+    // Noun variants do not change a categorical identity assertion. Keep this
+    // narrow English check consistent for claims and their cited evidence.
+    let normalized = words(text)
+        .into_iter()
+        .map(|word| match word.as_str() {
+            "individual" => "person".into(),
+            "individuals" | "persons" => "people".into(),
+            _ => word,
+        })
+        .collect::<Vec<_>>();
+    let text = format!(" {} ", normalized.join(" "));
     if [
         " are different people ",
         " describe different people ",
         " refer to different people ",
-        " are distinct people ",
         " are not the same person ",
         " two different people ",
-        " distinct individuals ",
-        " separate individuals ",
+        " distinct people ",
+        " separate people ",
         " establish different people ",
         " establishes different people ",
         " prove different people ",
@@ -203,7 +212,7 @@ pub(super) fn validate_relationship(
                 })
         });
         if !explicit {
-            return Err("The cited biographies do not explicitly establish that these profiles describe the same or different people. Different roles, locations or missing mentions do not prove an identity relationship. State the uncertainty, or cite an explicit supported identity link. Keep the other supported findings and use the remaining execution budget.".into());
+            return Err(super::IDENTITY_RELATIONSHIP_ERROR.into());
         }
     }
     Ok(())
@@ -253,6 +262,60 @@ pub(super) fn source_matches(subject: &str, source: &Evidence, live: &[Evidence]
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn person_noun_variants_do_not_bypass_identity_uncertainty() {
+        let request = "Who is Arden Hale? Could these profiles describe different people?";
+        let quotes = vec![
+            "Arden Hale is a sculptor based in Bergen.".into(),
+            "Arden Hale is an astronomer based in Quito.".into(),
+        ];
+        for claim in [
+            "The sources describe two different individuals with matching names.",
+            "These profiles refer to different persons.",
+            "They describe the same individual.",
+            "They are separate people.",
+            "The pages do not establish the same person. The sources describe two different individuals.",
+        ] {
+            assert!(
+                validate_relationship(claim, &quotes, request).is_err(),
+                "{claim}"
+            );
+        }
+        for claim in [
+            "They could describe different individuals.",
+            "The pages do not establish whether they describe the same individual.",
+            "There is no evidence that they are separate people.",
+        ] {
+            assert!(
+                validate_relationship(claim, &quotes, request).is_ok(),
+                "{claim}"
+            );
+        }
+        assert!(
+            validate_relationship(
+                "They describe the same individual.",
+                &["Both profiles refer to the same person.".into()],
+                request
+            )
+            .is_ok()
+        );
+        assert!(
+            validate_relationship(
+                "These profiles refer to different persons.",
+                &["These profiles refer to different individuals.".into()],
+                request
+            )
+            .is_ok()
+        );
+        assert!(
+            validate_relationship(
+                "They describe the same individual.",
+                &["These profiles might describe the same individual.".into()],
+                request
+            )
+            .is_err()
+        );
+    }
     #[test]
     fn categorical_identity_variants_do_not_turn_missing_mentions_into_proof() {
         let query = "Who is Arden Hale? Do these profiles establish one person?";

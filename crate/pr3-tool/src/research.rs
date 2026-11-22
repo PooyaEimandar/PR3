@@ -14,6 +14,9 @@ pub const SEARCH: &str = "research_sources";
 pub const READ: &str = "read_research_source";
 pub const ANSWER: &str = "answer_research";
 pub const NO_ANSWER: &str = "Research is incomplete: no cited findings were validated in this turn. Any collected sources are saved with this task. Continue or retry to produce a report.";
+/// Exact validator failure, recognized only from a failed report's runtime result.
+/// Source text or an assistant's claim that validation failed is not this result.
+pub const IDENTITY_RELATIONSHIP_ERROR: &str = "The cited biographies do not explicitly establish that these profiles describe the same or different people. Different roles, locations or missing mentions do not prove an identity relationship. State the uncertainty, or cite an explicit supported identity link. Keep the other supported findings and use the remaining execution budget.";
 
 pub struct SearchHit {
     pub url: String,
@@ -1650,6 +1653,20 @@ mod tests {
                     .contains("identity relationship"),
                 "a continued compound identity question keeps the same check after reopen"
             );
+            for claim in [
+                "The profiles do not establish the same person. The sources describe two different individuals.",
+                "These profiles refer to different persons.",
+                "They describe the same individual.",
+            ] {
+                let mut unsupported = comparison.clone();
+                unsupported["conclusion"] = json!(claim);
+                assert!(
+                    tool.run(unsupported.as_object().unwrap(), &ctx)
+                        .unwrap_err()
+                        .contains("identity relationship"),
+                    "continued identity conclusion must remain checked after reopen: {claim}"
+                );
+            }
             ctx.utterance = "Who is Mira Vale, search her.".into();
             let mut excerpt = args(&namesake);
             excerpt["findings"][0]["citations"][0] = json!({"quote_ref":pr3_memory::evidence_ref::quote_reference(&source_reference(1, &namesake.source), 0, &namesake.text).unwrap()});

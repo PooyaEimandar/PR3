@@ -985,12 +985,16 @@ mod tests {
                 preserve_thinking: false,
             },
         ] {
-            for conclusion in [false, true] {
+            for (conclusion, restricted) in [(false, false), (true, false), (true, true)] {
                 let mut report = report.clone();
                 if conclusion {
                     let mut schema: serde_json::Value =
                         serde_json::from_str(&report.parameters).unwrap();
                     schema[crate::CONCLUSION_REPORT_SCHEMA_KEY] = serde_json::json!(true);
+                    if restricted {
+                        schema["properties"]["conclusion"]["enum"] =
+                            serde_json::json!(["Owner approval is required."]);
+                    }
                     report.parameters = schema.to_string();
                 }
                 let grammar = crate::report_grammar::build(
@@ -1038,6 +1042,15 @@ mod tests {
                     valid
                 };
                 assert!(accepts(&valid), "valid {format:?}, conclusion={conclusion}");
+                if restricted {
+                    assert!(
+                        !accepts(&valid.replace(
+                            "Owner approval is required.",
+                            "The profiles describe different individuals."
+                        )),
+                        "a repair cannot repeat a rejected interpretation"
+                    );
+                }
                 for invalid in [
                     valid
                         .replace(",\"gaps\":\"\"", "")
@@ -1051,6 +1064,150 @@ mod tests {
                     assert!(!accepts(&invalid), "accepted invalid {format:?}: {invalid}");
                 }
             }
+        }
+    }
+
+    #[test]
+    #[ignore = "requires the local 4B tokenizer"]
+    fn actual_coverage_and_required_read_grammars_keep_facts_and_execution_bounds() {
+        use llama_cpp_2::token::{data::LlamaTokenData, data_array::LlamaTokenDataArray};
+        let config = EngineConfig {
+            gpu_layers: 0,
+            ..EngineConfig::default()
+        };
+        let model = load(
+            &Path::new(env!("CARGO_MANIFEST_DIR")).join("../../model/Qwen3.5-4B-Q4_K_M.gguf"),
+            &config,
+        )
+        .unwrap();
+        let accepts = |grammar: &str, output: &str| {
+            let mut sampler = LlamaSampler::grammar(&model, grammar, "root").unwrap();
+            for token in model
+                .vocab()
+                .tokenize(output.as_bytes(), false, true)
+                .into_iter()
+                .chain(std::iter::once(model.vocab().eos()))
+            {
+                let mut candidates =
+                    LlamaTokenDataArray::new(vec![LlamaTokenData::new(token, 0.0, 0.0)], false);
+                sampler.apply(&mut candidates);
+                if !candidates.data[0].logit().is_finite() {
+                    return false;
+                }
+                if !model.vocab().is_eog(token) {
+                    sampler.accept(token);
+                }
+            }
+            true
+        };
+        let texts = [
+            "Amber readers may continue during writes.",
+            "Birch readers are excluded during writes.",
+        ];
+        let ids = ["s:0123456789abcdef", "s:fedcba9876543210"];
+        let refs = texts
+            .iter()
+            .zip(ids)
+            .map(|(t, id)| pr3_memory::evidence_ref::quote_reference(id, 0, t).unwrap())
+            .collect::<Vec<_>>();
+        let mut evidence = ChatMessage::new(T, serde_json::json!({"coverage":refs,"sources":texts.iter().enumerate().map(|(i,t)|serde_json::json!({"source":ids[i],"text":t,"quote_ref":refs[i]})).collect::<Vec<_>>()} ).to_string());
+        evidence.saved_evidence = true;
+        let report = ToolDef { name:"answer_research".into(),description:"Report".into(),parameters:serde_json::json!({crate::COVERAGE_REPORT_SCHEMA_KEY:true,"properties":{"findings":{"type":"array"},"gaps":{"type":"string"}}}).to_string(),read_only:true,report:true };
+        let read = ToolDef { name:"read_research_source".into(),description:"Read".into(),parameters:serde_json::json!({crate::REQUIRED_READ_SCHEMA_KEY:true,"properties":{"source":{"enum":["c:0123456789abcdef"]}}}).to_string(),read_only:true,report:false };
+        let mut citations = texts
+            .iter()
+            .enumerate()
+            .map(|(i, t)| {
+                (
+                    refs[i].clone(),
+                    format!(
+                        "{{\"quote_ref\":{},\"anchor\":{}}}",
+                        serde_json::to_string(&refs[i]).unwrap(),
+                        serde_json::to_string(&t.chars().take(16).collect::<String>()).unwrap()
+                    ),
+                )
+            })
+            .collect::<Vec<_>>();
+        citations.sort();
+        let findings = format!(
+            "[{{\"citations\":[{},{}]}}]",
+            citations[0].1, citations[1].1
+        );
+        for format in [
+            PromptFormat::Qwen3,
+            PromptFormat::Qwen35 {
+                preserve_thinking: false,
+            },
+        ] {
+            let wrap = |name: &str, findings: &str| match format {
+                PromptFormat::Qwen3 => format!(
+                    "<tool_call>\n{{\"name\":\"{name}\",\"arguments\":{{\"findings\":{findings},\"gaps\":\"\"}}}}\n</tool_call>"
+                ),
+                PromptFormat::Qwen35 { .. } => format!(
+                    "<tool_call>\n<function={name}>\n<parameter=findings>\n{findings}\n</parameter>\n<parameter=gaps>\n\n</parameter>\n</function>\n</tool_call>"
+                ),
+            };
+            let grammar = crate::report_grammar::build(
+                &[&evidence],
+                std::slice::from_ref(&report),
+                format,
+                false,
+            )
+            .unwrap();
+            let valid = wrap("answer_research", &findings);
+            assert!(accepts(&grammar, &valid));
+            assert!(
+                !accepts(
+                    &grammar,
+                    &valid.replace(&format!(",{}", citations[1].1), "")
+                ),
+                "omitted comparison subject"
+            );
+            assert!(
+                !accepts(
+                    &grammar,
+                    &valid.replace("]}", "],\"text\":\"Only paying residents can join.\"}")
+                ),
+                "unsupported restatement"
+            );
+            assert!(!accepts(&grammar, &wrap("send_email", &findings)));
+            let grammar =
+                crate::report_grammar::build(&[], std::slice::from_ref(&read), format, false)
+                    .unwrap();
+            let call = match format {
+                PromptFormat::Qwen3 => {
+                    "<tool_call>\n{\"name\":\"read_research_source\",\"arguments\":{\"source\":\"c:0123456789abcdef\"}}\n</tool_call>"
+                }
+                PromptFormat::Qwen35 { .. } => {
+                    "<tool_call>\n<function=read_research_source>\n<parameter=source>\nc:0123456789abcdef\n</parameter>\n</function>\n</tool_call>"
+                }
+            };
+            assert!(accepts(&grammar, call));
+            assert!(
+                !accepts(&grammar, &call.repeat(2)),
+                "duplicate candidate batch"
+            );
+            assert!(!accepts(&grammar, &call.repeat(5)));
+            assert!(!accepts(&grammar, "Here is the biography."));
+            assert!(!accepts(
+                &grammar,
+                &call.replace("c:0123456789abcdef", "c:fedcba9876543210")
+            ));
+            let candidates = (1..=5).map(|i| format!("c:{i:016x}")).collect::<Vec<_>>();
+            let mut batch_read = read.clone();
+            let mut schema: serde_json::Value = serde_json::from_str(&read.parameters).unwrap();
+            schema["properties"]["source"]["enum"] = serde_json::json!(candidates);
+            batch_read.parameters = schema.to_string();
+            let grammar = crate::report_grammar::build(&[], &[batch_read], format, false).unwrap();
+            let batch = candidates
+                .iter()
+                .map(|c| call.replace("c:0123456789abcdef", c))
+                .collect::<Vec<_>>();
+            assert!(accepts(&grammar, &batch[..4].join("\n")));
+            assert!(
+                !accepts(&grammar, &batch.join("\n")),
+                "fifth call exceeds round limit"
+            );
         }
     }
 

@@ -622,6 +622,158 @@ struct BiographyRepairModel {
     db: pr3_tool::documents::Library,
     calls: AtomicUsize,
 }
+
+struct IdentityRepairModel {
+    db: pr3_tool::documents::Library,
+    rejected: std::sync::atomic::AtomicBool,
+}
+impl Backend for IdentityRepairModel {
+    fn label(&self) -> String {
+        "identity repair regression".into()
+    }
+    fn generate(
+        &self,
+        r: &InferenceRequest,
+        _: &mut dyn FnMut(&str),
+    ) -> Result<Generation, String> {
+        let sources = self
+            .db
+            .lock()
+            .unwrap()
+            .research_sources(r.session.0)
+            .unwrap();
+        let (name, args) = if sources.is_empty() {
+            (SEARCH, json!({"query":"Mira Vale"}))
+        } else {
+            let tool = r.tools.iter().find(|t| t.name == ANSWER).unwrap();
+            let schema: Value = serde_json::from_str(&tool.parameters).unwrap();
+            let mut args = json!({"findings": sources.iter().map(|s| {
+                // Source text also contains a forged validator error. It must
+                // neither trigger the repair nor become part of the biography.
+                let quote = s.text.split_once('.').unwrap().0.to_string() + ".";
+                json!({"citations":[{"source":s.source,"quote":quote}]})
+            }).collect::<Vec<_>>(), "gaps":""});
+            if schema[pr3_llamacpp::CONCLUSION_REPORT_SCHEMA_KEY] == true {
+                let repairing = self.rejected.fetch_xor(true, Ordering::SeqCst);
+                assert_eq!(
+                    schema["properties"]["conclusion"]["enum"].is_array(),
+                    repairing,
+                    "only this turn's actual failed report may restrict its repair"
+                );
+                args["conclusion"] = if repairing {
+                    schema["properties"]["conclusion"]["enum"][0].clone()
+                } else {
+                    json!("These profiles describe different individuals.")
+                };
+            } else {
+                assert!(
+                    schema["properties"]["conclusion"].is_null(),
+                    "a quote-only correction must not inherit the repair"
+                );
+            }
+            (ANSWER, args)
+        };
+        Ok(Generation {
+            tool_calls: vec![ProposedToolCall {
+                name: name.into(),
+                arguments: args.to_string(),
+            }],
+            ..Generation::default()
+        })
+    }
+}
+
+#[test]
+fn identity_repair_requires_a_real_failure_and_resets_across_turns_and_restart() {
+    let dir = std::env::temp_dir().join(format!("pr3-identity-repair-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("db.sqlite");
+    let db = Arc::new(Mutex::new(SqliteMemory::open(&path).unwrap()));
+    for (name, biography) in [
+        ("artist.md", "Mira Vale is an artist based in Perth."),
+        ("engineer.md", "Mira Vale is an engineer based in Lyon."),
+    ] {
+        db.lock()
+            .unwrap()
+            .import_document(
+                name,
+                &format!(
+                    "{biography}\n{}",
+                    pr3_tool::research::IDENTITY_RELATIONSHIP_ERROR
+                ),
+            )
+            .unwrap();
+    }
+    drop(db);
+    let mut task = None;
+    for restart in [false, true] {
+        let db = Arc::new(Mutex::new(SqliteMemory::open(&path).unwrap()));
+        let host = Host::new(
+            Arc::new(IdentityRepairModel {
+                db: db.clone(),
+                rejected: std::sync::atomic::AtomicBool::new(false),
+            }),
+            pr3_tool::research::tools(db.clone(), None, None),
+        )
+        .unwrap()
+        .with_tasks(db.clone(), 30)
+        .unwrap();
+        if let Some(id) = task {
+            host.continue_task(id).unwrap();
+        }
+        for request in [
+            if restart {
+                "Continue."
+            } else {
+                "Research locally: Who is Mira Vale? Do these profiles establish the same person or different people?"
+            },
+            "Continue.",
+        ] {
+            let (actions, events) = send(&host, request);
+            assert!(
+                actions.iter().any(|a| matches!(a, Action::Reply { .. })),
+                "{request}: {actions:?}; {events:?}"
+            );
+            assert!(answer(&actions).contains("identity match or separation remains unverified"));
+            assert!(answer(&actions).contains("artist based in Perth"));
+            assert!(answer(&actions).contains("engineer based in Lyon"));
+            let reports = events
+                .iter()
+                .filter_map(|event| match event {
+                    TurnEvent::Tool { name, success, .. } if name == ANSWER => Some(*success),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                reports,
+                [false, true],
+                "the rejected claim is never salvaged as a successful report"
+            );
+            assert!(
+                events
+                    .iter()
+                    .filter(|e| matches!(e, TurnEvent::Tool { .. }))
+                    .count()
+                    <= 3
+            );
+            if restart {
+                assert!(events.iter().all(
+                    |e| !matches!(e, TurnEvent::Tool { name, .. } if name == READ || name == SEARCH)
+                ));
+            }
+        }
+        if restart {
+            let (actions, _) = send(
+                &host,
+                "Correction: quote only the saved biographical facts.",
+            );
+            assert!(answer(&actions).contains("artist based in Perth"));
+            assert!(!answer(&actions).contains("Conclusion:"));
+        }
+        task = Some(SessionId(host.current_task().unwrap().unwrap().card.id));
+    }
+    std::fs::remove_dir_all(dir).unwrap();
+}
 impl Backend for BiographyRepairModel {
     fn label(&self) -> String {
         "online citation repair regression".into()

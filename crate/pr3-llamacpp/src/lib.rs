@@ -29,7 +29,10 @@ use std::thread::JoinHandle;
 
 use llama_cpp_2::llama_backend::LlamaBackend;
 
-pub use crate::prompt::{CONCLUSION_REPORT_SCHEMA_KEY, PromptFormat, QUOTATION_REPORT_SCHEMA_KEY};
+pub use crate::prompt::{
+    CONCLUSION_REPORT_SCHEMA_KEY, COVERAGE_REPORT_SCHEMA_KEY, PromptFormat,
+    QUOTATION_REPORT_SCHEMA_KEY, REQUIRED_READ_SCHEMA_KEY,
+};
 pub use evidence::saved_evidence_view;
 
 /// For the fuzz targets in `fuzz/` only, which build with `--cfg fuzzing`: the output

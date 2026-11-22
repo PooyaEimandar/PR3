@@ -14,6 +14,7 @@ use pr3_memory::retrieval::{
 /// inference presentation, not stored evidence or the fitter's source selection.
 pub(crate) fn citation_view(content: &str) -> Option<String> {
     let mut packet: Value = serde_json::from_str(content).ok()?;
+    packet.as_object_mut()?.remove("coverage_query");
     for source in packet.get_mut("sources")?.as_array_mut()? {
         let object = source.as_object_mut()?;
         // Selection bookkeeping is needed for refitting, not for interpreting
@@ -375,25 +376,26 @@ pub(crate) fn saved_evidence_with_budgets(
 ) -> Option<String> {
     let count = budgets.len();
     let mut packet: Value = serde_json::from_str(content).ok()?;
+    let coverage_query = if terms(query).is_empty() {
+        if terms(fallback).is_empty() {
+            packet["coverage_query"].as_str().unwrap_or(query)
+        } else {
+            fallback
+        }
+    } else {
+        query
+    }
+    .to_owned();
+    // Refit with the same trusted question used by the coverage plan. A terse
+    // continuation must not discard complementary excerpts before planning.
+    // Substantive latest wording still replaces the prior task question.
+    let query = coverage_query.as_str();
     let sources = packet.get_mut("sources")?.as_array_mut()?;
-    let mut words = terms(query);
+    let words = terms(query);
     let lower = query.to_lowercase();
     let focused = focused_request(query);
-    // A terse continuation has no retrieval terms. The host may supply bounded
-    // earlier user wording from this task; a substantive latest query wins.
-    if words.is_empty() {
-        words = terms(fallback);
-    }
-    let phrases = phrases(if terms(query).is_empty() {
-        fallback
-    } else {
-        query
-    });
-    let functions = function_subjects(if terms(query).is_empty() {
-        fallback
-    } else {
-        query
-    });
+    let phrases = phrases(query);
+    let functions = function_subjects(query);
     if !functions.is_empty() {
         let matched_origins = sources
             .iter()
@@ -671,12 +673,256 @@ pub(crate) fn saved_evidence_with_budgets(
     // Guidance belongs in the trusted prompt, not among quotable source text.
     packet.as_object_mut()?.remove("view");
     packet["snapshot"] = json!(true);
+    packet["coverage"] = json!(report_coverage(&packet, &coverage_query));
+    packet["coverage_query"] = json!(coverage_query);
     Some(packet.to_string())
+}
+
+/// A small extractive coverage plan, recomputed after every token-budget fit.
+/// Preserve one primary per origin, then add complementary requested concepts.
+/// This does not establish entailment or completeness. Only fitted quotations
+/// can enter the plan; the runtime still validates live task ownership and text.
+fn report_coverage(packet: &Value, query: &str) -> Vec<String> {
+    let mut words = terms(query);
+    // Function words can rank a passage weakly for retrieval, but must not
+    // create a separate mandatory finding ("for" alone is not a new fact).
+    words.retain(|w| {
+        !matches!(
+            w.as_str(),
+            "for"
+                | "not"
+                | "but"
+                | "are"
+                | "its"
+                | "them"
+                | "than"
+                | "all"
+                | "any"
+                | "has"
+                | "have"
+                | "then"
+                | "into"
+                | "about"
+                | "which"
+                | "still"
+                | "why"
+                | "another"
+                | "includ"
+                | "versus"
+        )
+    });
+    let mut pairs = phrases(query);
+    pairs.retain(|(a, b)| words.contains(a) && words.contains(b));
+    let all_words = words.clone();
+    // A concept covered for one origin says nothing about the other side of a
+    // comparison. Track complementary facts independently for each origin.
+    let mut remaining = std::collections::BTreeMap::new();
+    let conditions = |text: &str| {
+        text.to_lowercase()
+            .split(|c: char| !c.is_alphabetic())
+            .filter(|w| matches!(*w, "if" | "unless" | "when" | "requires" | "without"))
+            .map(str::to_owned)
+            .collect::<std::collections::BTreeSet<_>>()
+    };
+    let mut origins = std::collections::BTreeSet::new();
+    let mut selected = Vec::new();
+    let mut candidates = Vec::new();
+    for source in packet["sources"].as_array().into_iter().flatten() {
+        let origin = source["origin"]
+            .as_str()
+            .or_else(|| source["source"].as_str());
+        let (words, pairs, scopes) = remaining
+            .entry(origin)
+            .or_insert_with(|| (words.clone(), pairs.clone(), words.clone()));
+        for (index, (at, text)) in spans(source).into_iter().enumerate() {
+            let Some(reference) = source["source"]
+                .as_str()
+                .and_then(|id| quote_reference(id, at, text))
+            else {
+                continue;
+            };
+            if index == 0 && origins.insert(origin) && selected.len() < 4 {
+                words.retain(|w| score(text, std::slice::from_ref(w)) == 0);
+                pairs.retain(|p| phrase_score(text, std::slice::from_ref(p)) == 0);
+                scopes.retain(|w| rule_scope_score(text, std::slice::from_ref(w)) == 0);
+                selected.push(reference);
+            } else {
+                candidates.push((reference, text, origin));
+            }
+        }
+    }
+    while selected.len() < 8 {
+        let best = candidates
+            .iter()
+            .enumerate()
+            .map(|(i, (_, text, origin))| {
+                let (words, pairs, scopes) = &remaining[origin];
+                let weight = score(text, words)
+                    + 3 * phrase_score(text, pairs)
+                    + 8 * rule_scope_score(text, scopes)
+                    // Two clauses with the same operator may govern different
+                    // subjects; do not count one "unless" as covering another.
+                    + usize::from(!conditions(text).is_empty());
+                (
+                    i,
+                    if score(text, &all_words) >= 2
+                        || (score(text, words) > 0 && text.split_whitespace().count() >= 5)
+                        || rule_scope_score(text, scopes) > 0
+                    {
+                        weight
+                    } else {
+                        0
+                    },
+                )
+            })
+            .filter(|(_, weight)| *weight > 0)
+            .max_by_key(|(i, weight)| {
+                (
+                    *weight,
+                    score(candidates[*i].1, &all_words),
+                    std::cmp::Reverse(*i),
+                )
+            });
+        let Some((index, _)) = best else { break };
+        let (reference, text, origin) = candidates.remove(index);
+        if let Some((words, pairs, scopes)) = remaining.get_mut(&origin) {
+            words.retain(|w| score(text, std::slice::from_ref(w)) == 0);
+            pairs.retain(|p| phrase_score(text, std::slice::from_ref(p)) == 0);
+            scopes.retain(|w| rule_scope_score(text, std::slice::from_ref(w)) == 0);
+        }
+        if !selected.contains(&reference) {
+            selected.push(reference);
+        }
+    }
+    selected
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn comparison_coverage_cannot_borrow_a_condition_from_another_origin() {
+        for (query, retention, restoration, other) in [
+            (
+                "Comparez la conservation et la condition de restauration de Jade et Agate.",
+                "Jade conserve les sauvegardes pendant 35 jours.",
+                "La restauration nécessite une clé locale.",
+                "Agate conserve les sauvegardes pendant 60 jours. La restauration est réservée aux administrateurs.",
+            ),
+            (
+                "Compara la conservación y la condición de restauración de Jade y Ágata.",
+                "Jade conserva las copias durante 35 días.",
+                "La restauración necesita una clave local.",
+                "Ágata conserva las copias durante 60 días. La restauración está reservada a administradores.",
+            ),
+            (
+                "Compare Jade and Agate retention and restoration conditions.",
+                "Jade retention lasts 35 days.",
+                "Restoration uses a local key.",
+                "Agate retention lasts 60 days. Restoration is restricted to administrators.",
+            ),
+        ] {
+            let original = format!("{retention} {restoration}");
+            let first = json!({"source":"s:0123456789abcdef","origin":"jade","text":retention,
+                "additional_excerpts":[{"offset":retention.len()+1,"text":restoration}]});
+            let second = json!({"source":"s:fedcba9876543210","origin":"agate","text":other});
+            for sources in [
+                vec![first.clone(), second.clone()],
+                vec![second.clone(), first.clone()],
+            ] {
+                let packet = json!({"sources":sources});
+                let plan = report_coverage(&packet, query);
+                for (source, offset, text) in [
+                    ("s:0123456789abcdef", 0, retention),
+                    (
+                        "s:0123456789abcdef",
+                        (retention.len() + 1) as u64,
+                        restoration,
+                    ),
+                    ("s:fedcba9876543210", 0, other),
+                ] {
+                    assert!(
+                        plan.contains(&quote_reference(source, offset, text).unwrap()),
+                        "{query}: missing {text}"
+                    );
+                }
+                assert_eq!(
+                    plan.len(),
+                    3,
+                    "each separate comparison fact is required once"
+                );
+            }
+            let packet = json!({"sources":[
+                {"source":"s:0123456789abcdef","origin":"jade","text":original,"split_quotes":true},
+                second
+            ]})
+            .to_string();
+            let host = saved_evidence_view(&packet, query, "", 1200, 4).unwrap();
+            let fitted = saved_evidence_with_budgets(&host, "Continue.", "", &[500, 500]).unwrap();
+            let view: Value = serde_json::from_str(&fitted).unwrap();
+            let plan = view["coverage"].as_array().unwrap();
+            assert!(
+                view["sources"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|s| spans(s)
+                        .into_iter()
+                        .any(|(at, text)| text.contains(restoration)
+                            && quote_reference(s["source"].as_str().unwrap(), at, text)
+                                .is_some_and(|r| plan.contains(&json!(r))))),
+                "{query}: fitted continuation lost restoration condition: host={host}; fitted={fitted}"
+            );
+        }
+    }
+
+    #[test]
+    fn coverage_is_rebuilt_from_fitted_quotes_including_complementary_conditions() {
+        let a = "Amber allows readers during writes. Amber requires a local host.";
+        let b = "Birch excludes readers during writes.";
+        let packet = json!({"sources":[
+            {"source":"s:0123456789abcdef","origin":"a","text":a},
+            {"source":"s:fedcba9876543210","origin":"b","text":b}
+        ]})
+        .to_string();
+        let question = "Compare Amber and Birch readers during writes and host restrictions.";
+        let host = saved_evidence_view(&packet, question, "", 1200, 4).unwrap();
+        let fitted = saved_evidence_with_budgets(&host, "Continue.", "", &[500, 500]).unwrap();
+        let view: Value = serde_json::from_str(&citation_view(&fitted).unwrap()).unwrap();
+        assert!(view.get("coverage_query").is_none());
+        let selected = view["coverage"].as_array().unwrap();
+        assert_eq!(selected.len(), 2);
+        for source in view["sources"].as_array().unwrap() {
+            assert!(selected.contains(&source["quotes"][0]["quote_ref"]));
+        }
+        let narrow =
+            saved_evidence_with_budgets(&host, "Quote only the Birch rule.", "", &[500]).unwrap();
+        let narrow: Value = serde_json::from_str(&narrow).unwrap();
+        assert_eq!(narrow["coverage"].as_array().unwrap().len(), 1);
+        assert_eq!(narrow["coverage"][0], narrow["sources"][0]["quote_ref"]);
+    }
+
+    #[test]
+    fn one_distinctive_requested_term_keeps_a_separate_exception() {
+        let packet=json!({"sources":[
+            {"source":"s:0123456789abcdef","origin":"same","text":"The Alder engine is in the public domain."},
+            {"source":"s:fedcba9876543210","origin":"same","text":"The exception covers the documentation, which is licensed separately."}
+        ]}).to_string();
+        let query = "Is Alder public domain and what is the exception?";
+        let host = saved_evidence_view(&packet, query, "", 1200, 4).unwrap();
+        let fitted = saved_evidence_with_budgets(&host, query, "", &[500, 500]).unwrap();
+        let value: Value = serde_json::from_str(&fitted).unwrap();
+        assert_eq!(value["coverage"].as_array().unwrap().len(), 2);
+        for source in value["sources"].as_array().unwrap() {
+            assert!(
+                value["coverage"]
+                    .as_array()
+                    .unwrap()
+                    .contains(&source["quote_ref"])
+            );
+        }
+    }
 
     #[test]
     fn explicit_function_subject_keeps_comparisons_and_pins_without_other_api_defaults() {
@@ -894,6 +1140,7 @@ mod tests {
                     "--no-index",
                     "--exit-code\nMake the program exit",
                     "0 means no differences",
+                    "outside a working tree controlled by Git. This form implies --exit-code.",
                 ],
                 "fresh-cargo-features" => vec![
                     "Dependencies automatically enable default features unless default-features = false is specified.",
@@ -909,10 +1156,29 @@ mod tests {
                 .iter()
                 .flat_map(spans)
                 .collect::<Vec<_>>();
+            // The report must actually select coverage, not merely have the
+            // right evidence available somewhere in the prompt.
+            let coverage = value["coverage"].as_array().unwrap();
+            let selected = value["sources"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .flat_map(|s| {
+                    spans(s).into_iter().filter(|(at, text)| {
+                        quote_reference(s["source"].as_str().unwrap(), *at, text)
+                            .is_some_and(|r| coverage.contains(&json!(r)))
+                    })
+                })
+                .collect::<Vec<_>>();
             for required in required {
                 assert!(
                     quotes.iter().any(|(_, quote)| quote.contains(required)),
                     "{} missing {required}: {fitted}",
+                    case["id"]
+                );
+                assert!(
+                    selected.iter().any(|(_, quote)| quote.contains(required)),
+                    "{} coverage plan omitted {required}: {fitted}",
                     case["id"]
                 );
             }
