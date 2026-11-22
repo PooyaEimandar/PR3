@@ -14,8 +14,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use pr3_core::trusted::ApprovalRequest;
 use pr3_core::{
-    Action, Config, Core, CoreError, GenerationInfo, InferenceRequest, Input, Message,
-    ProposedToolCall, RequestId, Role, SessionId, Timestamp, ToolCall, Trace,
+    Action, Config, Core, CoreError, GenerationInfo, InferenceRequest, Message, ProposedToolCall,
+    RequestId, Role, SessionId, Timestamp, ToolCall, Trace, view,
 };
 use pr3_memory_sqlite::SqliteMemory;
 use pr3_tool::{SharedMemory, Tool, ToolContext, ToolOutput};
@@ -939,10 +939,10 @@ impl Host {
         let _settled = self.settling.lock().await;
         self.cancelled(session)?;
         self.restore(session)?;
-        let started = self.step(Input::Utterance {
+        let started = self.step(view::Input::Utterance {
             session,
-            content: utterance.to_string(),
-            notes: Vec::new(),
+            content: utterance,
+            notes: &[],
             at: now(),
         })?;
         let Some(request) = started.iter().find_map(|action| match action {
@@ -952,24 +952,24 @@ impl Host {
             return Ok(self.deliver(started));
         };
         let content = self.tasks()?.email_exclusions(session).acknowledgement();
-        let finished = self.step(if let Err(error) = self.cancelled(session) {
-            Input::ModelFailed {
+        let stopped = self.cancelled(session).err().map(|error| error.to_string());
+        let finished = self.step(match &stopped {
+            Some(reason) => view::Input::ModelFailed {
                 request,
-                reason: error.to_string(),
+                reason,
                 at: now(),
-            }
-        } else {
-            Input::ModelOutput {
+            },
+            None => view::Input::ModelOutput {
                 request,
-                content,
-                tool_calls: Vec::new(),
-                info: GenerationInfo {
-                    model: "PR3 email content instruction".into(),
-                    engine: "runtime".into(),
-                    ..GenerationInfo::default()
+                content: &content,
+                tool_calls: &[],
+                info: view::GenerationInfo {
+                    model: "PR3 email content instruction",
+                    engine: "runtime",
+                    ..view::GenerationInfo::default()
                 },
                 at: now(),
-            }
+            },
         })?;
         Ok(self.deliver(finished))
     }
@@ -986,10 +986,10 @@ impl Host {
         let _settled = self.settling.lock().await;
         self.cancelled(session)?;
         self.restore(session)?;
-        let started = self.step(Input::Utterance {
+        let started = self.step(view::Input::Utterance {
             session,
-            content: utterance.to_string(),
-            notes: Vec::new(),
+            content: utterance,
+            notes: &[],
             at: now(),
         })?;
         let request = started.iter().find_map(|action| match action {
@@ -1051,30 +1051,29 @@ impl Host {
             success,
             output: output.clone(),
         });
-        let finished = self.step(if let Err(error) = self.cancelled(session) {
-            Input::ModelFailed {
+        let stopped = self.cancelled(session).err().map(|error| error.to_string());
+        let finished = self.step(match &stopped {
+            Some(reason) => view::Input::ModelFailed {
                 request,
-                reason: error.to_string(),
+                reason,
                 at: now(),
-            }
-        } else if success {
-            Input::ModelOutput {
+            },
+            None if success => view::Input::ModelOutput {
                 request,
-                content: output,
-                tool_calls: Vec::new(),
-                info: GenerationInfo {
-                    model: "PR3 memory command".to_string(),
-                    engine: "runtime".to_string(),
-                    ..GenerationInfo::default()
+                content: &output,
+                tool_calls: &[],
+                info: view::GenerationInfo {
+                    model: "PR3 memory command",
+                    engine: "runtime",
+                    ..view::GenerationInfo::default()
                 },
                 at: now(),
-            }
-        } else {
-            Input::ModelFailed {
+            },
+            None => view::Input::ModelFailed {
                 request,
-                reason: output,
+                reason: &output,
                 at: now(),
-            }
+            },
         })?;
         if corrected {
             self.invalidate_memory_summaries()
@@ -1167,10 +1166,11 @@ impl Host {
             notes.push(note);
         }
         // If the core refuses the message, no turn was started.
-        let queue = self.step(Input::Utterance {
+        let notes: Vec<&str> = notes.iter().map(String::as_str).collect();
+        let queue = self.step(view::Input::Utterance {
             session,
-            content: text,
-            notes,
+            content: &text,
+            notes: &notes,
             at: now(),
         })?;
         // Not held while the turn runs: a confirmation card can wait for minutes.
@@ -1194,9 +1194,10 @@ impl Host {
             Ok(for_ui) => Ok(for_ui),
             // The turn is still open: end it, so the session takes the next message.
             Err(error) => {
-                let mut actions = self.step(Input::Abort {
+                let reason = error.to_string();
+                let mut actions = self.step(view::Input::Abort {
                     session,
-                    reason: error.to_string(),
+                    reason: &reason,
                     at: now(),
                 })?;
                 for action in &mut actions {
@@ -1410,7 +1411,8 @@ impl Host {
                         }
                         _ => None,
                     });
-                    let input = match generated {
+                    // What the model said, or why it said nothing.
+                    let answer = match generated {
                         Ok(Ok(mut g)) => {
                             // Enter the restricted research path before feeding ANY
                             // call in a mixed batch to the core. A model cannot pair
@@ -1444,23 +1446,27 @@ impl Host {
                                 // accompanying it in the next model request's history.
                                 g.content.clear();
                             }
-                            Input::ModelOutput {
+                            Ok(g)
+                        }
+                        Ok(Err(reason)) => Err(reason),
+                        // The worker itself failed (a panic): report it like a model error.
+                        Err(error) => Err(error.to_string()),
+                    };
+                    let proposed: Vec<view::ProposedToolCall<'_>>;
+                    let input = match &answer {
+                        Ok(g) => {
+                            proposed = g.tool_calls.iter().map(ProposedToolCall::view).collect();
+                            view::Input::ModelOutput {
                                 request: id,
-                                content: g.content,
-                                tool_calls: g.tool_calls,
-                                info: g.info,
+                                content: &g.content,
+                                tool_calls: &proposed,
+                                info: g.info.view(),
                                 at: now(),
                             }
                         }
-                        Ok(Err(reason)) => Input::ModelFailed {
+                        Err(reason) => view::Input::ModelFailed {
                             request: id,
                             reason,
-                            at: now(),
-                        },
-                        // The worker itself failed (a panic): report it like a model error.
-                        Err(error) => Input::ModelFailed {
-                            request: id,
-                            reason: error.to_string(),
                             at: now(),
                         },
                     };
@@ -1539,11 +1545,12 @@ impl Host {
                             sources: labels,
                         });
                     }
-                    queue.extend(self.step(Input::ToolOutcome {
-                        call_id: call.id,
+                    let sources: Vec<&str> = sources.iter().map(String::as_str).collect();
+                    queue.extend(self.step(view::Input::ToolOutcome {
+                        call_id: &call.id,
                         success,
-                        output,
-                        sources,
+                        output: &output,
+                        sources: &sources,
                         at: now(),
                     })?);
                 }
@@ -1607,11 +1614,11 @@ impl Host {
                         });
                     }
                     let unknown = task::unknown(&output);
-                    queue.extend(self.step(Input::ToolOutcome {
-                        sources: Vec::new(),
-                        call_id: call.id,
+                    queue.extend(self.step(view::Input::ToolOutcome {
+                        sources: &[],
+                        call_id: &call.id,
                         success,
-                        output,
+                        output: &output,
                         at: now(),
                     })?);
                     if unknown {
@@ -1646,8 +1653,18 @@ impl Host {
             .collect()
     }
 
-    fn step(&self, input: Input) -> Result<Vec<Action>, HostError> {
-        Ok(self.core()?.step(input)?)
+    /// Steps the core with input it borrows. The core lends the actions back; the host
+    /// acts on them across awaits with the core unlocked, so it keeps its own copies,
+    /// but not of a trace nothing records, the costliest action to copy.
+    fn step(&self, input: view::Input<'_>) -> Result<Vec<Action>, HostError> {
+        let recording = self.trace_sink.read().is_ok_and(|sink| sink.is_some());
+        let mut core = self.core()?;
+        let actions = core.step_view(input)?;
+        Ok(actions
+            .iter()
+            .filter(|action| recording || !matches!(action, view::Action::Trace(_)))
+            .map(|action| action.to_owned())
+            .collect())
     }
 
     /// A task kept from an earlier launch gets its exchanges back in the runtime before

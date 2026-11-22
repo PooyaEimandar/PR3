@@ -75,16 +75,17 @@ pub struct ToolSpec {
     pub required_capabilities: Vec<String>,
 }
 
-/// A tool call as the model proposed it: untrusted, not yet validated.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ProposedToolCall {
-    pub name: String,
+/// A tool call as the model proposed it: untrusted, not yet validated. Borrowed from
+/// the host's buffers for the length of one [`crate::Core::step_view`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ProposedToolCall<'a> {
+    pub name: &'a str,
     /// Raw JSON text as the model wrote it.
-    pub arguments: String,
+    pub arguments: &'a str,
 }
 
 /// A validated tool call the core asks the host to run.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ToolCall {
     pub id: String,
     pub name: String,
@@ -92,11 +93,12 @@ pub struct ToolCall {
     pub arguments: String,
 }
 
-/// What the backend reports about one generation; feeds the trace.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct GenerationInfo {
-    pub model: String,
-    pub engine: String,
+/// What the backend reports about one generation; feeds the trace. Borrowed, like
+/// [`ProposedToolCall`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct GenerationInfo<'a> {
+    pub model: &'a str,
+    pub engine: &'a str,
     pub prompt_tokens: u32,
     pub completion_tokens: u32,
 }
