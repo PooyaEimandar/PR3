@@ -1,0 +1,19 @@
+# One style for PR3's own C and C++ sources (doc/14, "Format").
+BasedOnStyle: LLVM
+IndentWidth: 4
+ColumnLimit: 110
+PointerAlignment: Right
+AllowShortFunctionsOnASingleLine: All
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortLoopsOnASingleLine: true
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortBlocksOnASingleLine: Empty
+IndentCaseLabels: false
+AlignEscapedNewlines: Right
+AlignConsecutiveMacros: false
+SortIncludes: Never
+IncludeBlocks: Preserve
+SpaceAfterCStyleCast: false
+BreakBeforeBraces: Attach
+ReflowComments: false
+MaxEmptyLinesToKeep: 1

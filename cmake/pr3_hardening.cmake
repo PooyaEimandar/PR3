@@ -1,0 +1,47 @@
+# Release hardening (doc/14-build-and-quality.md). Each flag is used only where the
+# compiler accepts it.
+include_guard(GLOBAL)
+include(CheckCCompilerFlag)
+
+if(CMAKE_BUILD_TYPE STREQUAL "Release" AND NOT MSVC)
+  set(_pr3_hardening_candidates
+    -fstack-protector-strong -fstack-clash-protection -ftrivial-auto-var-init=zero)
+  if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64)$")
+    list(APPEND _pr3_hardening_candidates -fcf-protection=full)
+  elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm64|aarch64|ARM64)$")
+    list(APPEND _pr3_hardening_candidates -mbranch-protection=standard)
+  endif()
+  # -Werror so a flag the compiler accepts but ignores for this target (Apple Clang and
+  # -fstack-clash-protection on arm64) is left out instead of warning on every file.
+  set(_pr3_saved_required_flags "${CMAKE_REQUIRED_FLAGS}")
+  set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -Werror")
+  foreach(flag IN LISTS _pr3_hardening_candidates)
+    string(MAKE_C_IDENTIFIER "PR3_HAS_HARDENING${flag}" var)
+    check_c_compiler_flag("${flag}" ${var})
+    if(${var})
+      add_compile_options("${flag}")
+    endif()
+  endforeach()
+  set(CMAKE_REQUIRED_FLAGS "${_pr3_saved_required_flags}")
+  if(NOT PR3_SANITIZE)
+    # As options, after any toolchain default (the NDK sets level 2), not as a definition.
+    add_compile_options(-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=3)
+  endif()
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+  if(NOT APPLE AND NOT WIN32)
+    add_link_options(-Wl,-z,relro,-z,now)
+  endif()
+elseif(CMAKE_BUILD_TYPE STREQUAL "Release" AND MSVC)
+  add_compile_options(/guard:cf)
+  add_link_options(/guard:cf /CETCOMPAT /DYNAMICBASE /HIGHENTROPYVA)
+endif()
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT MSVC)
+  set(_pr3_saved_required_flags "${CMAKE_REQUIRED_FLAGS}")
+  set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -Werror")
+  check_c_compiler_flag(-ftrivial-auto-var-init=pattern PR3_HAS_AUTO_VAR_INIT_PATTERN)
+  set(CMAKE_REQUIRED_FLAGS "${_pr3_saved_required_flags}")
+  if(PR3_HAS_AUTO_VAR_INIT_PATTERN)
+    add_compile_options(-ftrivial-auto-var-init=pattern)
+  endif()
+endif()

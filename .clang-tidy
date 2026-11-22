@@ -1,0 +1,24 @@
+# The repository's lint profile (doc/14, "Static analysis"). A check is disabled only
+# with the reason beside it.
+Checks: >
+  bugprone-*,
+  cert-*,
+  clang-analyzer-*,
+  misc-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-assignment-in-if-condition,
+  -bugprone-macro-parentheses,
+  -bugprone-reserved-identifier,
+  -cert-dcl37-c,
+  -cert-dcl51-cpp,
+  -misc-include-cleaner,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling
+# easily-swappable-parameters: (ptr, len) pairs are the convention, not a hazard.
+# assignment-in-if-condition: `while ((x = next()) != NULL)` is the iteration idiom.
+# macro-parentheses: PR3_VEC(T) and PR3_NEW(a, T) take type names, which cannot be wrapped.
+# reserved-identifier, dcl37-c, dcl51-cpp: header guards and _Static_assert wrappers.
+# include-cleaner: every PR3 header includes pr3/compiler.h on purpose.
+# DeprecatedOrUnsafeBufferHandling: flags memcpy and memset, which take lengths (doc/03).
+WarningsAsErrors: '*'
+HeaderFilterRegex: '(include/pr3|src|test|bench/mlperf)/'
+FormatStyle: file

@@ -1,0 +1,10 @@
+pr3_add_module(base
+  SOURCES
+    arena.c
+    buddy.c
+    pool.c
+    ring.c
+    siphash.c
+    status.c
+    str.c
+    utf8.c)

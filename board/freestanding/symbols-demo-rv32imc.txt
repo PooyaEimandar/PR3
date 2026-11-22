@@ -1,0 +1,8 @@
+# Undefined symbols of pr3_demo.elf; reviewed. Regenerate with PR3_WRITE=1 tools/check-freestanding.sh.
+__udivdi3
+memcpy
+pr3_board_log
+pr3_board_now_ms
+pr3_board_uart_poll
+pr3_board_uart_write
+pr3_board_watchdog_kick

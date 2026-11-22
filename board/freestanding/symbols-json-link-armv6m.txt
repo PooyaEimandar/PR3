@@ -1,0 +1,16 @@
+# Undefined symbols of pr3_json-link.elf; reviewed. Regenerate with PR3_WRITE=1 tools/check-freestanding.sh.
+__aeabi_d2ulz
+__aeabi_dcmpeq
+__aeabi_ddiv
+__aeabi_dmul
+__aeabi_llsl
+__aeabi_llsr
+__aeabi_lmul
+__aeabi_uidiv
+__aeabi_uidivmod
+__aeabi_ul2d
+__aeabi_uldivmod
+memcmp
+memcpy
+memmove
+pr3_board_log

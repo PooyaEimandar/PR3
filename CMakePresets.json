@@ -1,0 +1,235 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 28,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_C_FLAGS_DEBUG": "-O1 -g",
+        "CMAKE_CXX_FLAGS_DEBUG": "-O1 -g",
+        "CMAKE_C_FLAGS_RELEASE": "-O2 -DNDEBUG",
+        "CMAKE_CXX_FLAGS_RELEASE": "-O2 -DNDEBUG"
+      }
+    },
+    {
+      "name": "dev",
+      "displayName": "Day-to-day: -O1 -g, assertions on",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "asan",
+      "displayName": "AddressSanitizer and UndefinedBehaviorSanitizer",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "PR3_SANITIZE": "address,undefined"
+      }
+    },
+    {
+      "name": "ubsan",
+      "displayName": "UndefinedBehaviorSanitizer, trapping",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "PR3_SANITIZE": "undefined",
+        "PR3_SANITIZE_OWN": "integer,bounds,nullability"
+      }
+    },
+    {
+      "name": "msan",
+      "displayName": "MemorySanitizer: uninitialized reads (Linux, Clang)",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "PR3_SANITIZE": "memory",
+        "PR3_BUILD_BENCH": "OFF"
+      }
+    },
+    {
+      "name": "tsan",
+      "displayName": "ThreadSanitizer for host threads and rings",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "PR3_SANITIZE": "thread"
+      }
+    },
+    {
+      "name": "fuzz",
+      "displayName": "libFuzzer targets with ASan and UBSan, small arenas",
+      "inherits": "base",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/llvm.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "PR3_SANITIZE": "address,undefined,fuzzer-no-link",
+        "PR3_BUILD_FUZZ": "ON",
+        "PR3_BUILD_BENCH": "OFF"
+      }
+    },
+    {
+      "name": "release",
+      "displayName": "Shipping: -O2, hardening, assertions off",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "ON"
+      }
+    },
+    {
+      "name": "android-arm64",
+      "displayName": "Android arm64 with the NDK (ANDROID_NDK_HOME)",
+      "inherits": "base",
+      "toolchainFile": "$env{ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "ANDROID_ABI": "arm64-v8a",
+        "ANDROID_PLATFORM": "android-26",
+        "PR3_BUILD_MLPERF": "OFF"
+      }
+    },
+    {
+      "name": "armv6m",
+      "displayName": "Freestanding Arm Cortex-M0+ (the Pico's core), clang and lld",
+      "inherits": "base",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/freestanding.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "MinSizeRel",
+        "CMAKE_C_FLAGS_MINSIZEREL": "-Os -DNDEBUG",
+        "PR3_FREESTANDING_TARGET": "thumbv6m-none-eabi",
+        "PR3_FREESTANDING_NAME": "armv6m",
+        "PR3_FREESTANDING_FLAGS": "-mcpu=cortex-m0plus -mthumb -mfloat-abi=soft"
+      }
+    },
+    {
+      "name": "rv32imc",
+      "displayName": "Freestanding RISC-V RV32IMC (the ESP32-C3's core), clang and lld",
+      "inherits": "base",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/freestanding.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "MinSizeRel",
+        "CMAKE_C_FLAGS_MINSIZEREL": "-Os -DNDEBUG",
+        "PR3_FREESTANDING_TARGET": "riscv32-unknown-elf",
+        "PR3_FREESTANDING_NAME": "rv32imc",
+        "PR3_FREESTANDING_FLAGS": "-march=rv32imc -mabi=ilp32"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "dev",
+      "configurePreset": "dev"
+    },
+    {
+      "name": "asan",
+      "configurePreset": "asan"
+    },
+    {
+      "name": "ubsan",
+      "configurePreset": "ubsan"
+    },
+    {
+      "name": "msan",
+      "configurePreset": "msan"
+    },
+    {
+      "name": "tsan",
+      "configurePreset": "tsan"
+    },
+    {
+      "name": "fuzz",
+      "configurePreset": "fuzz"
+    },
+    {
+      "name": "release",
+      "configurePreset": "release"
+    },
+    {
+      "name": "android-arm64",
+      "configurePreset": "android-arm64"
+    },
+    {
+      "name": "armv6m",
+      "configurePreset": "armv6m"
+    },
+    {
+      "name": "rv32imc",
+      "configurePreset": "rv32imc"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "dev",
+      "configurePreset": "dev",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "asan",
+      "configurePreset": "asan",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "ubsan",
+      "configurePreset": "ubsan",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "msan",
+      "configurePreset": "msan",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "tsan",
+      "configurePreset": "tsan",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "fuzz",
+      "configurePreset": "fuzz",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "release",
+      "configurePreset": "release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "armv6m",
+      "configurePreset": "armv6m",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "rv32imc",
+      "configurePreset": "rv32imc",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

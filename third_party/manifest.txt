@@ -1,0 +1,7 @@
+# Third-party sources, each pinned to one commit and fetched by tools/fetch-third-party.sh.
+# Git verifies every object against the commit hash; nothing here is edited in place
+# (changes go to third_party/patches/, applied by CMake).
+#
+# name               repository                                  commit                                    paths
+mlperf-inference     https://github.com/mlcommons/inference      3fbc329939999c13d0a7b5e67fb2092287e06047  loadgen LICENSE.md
+ryu                  https://github.com/ulfjack/ryu              4c0618b0e44f7ef027ebae05d2cc7812048f7c8f  /ryu/ /LICENSE-Apache2 /LICENSE-Boost

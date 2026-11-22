@@ -1,210 +1,137 @@
-# Quality gates for every change (docs Sec. 12): the workspace built and tested on
-# macOS, Linux and Windows, the app's TypeScript type-checked, formatting, lints, the
-# no_std builds of the core crates, known-vulnerability checks, fuzzing and Miri.
-# The app itself, for every platform, is built by app.yml.
-# Real-model tests need multi-gigabyte models and stay manual (cargo test -- --ignored).
-name: CI
+# The gates of doc/14-build-and-quality.md that run on every pull request.
+name: ci
 
 on:
+  pull_request:
   push:
     branches: [main]
-  pull_request:
-  # Weekly as well: new advisories reach the audit, and Miri runs even in a quiet week.
-  schedule:
-    - cron: "0 3 * * 1"
 
 permissions:
   contents: read
 
-# A new push to a pull request cancels the run it replaces.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
-env:
-  CARGO_TERM_COLOR: always
-  # Faster builds and smaller caches: no debug info, no incremental state.
-  CARGO_INCREMENTAL: 0
-  CARGO_PROFILE_DEV_DEBUG: 0
-  CARGO_PROFILE_TEST_DEBUG: 0
-
-defaults:
-  run:
-    shell: bash
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  check:
-    # The workspace on each desktop platform. Formatting, clippy's lints, the
-    # trusted-side rule and the no_std builds do not depend on the platform, so macOS
-    # runs them once; Linux and Windows build and test with compiler warnings as errors,
-    # which catches code that only one platform compiles.
+  checks:
+    name: checks (banned, layers, traps, ledger, links, vectors, workloads, format)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: clang-format at the version the sources are formatted with
+        run: python3 -m pip install --user clang-format==22.1.8
+      - run: tools/check-banned.sh
+      - run: tools/check-layers.sh
+      - run: tools/check-traps.sh
+      - run: tools/check-ledger.sh
+      - run: tools/check-links.sh
+      - name: golden vectors regenerate unchanged
+        run: python3 -I tools/gen-vectors/gen_vectors.py --check
+      - name: benchmark workloads regenerate unchanged
+        run: python3 -I tools/gen-workloads.py --check
+      - name: clang-format
+        run: |
+          find src include test bench board -type f \( -name '*.c' -o -name '*.h' -o -name '*.cc' \) -print0 |
+            xargs -0 clang-format --dry-run -Werror
+
+  host:
+    name: ${{ matrix.os }} ${{ matrix.cc }} ${{ matrix.preset }}
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15, ubuntu-latest, windows-latest]
+        include:
+          - { os: macos-15, cc: clang, cxx: clang++, preset: dev }
+          - { os: macos-15, cc: clang, cxx: clang++, preset: asan }
+          - { os: macos-15, cc: clang, cxx: clang++, preset: ubsan }
+          - { os: macos-15, cc: clang, cxx: clang++, preset: release }
+          - { os: ubuntu-24.04, cc: gcc, cxx: g++, preset: dev }
+          - { os: ubuntu-24.04, cc: gcc, cxx: g++, preset: asan }
+          - { os: ubuntu-24.04, cc: gcc, cxx: g++, preset: release }
+          - { os: ubuntu-24.04, cc: clang, cxx: clang++, preset: asan }
+          - { os: ubuntu-24.04, cc: clang, cxx: clang++, preset: ubsan }
+          - { os: ubuntu-24.04, cc: clang, cxx: clang++, preset: msan }
+          - { os: ubuntu-24.04, cc: clang, cxx: clang++, preset: tsan }
+          - { os: ubuntu-24.04, cc: clang, cxx: clang++, preset: release }
+          - { os: ubuntu-24.04-arm, cc: gcc, cxx: g++, preset: release }
     runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Windows OpenSSL prerequisites
-        if: runner.os == 'Windows'
-        uses: ./.github/actions/windows-openssl
-      # The version rust-toolchain.toml pins, with only what this job needs: the file's
-      # own install would add the iOS, Android, embedded and WebAssembly libraries too.
-      - name: Pinned toolchain
-        run: |
-          stable="$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)"
-          rustup toolchain install "$stable" --profile minimal --component clippy,rustfmt
-          if [ "$RUNNER_OS" = macOS ]; then
-            rustup target add --toolchain "$stable" thumbv7em-none-eabihf wasm32-unknown-unknown
-          fi
-          echo "RUSTUP_TOOLCHAIN=$stable" >> "$GITHUB_ENV"
-      - name: Tauri's Linux libraries
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-      - if: runner.os == 'macOS'
-        run: cargo fmt --all --check
-      - if: runner.os == 'macOS'
-        name: The trusted side does not depend on the agent side
-        run: script/check-trusted-side.sh
-      - if: runner.os == 'macOS'
-        run: cargo clippy --workspace --all-targets --locked -- -D warnings
-      - name: Tests
-        run: cargo test --workspace --locked
-        env:
-          RUSTFLAGS: ${{ runner.os != 'macOS' && '-D warnings' || '' }}
-      - if: runner.os == 'macOS'
-        name: no_std builds
-        run: |
-          cargo check -p pr3-core --no-default-features --target thumbv7em-none-eabihf
-          cargo check -p pr3-core --no-default-features --target wasm32-unknown-unknown
-          cargo check -p pr3-memory --no-default-features --target thumbv7em-none-eabihf
-          cargo check -p pr3-protocol --no-default-features --target thumbv7em-none-eabihf
-          cargo check -p pr3-protocol --no-default-features --target wasm32-unknown-unknown
-
-  ui:
-    # The app's webview script (app/pr3-app/src), type-checked in strict mode.
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: app/pr3-app
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: "24"
-          cache: npm
-          cache-dependency-path: app/pr3-app/package-lock.json
-      - run: npm ci
-      - run: npm run check
-      - run: npm test
-
-  audit:
-    runs-on: ubuntu-latest
     env:
-      # The runner's own toolchain is enough to read Cargo.lock.
-      RUSTUP_TOOLCHAIN: stable
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.87.32
-        with:
-          tool: cargo-audit
-      - run: cargo audit
+      - uses: actions/checkout@v4
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+      - if: runner.os == 'macOS'
+        run: brew install ninja
+      - run: tools/fetch-third-party.sh
+      - run: cmake --preset ${{ matrix.preset }}
+      - run: cmake --build --preset ${{ matrix.preset }}
+      - run: ctest --preset ${{ matrix.preset }}
 
-  workflows:
-    # A real native Tauri webview, IPC, Host, approval gate and SQLite; only model,
-    # model, file selection and storage key are fixtures. No model weights in CI.
-    runs-on: macos-15
+  msvc:
+    name: windows msvc compile and test
+    runs-on: windows-2025
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
-        with:
-          node-version: "24"
-          cache: npm
-          cache-dependency-path: app/pr3-app/package-lock.json
-      - name: Pinned Rust toolchain
+      - uses: actions/checkout@v4
+      - run: tools/fetch-third-party.sh ryu
+        shell: bash
+      - run: cmake -S . -B build/msvc -G "Visual Studio 17 2022" -A x64 -DPR3_BUILD_MLPERF=OFF
+      - run: cmake --build build/msvc --config Release
+      - run: ctest --test-dir build/msvc -C Release --output-on-failure
+
+  analyze:
+    name: clang-tidy and gcc -fanalyzer
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y ninja-build clang-tidy-18 gcc-14
+      - run: tools/fetch-third-party.sh ryu
+      - run: CC=clang cmake --preset dev -DPR3_BUILD_MLPERF=OFF
+      - name: clang-tidy
         run: |
-          stable="$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)"
-          rustup toolchain install "$stable" --profile minimal
-          echo "RUSTUP_TOOLCHAIN=$stable" >> "$GITHUB_ENV"
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
-        with:
-          key: native-workflow
-      - run: npm ci --ignore-scripts
-        working-directory: app/pr3-app
-      - run: npm run test:e2e:build
-        working-directory: app/pr3-app
-      - run: npm run test:e2e
-        working-directory: app/pr3-app
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-        if: failure()
-        with:
-          name: native-workflow-failures
-          path: app/pr3-app/test-results/
-          retention-days: 7
-
-  benchmark-harness:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: bench/agentdojo/requirements.txt
-      - run: python -m pip install -r bench/agentdojo/requirements.txt
-      - name: Approver, scoring and resume identity
-        run: python -m unittest discover test
-        working-directory: bench/agentdojo
-      - name: Full matrix completeness and error accounting
-        run: python -m unittest discover -s bench/rebaseline -p 'test_*.py'
-      - name: Document corpus freeze and matched-comparison scoring
-        run: python -m unittest discover -s bench/documents -p 'test_*.py'
-      - name: Personal-200 frozen split, scoring and resume checks
-        run: python -m unittest discover -s bench/personal -p 'test_*.py'
-
-  miri:
-    # Undefined behaviour in the core and the code it calls (docs Sec. 12), on the
-    # nightly pinned in fuzz/rust-toolchain.toml. Property tests run few cases: Miri
-    # interprets every instruction, and the job takes about an hour, so it runs on
-    # pushes to main and weekly, not on pull requests.
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Pinned nightly with Miri
+          find src test/unit board bench/c -name '*.c' ! -path 'board/freestanding/*' -print0 |
+            xargs -0 -n 1 clang-tidy-18 -p build/dev --quiet
+      - name: gcc -fanalyzer
         run: |
-          nightly="$(sed -n 's/^channel = "\(.*\)"/\1/p' fuzz/rust-toolchain.toml)"
-          echo "NIGHTLY=$nightly" >> "$GITHUB_ENV"
-          rustup toolchain install "$nightly" --profile minimal --component miri,rust-src
-      - run: cargo "+$NIGHTLY" miri test -p pr3-core
-        env:
-          PROPTEST_CASES: "4"
-          # Proptest reads the working directory to keep failing cases.
-          MIRIFLAGS: "-Zmiri-disable-isolation"
+          CC=gcc-14 cmake -S . -B build/analyzer -G Ninja -DCMAKE_BUILD_TYPE=Debug -DPR3_BUILD_MLPERF=OFF -DCMAKE_C_FLAGS=-fanalyzer
+          cmake --build build/analyzer
+
+  cross:
+    name: cross ${{ matrix.preset }}
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [android-arm64, armv6m, rv32imc]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y ninja-build clang lld llvm
+      - if: matrix.preset == 'android-arm64'
+        run: echo "ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
+      - run: tools/fetch-third-party.sh ryu
+      - run: cmake --preset ${{ matrix.preset }}
+      - run: cmake --build --preset ${{ matrix.preset }}
+      - if: matrix.preset != 'android-arm64'
+        name: freestanding link symbols
+        run: ctest --preset ${{ matrix.preset }}
 
   fuzz:
-    # A minute on each parser of untrusted input (script/fuzz.sh). A failing input fails
-    # the job and is kept as an artifact, to reproduce with cargo fuzz run.
-    runs-on: ubuntu-latest
+    name: fuzz (seed replay and 60 s per target)
+    runs-on: ubuntu-24.04
+    env:
+      CC: clang
+      CXX: clang++
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Pinned nightly
-        run: |
-          nightly="$(sed -n 's/^channel = "\(.*\)"/\1/p' fuzz/rust-toolchain.toml)"
-          rustup toolchain install "$nightly" --profile minimal
-      - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.87.32
-        with:
-          tool: cargo-fuzz
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          workspaces: fuzz
-      - run: script/fuzz.sh 60
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y ninja-build clang lld llvm
+      - run: tools/fetch-third-party.sh ryu
+      - run: cmake --preset fuzz
+      - run: cmake --build --preset fuzz
+      - run: ctest --test-dir build/fuzz -L fuzz --output-on-failure
+      - run: tools/fuzz.sh json 60
       - if: failure()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v4
         with:
-          name: fuzz-artifact
-          path: fuzz/artifact
+          name: fuzz-crashes
+          path: build/fuzz/crashes/

@@ -1,0 +1,8 @@
+# ThreadSanitizer suppressions for LoadGen, which PR3 builds but does not own.
+#
+# LoadGen 6.0.17 reads Logger::keep_io_thread_alive_, a plain bool, outside the mutex
+# that StopIOThread writes it under (logging.cc, IOThread's loop condition). The loop
+# re-checks the flag under the lock before waiting, so the race only delays shutdown.
+# LoadGen is not patched: every run logs LoadGen's git status and file hashes, and a
+# patched copy would show up there as a modified LoadGen.
+race:mlperf::logging::Logger::IOThread

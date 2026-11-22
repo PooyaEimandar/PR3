@@ -1,38 +1,66 @@
-# PR3 - Portable Private Personal Intelligence
+# PR3
 
-PR3 is an open-source, privacy-first personal AI runtime that works **offline on mobile and desktop**, or **cooperatively in a private hybrid** with a computer the user owns. It is not another assistant but the layer underneath one: an embeddable runtime that decides what an agent may do, owned by the user and portable across Apple, Android, Windows and Linux.
+**PR3** is a privacy-first personal AI runtime written in C17. It runs a local model, keeps the user's memory and documents on the user's own devices, and lets an agent act only through a deterministic trusted path: structured intent, policy, the user's approval, a one-use capability and a hash-chained audit. It runs from a microcontroller accessory to phones and computers, with a native SDL3 app for the graphical part. Memory safety comes from caller-owned arenas, generational pools and bounded slices, not from a runtime ([part 03](doc/03-memory-safety.md)).
 
-- **Local by default.** The model, speech recognition and voices run on your devices; a paired computer can lend a phone its larger model, and the phone answers on its own when it cannot reach it.
-- **The model proposes, PR3 decides.** Every model output is an untrusted proposal. Consequential actions go through a structured intent, a deterministic policy, your approval with Face ID, Touch ID or a fingerprint, a one-use capability and a hash-chained audit log.
-- **Memory you own.** Local, inspectable and deletable, with the provenance of every fact.
-- **Historical security evidence.** On [AgentDojo](https://arxiv.org/abs/2406.13352), with the same model, no prompt-injection attack that needed a tool call got through PR3 in any of its four suites, where a plain tool-calling loop let up to 57% through ([results and build limitations](doc/benchmarks.md#86-results-so-far)). These earlier frozen suites do not certify the current document build.
+## Status
 
-## Quick start
+M0's foundations are built and pass on the development Mac: the build and its gates, the base library, the test runner, the freestanding links, the MLPerf Inference harness and the microbenchmark format. In M1, canonical JSON and the agent runtime pass; the trusted side is next ([roadmap](doc/16-roadmap.md), [checklist](doc/18-delivery-checklist.md)). The specification below waits for review.
+
+## Building
 
 ```bash
-script/fetch-model.sh               # the models config/pr3.toml selects
-cargo test --workspace
-cd app/pr3-app && npm ci && cargo tauri dev   # the macOS app
+tools/fetch-third-party.sh
 ```
 
-iOS, Android, configuration, pairing and benchmarks: [doc/development.md](doc/development.md). Ready-made builds for the iOS simulator, Android, macOS, Windows and Linux: each version on the [Releases](https://github.com/PooyaEimandar/PR3/releases) page, and each push to `main` for 7 days ([dev builds](doc/development.md#dev-builds)); they download their model in Settings ([models](doc/development.md#models)).
+```bash
+cmake --preset release && cmake --build --preset release
+```
 
-## Documentation
+The MLPerf harness with its loopback system under test, as a smoke run:
 
-- [Overview](doc/overview.md): what PR3 is, its positioning and principles.
-- [Architecture](doc/architecture.md) and [security](doc/security.md): how it is built and what it defends against.
-- [Benchmarking](doc/benchmarks.md): what PR3 is measured on, and the results.
-- [Roadmap](doc/roadmap.md): where the work stands and what comes next.
-- [Everything else](doc/README.md): deployment, applications, quality gates, risks, decisions and the change log.
+```bash
+build/release/bench/mlperf/pr3_mlperf --sut loopback --scenario SingleStream --performance 256 --user-conf bench/mlperf/conf/smoke.conf --out bench/runs/smoke-singlestream
+```
 
-## Attribution
+## Specification
 
-PR3 is **inspired by [OpenJarvis](https://github.com/open-jarvis/OpenJarvis)**, in particular its split between intelligence, inference engines, agents, memory, evaluation and trace-driven learning. It is an independent implementation, not a fork, and is not endorsed by or affiliated with OpenJarvis or Stanford.
+**Architecture**
 
-## PR3?
+| Part | About |
+| --- | --- |
+| [Overview](doc/01-overview.md) | Design at a glance, modules, principles, what is out of scope |
+| [System architecture](doc/02-architecture.md) | Modules and layers, hosts, threads, a turn, trust boundaries, profiles |
+| [Memory safety and the allocation model](doc/03-memory-safety.md) | Arenas, lifetimes, pools, rings, strings, bounds, errors, banned functions, verification |
+| [Core runtime](doc/04-core-runtime.md) | The sans-I/O core, the turn, tools and schemas, canonical JSON, the loop guard, traces |
+| [Trusted side](doc/05-trusted-side.md) | Intents, policy, the gate, byte formats, crypto |
+| [Inference](doc/06-inference.md) | The engine interface, prompts, streaming text, tool-call parsing, the llama.cpp backend, the PR3 engine |
+| [Memory and storage](doc/07-memory-and-storage.md) | Memories, tasks, documents, research evidence, continuity, keys and encryption |
+| [Tools and research](doc/08-tools-and-research.md) | The tool interface, the tools, the web reader, research |
+| [Protocol and private hybrid](doc/09-protocol-and-hybrid.md) | Wire protocol v0, pairing, node and client, the serial accessory protocol |
+| [The SDL3 app](doc/10-app-sdl3.md) | Structure, the UI layer, text, screens, host commands, platform bridges, accessibility |
+| [Device and embedded profiles](doc/11-embedded-profiles.md) | Profiles, the board contract, budgets, key storage on boards |
 
-**PR3** is more than just a name; it’s a tribute to my family. **P** stands for the first letter of my name, while **R3** represents the three most important R’s in my life: my wife, my son, and our dog, whose names all begin with R. A simple yet meaningful symbol of the family I cherish.
+**Engineering**
 
-## License
+| Part | About |
+| --- | --- |
+| [Tech stack](doc/12-tech-stack.md) | What runs where, licences, and what was dropped on purpose |
+| [Project structure](doc/13-project-structure.md) | Repository layout and rules |
+| [Build, CI and quality gates](doc/14-build-and-quality.md) | Presets, warnings, hardening, gates, kinds of check |
+| [Benchmarks](doc/15-benchmarks.md) | MLPerf Inference through LoadGen, agent security, module budgets, app targets, evidence |
 
-[Apache-2.0](LICENSE).
+**Delivery**
+
+| Part | About |
+| --- | --- |
+| [Roadmap](doc/16-roadmap.md) | Milestones, gates and the order of work |
+| [Delivery plan](doc/17-delivery-plan.md) | Milestones with exit criteria, epics and issues |
+| [Delivery checklist](doc/18-delivery-checklist.md) | The plan as one ordered list of steps |
+| [Open decisions and risks](doc/19-decisions-and-risks.md) | What is still to decide, and what could go wrong |
+| [Test ledger](doc/20-test-ledger.md) | Every promised behaviour and the test that pins it |
+
+Every change to the specification adds an entry to [doc/CHANGELOG.md](doc/CHANGELOG.md); its newest entry is the current version.
+
+## Licence
+
+Apache-2.0 ([LICENSE](LICENSE)). Third-party sources are fetched at pinned commits and keep their own licences ([part 12](doc/12-tech-stack.md#licences)).
