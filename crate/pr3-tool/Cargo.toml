@@ -23,4 +23,4 @@ serde_json = { workspace = true, features = ["std"] }
 dom_query = { version = "0.27", default-features = false }
 # Use the same parser directly to bound its live state before every token.
 html5ever = "0.38"
-url = "2"
+url = "2.5.9" # RUSTSEC-2026-0592: Url::origin() overflows the stack on nested blob: URLs before 2.5.9
