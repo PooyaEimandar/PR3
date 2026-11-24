@@ -7,6 +7,7 @@ use pr3_memory_sqlite::research::{Evidence, Research, candidate_reference, sourc
 use serde_json::{Map, Value, json};
 use std::sync::Arc;
 mod identity;
+mod language;
 mod relevance;
 mod support;
 
@@ -472,6 +473,7 @@ impl ResearchTool {
             return Err("A conclusion requires cited findings. Without evidence, omit conclusion and explain the missing evidence in gaps.".into());
         }
         relevance::validate(conclusion, &run.topic, &ctx.earlier, &ctx.utterance)?;
+        language::follows_request(conclusion, active_request)?;
         if findings.len() > 4 || gaps.len() > 700 {
             return Err("Use at most four findings and 700 bytes of gaps".into());
         }
@@ -488,9 +490,19 @@ impl ResearchTool {
             }
             text => text,
         };
+        // An ambiguous website scope admits no source, and PR3's own notice
+        // states the needed clarification. Model-written gaps can only restate
+        // it with unchecked example sites or agencies, so they are not shown.
+        let gaps = if scope.problem().is_some() && findings.is_empty() {
+            ""
+        } else {
+            gaps
+        };
         relevance::validate(gaps, &run.topic, &ctx.earlier, &ctx.utterance)?;
+        language::follows_request(gaps, active_request)?;
         if findings.is_empty()
-            && ((run.searches == 0 && scope.problem().is_none()) || gaps.trim().is_empty())
+            && scope.problem().is_none()
+            && (run.searches == 0 || gaps.trim().is_empty())
         {
             return Err(
                 "Search first, and explain missing evidence in gaps when no finding is supported."
@@ -506,6 +518,7 @@ impl ResearchTool {
             output.push("No supported finding was established from the sources checked.".into());
         }
         let mut sources = Vec::new();
+        let mut cited_titles = std::collections::BTreeSet::new();
         let mut report_quotes = Vec::new();
         let mut inspected_instruction = false;
         let live_sources = db
@@ -536,6 +549,7 @@ impl ResearchTool {
             // Missing-evidence gaps remain visible, including partial answers.
             let claim = if quotation_only { "" } else { analysis };
             relevance::validate(claim, &run.topic, &ctx.earlier, &ctx.utterance)?;
+            language::follows_request(claim, active_request)?;
             let citations = finding
                 .get("citations")
                 .and_then(Value::as_array)
@@ -637,6 +651,7 @@ impl ResearchTool {
                     data_line(&evidence.location),
                     evidence.source
                 ));
+                cited_titles.insert(evidence.title.clone());
                 sources.push(evidence.source);
             }
             if let Some(subject) = &subject
@@ -678,6 +693,8 @@ impl ResearchTool {
             active_request,
             &crate::clock::date(ctx.now, ctx.utc_offset_minutes),
         )?;
+        support::sole_source(gaps, cited_titles.len())
+            .map_err(|error| format!("Unresolved questions: {error}"))?;
         identity::validate_relationship(conclusion, &report_quotes, active_request)?;
         support::validate(conclusion, &report_quotes, &live_text)?;
         support::current_validity(
@@ -686,6 +703,7 @@ impl ResearchTool {
             active_request,
             &crate::clock::date(ctx.now, ctx.utc_offset_minutes),
         )?;
+        support::sole_source(conclusion, cited_titles.len())?;
         if !conclusion.is_empty() {
             output.push(format!("Conclusion: {}", data_line(conclusion)));
         }
@@ -1117,17 +1135,25 @@ mod tests {
         let answer = tools.iter().find(|t| t.spec().name == ANSWER).unwrap();
         let mut ctx = context(1);
         ctx.utterance = "Use official sources only".into();
-        let report = answer
-            .run(
-                json!({"findings":[],"gaps":"Please choose their websites."})
-                    .as_object()
-                    .unwrap(),
-                &ctx,
-            )
-            .unwrap();
-        assert!(report.contains("No supported finding"));
-        assert!(report.contains("choose their websites"));
-        assert!(report.contains("search has not run"));
+        // PR3's own notice is the clarification. Model-written examples of
+        // "official" agencies or invented domains are never shown.
+        for gaps in [
+            "Please specify which websites (e.g., government agency sites like the USGS or NOAA) to search.",
+            "",
+        ] {
+            let report = answer
+                .run(
+                    json!({"findings":[],"gaps":gaps}).as_object().unwrap(),
+                    &ctx,
+                )
+                .unwrap();
+            assert!(report.contains("No supported finding"));
+            assert_eq!(report.matches("choose their websites").count(), 1);
+            assert!(!report.contains("USGS") && !report.contains("Unresolved questions"));
+            assert!(report.contains("search has not run"));
+        }
+        // Without a scope problem, an empty unsearched report still fails.
+        ctx.utterance = "Compare Nori prices".into();
         assert!(
             answer
                 .run(json!({"findings":[],"gaps":""}).as_object().unwrap(), &ctx)
@@ -1264,6 +1290,63 @@ mod tests {
                 .text,
             quote
         );
+    }
+
+    #[test]
+    fn a_report_citing_two_sources_does_not_call_one_the_only_source() {
+        let db = db(false);
+        let promotion =
+            "La promoción del pase Cobre costaba 14 euros y terminó el 30 de junio de 2022.";
+        let catalogue = "El catálogo indica 22 euros para el pase Cobre. El catálogo no incluye fecha ni periodo de validez.";
+        {
+            let mut db = db.lock().unwrap();
+            db.import_document("cobre-promocion.md", promotion).unwrap();
+            db.import_document("cobre-catalogo.md", catalogue).unwrap();
+        }
+        let tools = tools(db.clone(), None, None);
+        let found = invoke(&tools, SEARCH, json!({"query":"Cobre"}), 1);
+        let source = |text: &str| {
+            found
+                .sources
+                .iter()
+                .find(|s| {
+                    db.lock()
+                        .unwrap()
+                        .research_source(1, s)
+                        .unwrap()
+                        .is_some_and(|e| e.text.contains(text))
+                })
+                .unwrap()
+                .clone()
+        };
+        let (promotion_source, catalogue_source) = (source(promotion), source(catalogue));
+        let mut ctx = context(1);
+        ctx.now = Timestamp(1_792_512_900_000);
+        ctx.utterance = "¿Podemos confirmar el precio actual del pase Cobre? Compara estas dos notas y explica la incertidumbre temporal en español.".into();
+        let tool = tools.iter().find(|t| t.spec().name == ANSWER).unwrap();
+        // The conclusion of the 4B seed 7 strict2 answer, which cites both notes.
+        let mut args = json!({"findings":[{"citations":[{"source":promotion_source,"quote":promotion},{"source":catalogue_source,"quote":catalogue}]}],"gaps":"","conclusion":"No se puede confirmar el precio actual del pase Cobre. La única fuente disponible indica un precio histórico de 14 euros que ya expiró en junio de 2022, mientras que otra nota menciona 22 euros pero sin especificar fecha ni periodo de validez."});
+        let rejected = tool.run_with_sources(args.as_object().unwrap(), &ctx);
+        assert!(rejected.sources.is_empty());
+        assert_eq!(rejected.result.unwrap_err(), support::SOLE_SOURCE_ERROR);
+        args["gaps"] = json!("La única fuente disponible no tiene fecha.");
+        args["conclusion"] = json!("No se puede confirmar el precio actual del pase Cobre.");
+        assert!(
+            tool.run(args.as_object().unwrap(), &ctx)
+                .unwrap_err()
+                .starts_with("Unresolved questions: ")
+        );
+        args["gaps"] = json!("");
+        args["conclusion"] = json!(
+            "No se puede confirmar el precio actual del pase Cobre. La promoción de 14 euros terminó en junio de 2022 y el catálogo indica 22 euros sin fecha ni periodo de validez."
+        );
+        assert!(tool.run(args.as_object().unwrap(), &ctx).is_ok());
+        // A one-source report may call its source the only one.
+        args["findings"] = json!([{"citations":[{"source":promotion_source,"quote":promotion}]}]);
+        args["conclusion"] = json!(
+            "No se puede confirmar el precio actual del pase Cobre. La única fuente disponible indica un precio histórico de 14 euros que ya expiró en junio de 2022."
+        );
+        assert!(tool.run(args.as_object().unwrap(), &ctx).is_ok());
     }
 
     #[test]
@@ -1432,10 +1515,13 @@ mod tests {
                     tool.run(args.as_object().unwrap(), &ctx).is_err(),
                     "conclusion cannot bypass {name} checks"
                 );
-                args["conclusion"] = json!(if good.is_empty() {
-                    "The quoted source gives the conditions; it does not establish additional claims."
-                } else {
-                    good
+                // Report prose follows the request's language.
+                args["conclusion"] = json!(match (good.is_empty(), name) {
+                    (false, _) => good,
+                    (true, "approval") =>
+                        "منبع نقل‌شده شرایط را بیان می‌کند و ادعای دیگری را ثابت نمی‌کند.",
+                    (true, _) =>
+                        "La fuente citada indica las condiciones; no establece otras afirmaciones.",
                 });
                 assert!(
                     tool.run(args.as_object().unwrap(), &ctx)

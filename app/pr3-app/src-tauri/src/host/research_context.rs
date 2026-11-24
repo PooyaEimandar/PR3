@@ -239,7 +239,7 @@ impl Host {
                 .map_err(|e| HostError::Host(e.to_string()))?;
             parameters[pr3_llamacpp::CONCLUSION_REPORT_SCHEMA_KEY] = json!(true);
             parameters["required"] = json!(["conclusion", "findings", "gaps"]);
-            parameters["properties"]["conclusion"] = json!({"type":"string","description":"First answer the question directly: what do these cited sources establish, or what cannot be established? Preserve uncertainty; different roles/locations do not prove different people, and undated/expired values do not prove a current value. Nonempty, at most 700 bytes."});
+            parameters["properties"]["conclusion"] = json!({"type":"string","description":"First answer the question directly: what do these cited sources establish, or what cannot be established? Preserve uncertainty; different roles/locations do not prove different people, and undated/expired values do not prove a current value. Sources that differ in role, place or date are not contradictory or conflicting; state each one's own value or status. Write in the language of the user's request. Nonempty, at most 700 bytes."});
             parameters["properties"]["findings"]["description"] = json!(
                 "A JSON list of the exact quotations supporting the explicit conclusion. Cover each requested source and condition. Omit text that merely repeats the conclusion or quotations. Always supply gaps as a string."
             );
@@ -360,7 +360,7 @@ impl Host {
         }
         if let Some(problem) = scope.problem() {
             request.tools.retain(|tool| tool.name == ANSWER);
-            request.messages.push(Message::new(Role::System, format!("Website scope needs user clarification: {problem} No source may be used until this is resolved. Call answer_research now with findings: [] and explain the required clarification in gaps. No search is needed."), now()));
+            request.messages.push(Message::new(Role::System, format!("Website scope needs user clarification: {problem} No source may be used until this is resolved. Call answer_research now with findings: [] and gaps: \"\". PR3 states the clarification itself; do not suggest example websites or organizations. No search is needed."), now()));
             return Ok(());
         }
         let calls = request

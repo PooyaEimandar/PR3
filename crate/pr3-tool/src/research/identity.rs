@@ -102,6 +102,28 @@ pub(super) fn for_request(topic: &str, earlier: &[String], current: &str) -> Opt
     subject(active_request(topic, earlier, current))
 }
 
+/// Intensifiers neither create nor remove an identity assertion: "are clearly
+/// different people" is still categorical and "do not definitively establish"
+/// is still a negation. Hedges such as "likely" or "probably" are kept.
+fn assertion_words(text: &str) -> Vec<String> {
+    const INTENSIFIERS: [&str; 10] = [
+        "actually",
+        "certainly",
+        "clearly",
+        "conclusively",
+        "definitely",
+        "definitively",
+        "explicitly",
+        "firmly",
+        "really",
+        "truly",
+    ];
+    words(text)
+        .into_iter()
+        .filter(|word| !INTENSIFIERS.contains(&word.as_str()))
+        .collect()
+}
+
 #[derive(PartialEq)]
 enum Relationship {
     Same,
@@ -111,7 +133,7 @@ enum Relationship {
 fn relationship(text: &str) -> Option<Relationship> {
     // Noun variants do not change a categorical identity assertion. Keep this
     // narrow English check consistent for claims and their cited evidence.
-    let normalized = words(text)
+    let normalized = assertion_words(text)
         .into_iter()
         .map(|word| match word.as_str() {
             "individual" => "person".into(),
@@ -156,7 +178,7 @@ fn relationship(text: &str) -> Option<Relationship> {
 }
 
 fn uncertain(text: &str) -> bool {
-    let text = format!(" {} ", words(text).join(" "));
+    let text = format!(" {} ", assertion_words(text).join(" "));
     [
         " could ",
         " may ",
@@ -194,6 +216,26 @@ pub(super) fn validate_relationship(
         .unwrap_or(request);
     if subject(request.split('?').next().unwrap_or(request)).is_none() {
         return Ok(());
+    }
+    // Different roles or places under one name conflict only if one person is
+    // meant, so "conflicting occupations" presupposes the unestablished link.
+    // A page saying it "does not mention" a field does not say it mentions
+    // only its own field.
+    let phrase = |text: &str| format!(" {} ", words(text).join(" "));
+    let narrowed = [
+        " mentions only ",
+        " mention only ",
+        " only mention ",
+        " only mentions ",
+    ]
+    .iter()
+    .any(|p| phrase(claim).contains(p))
+        && quotes.iter().any(|q| phrase(q).contains(" not mention "));
+    if narrowed
+        || (super::support::conflict_wording(claim)
+            && !quotes.iter().any(|q| super::support::conflict_wording(q)))
+    {
+        return Err(super::IDENTITY_RELATIONSHIP_ERROR.into());
     }
     for (_, sentence) in pr3_memory::retrieval::sentences(claim) {
         let Some(relation) = relationship(sentence) else {
@@ -351,6 +393,93 @@ mod tests {
                 query
             )
             .is_ok()
+        );
+    }
+    #[test]
+    fn different_profiles_are_not_conflicts_and_absent_mentions_are_not_exclusive() {
+        let query = "Research online: Who is Lee Morgan? Use https://profiles.example/photographer and https://profiles.example/botanist. Do these pages establish one person or could they describe different people?";
+        let quotes = vec![
+            "Lee Morgan is a botanist based in Cork. This page does not mention any photography work.".into(),
+            "Lee Morgan is a photographer based in Dunedin. The page does not mention any botany work.".into(),
+        ];
+        for claim in [
+            "The pages do not establish one person; they only show conflicting occupations and locations under the same name.",
+            "The profiles are contradictory, so the identity is unclear.",
+            "The two profiles are incompatible, so the pages may describe different people.",
+            "This does not establish one person. The sources explicitly state each page mentions only their respective field of work.",
+        ] {
+            assert_eq!(
+                validate_relationship(claim, &quotes, query),
+                Err(super::super::IDENTITY_RELATIONSHIP_ERROR.into()),
+                "{claim}"
+            );
+        }
+        for claim in [
+            "The pages describe a photographer in Dunedin and a botanist in Cork; they do not establish whether this is one person.",
+            "Different occupations are not contradictory; they could describe one person or two.",
+            "Each page says it does not mention the other field, so the identity remains uncertain.",
+        ] {
+            assert!(
+                validate_relationship(claim, &quotes, query).is_ok(),
+                "{claim}"
+            );
+        }
+        // A source that itself reports a conflict can be described as such.
+        assert!(
+            validate_relationship(
+                "The profiles conflict about the birth year, so identity is unclear.",
+                &["The two profiles conflict about the birth year.".into()],
+                query
+            )
+            .is_ok()
+        );
+    }
+    #[test]
+    fn intensifiers_neither_create_nor_remove_an_identity_assertion() {
+        let query = "Research online: Who is Lee Morgan? Use https://profiles.example/photographer and https://profiles.example/botanist. Do these pages establish one person or could they describe different people?";
+        let quotes = vec![
+            "Lee Morgan is a photographer based in Dunedin. The page does not mention any botany work.".into(),
+            "Lee Morgan is a botanist based in Cork. This page does not mention any photography work.".into(),
+        ];
+        for claim in [
+            "They are clearly different people.",
+            "These are really distinct individuals.",
+            "The pages definitively establish the same person.",
+        ] {
+            assert_eq!(
+                validate_relationship(claim, &quotes, query),
+                Err(super::super::IDENTITY_RELATIONSHIP_ERROR.into()),
+                "{claim}"
+            );
+        }
+        for claim in [
+            // The cautious 4B answer rejected in the 2026-11-24 strict2 run.
+            "The available sources establish two separate profiles for \"Lee Morgan\" with different professions and locations: one as a photographer in Dunedin, the other as a botanist in Cork. These pages do not definitively establish they describe the same person; they could be different people with shared names.",
+            "The pages do not conclusively prove they are the same person.",
+            "They are likely different people.",
+        ] {
+            assert!(
+                validate_relationship(claim, &quotes, query).is_ok(),
+                "{claim}"
+            );
+        }
+        // An intensified quotation is still an explicit link, and an
+        // intensified negation in a quotation is still not one.
+        assert!(
+            validate_relationship(
+                "They are the same person.",
+                &["Both profiles explicitly refer to the same person.".into()],
+                query
+            )
+            .is_ok()
+        );
+        assert!(
+            validate_relationship(
+                "They are the same person.",
+                &["The records do not conclusively prove they are the same person.".into()],
+                query
+            )
+            .is_err()
         );
     }
     #[test]

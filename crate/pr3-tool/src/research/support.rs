@@ -65,24 +65,253 @@ pub(super) fn current_uncertainty(quotes: &[String], request: &str, today: &str)
     };
     current_question(request)
         && !quotes.is_empty()
-        && quotes.iter().all(|quote| {
-            let lower = quote.to_lowercase();
-            past_window(quote, year)
-                || ([
-                    "no date and no validity period",
-                    "no incluye fecha ni periodo de validez",
-                    "sin fecha ni periodo de validez",
-                ]
-                .iter()
-                .any(|p| lower.contains(p))
-                    && !years(quote).any(|y| y >= year)
-                    && ![
-                        "unless", "except", "renew", "extend", "salvo", "excepto", "renov",
-                        "prorrog",
-                    ]
+        && quotes
+            .iter()
+            .all(|quote| past_window(quote, year) || undated(quote, year))
+}
+
+fn undated(quote: &str, year: u32) -> bool {
+    let lower = quote.to_lowercase();
+    [
+        "no date and no validity period",
+        "no incluye fecha ni periodo de validez",
+        "sin fecha ni periodo de validez",
+    ]
+    .iter()
+    .any(|p| lower.contains(p))
+        && !years(quote).any(|y| y >= year)
+        && ![
+            "unless", "except", "renew", "extend", "salvo", "excepto", "renov", "prorrog",
+        ]
+        .iter()
+        .any(|word| lower.contains(word))
+}
+
+/// With one expired and one undated quotation, a clause must not collapse
+/// their statuses: "both are expired" makes the undated value expired, and
+/// "neither includes a date" erases the stated end date. Clause-level wording
+/// only; "expired or undated" and negated clauses abstain.
+fn collapses_statuses(claim: &str) -> bool {
+    let lower = claim
+        .to_lowercase()
+        .replace("n't", " not")
+        .replace("n’t", " not");
+    let negation = |w: &str| {
+        matches!(
+            w,
+            "not" | "no" | "never" | "nor" | "nunca" | "ne" | "pas" | "jamais"
+        )
+    };
+    let expiry = |w: &str| {
+        ["expir", "caduc", "vencid"]
+            .iter()
+            .any(|s| w.starts_with(s))
+    };
+    sentences(&lower).into_iter().any(|(_, sentence)| {
+        sentence.split([',', ';', ':', '—']).any(|clause| {
+            let words = clause
+                .split(|c: char| !c.is_alphabetic())
+                .filter(|w| !w.is_empty())
+                .collect::<Vec<_>>();
+            let all_expired = words.iter().enumerate().any(|(i, w)| {
+                expiry(w)
+                    && words[..i].iter().any(|b| {
+                        matches!(
+                            *b,
+                            "both"
+                                | "all"
+                                | "ambos"
+                                | "ambas"
+                                | "todos"
+                                | "todas"
+                                | "deux"
+                                | "tous"
+                                | "toutes"
+                        )
+                    })
+                    && !words[..i].iter().any(|b| negation(b) || *b == "neither")
+                    && !matches!(words.get(i + 1), Some(&("or" | "o" | "ou")))
+                    && !words
+                        .iter()
+                        .any(|w| matches!(*w, "either" | "unknown" | "unspecified"))
+            });
+            // "Neither the dated offer nor the undated listing ..." names both
+            // labels; only a clause denying any date without them is collapsed.
+            // A quantifier after a negated verb ("no incluye ninguna fecha",
+            // "n'a aucune date") or directly before the date itself ("neither
+            // date nor period") describes one value, not both sources.
+            let date = |a: &str| {
+                ["date", "fecha", "daté", "datée"]
                     .iter()
-                    .any(|word| lower.contains(word)))
+                    .any(|s| a.starts_with(s))
+            };
+            let none_dated = words.iter().enumerate().any(|(i, w)| {
+                matches!(
+                    *w,
+                    "neither" | "none" | "ninguno" | "ninguna" | "ningún" | "aucun" | "aucune"
+                ) && !words[..i].iter().any(|b| negation(b) || *b == "n")
+                    && !words.get(i + 1).is_some_and(|a| date(a))
+                    && words[i + 1..].iter().any(|a| date(a))
+                    && !words.iter().any(|a| {
+                        expiry(a)
+                            || [
+                                "current",
+                                "currently",
+                                "today",
+                                "now",
+                                "actual",
+                                "actualmente",
+                                "vigente",
+                                "hoy",
+                                "ahora",
+                                "actuel",
+                                "actuelle",
+                                "recent",
+                                "reciente",
+                                "récent",
+                                "undated",
+                            ]
+                            .contains(a)
+                    })
+                    && !["sin fecha", "no date", "sans date", "non daté"]
+                        .iter()
+                        .any(|p| clause.contains(p))
+            });
+            all_expired || none_dated
         })
+    })
+}
+
+/// A sentence that calls sources contradictory, inconsistent or conflicting,
+/// unless that sentence negates it ("they do not contradict"). Covers the
+/// report languages PR3 localizes; this is wording, not an entailment check.
+pub(super) fn conflict_wording(text: &str) -> bool {
+    let text = text
+        .to_lowercase()
+        .replace("n't", " not")
+        .replace("n’t", " not");
+    sentences(&text).into_iter().any(|(_, sentence)| {
+        let words = sentence
+            .split(|c: char| !c.is_alphabetic())
+            .filter(|w| !w.is_empty())
+            .collect::<Vec<_>>();
+        words.iter().enumerate().any(|(i, word)| {
+            [
+                "contradic",
+                "inconsisten",
+                "conflict",
+                "conflit",
+                "contred",
+                "incoheren",
+                "incohéren",
+                "incompatib",
+                "irreconcil",
+                "inconciliab",
+            ]
+            .iter()
+            .any(|stem| word.starts_with(stem))
+                && !words[..i].iter().any(|before| {
+                    matches!(
+                        *before,
+                        "not" | "no" | "neither" | "nor" | "never" | "ni" | "nunca" | "ne" | "pas"
+                    )
+                })
+        }) || ["متناقض", "تناقض"]
+            .iter()
+            .any(|word| sentence.contains(word))
+    })
+}
+
+pub(super) const SOLE_SOURCE_ERROR: &str = "This report cites more than one source, so do not call one of them the only or only available source. Report each cited value with its own status. Keep the same evidence and repair within the remaining budget.";
+
+/// A report that cites several sources cannot call one of them the only
+/// source ("la única fuente disponible indica…, mientras que otra nota…").
+/// A qualified phrase ("the only source with a date", "la única nota con
+/// fecha", "the only source that…") or a negated one remains valid. Narrow
+/// English/Spanish/French wording check; whether a qualifier is true is not
+/// checked.
+pub(super) fn sole_source(claim: &str, cited_sources: usize) -> Result<(), String> {
+    if cited_sources < 2 {
+        return Ok(());
+    }
+    let text = claim
+        .to_lowercase()
+        .replace("n't", " not")
+        .replace("n’t", " not");
+    let words = text
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .collect::<Vec<_>>();
+    let available = |word: Option<&&str>| {
+        matches!(
+            word.copied(),
+            Some("available" | "disponible" | "existing" | "existente")
+        )
+    };
+    let sole = words.iter().enumerate().any(|(i, word)| {
+        if !matches!(
+            *word,
+            "only" | "sole" | "única" | "unica" | "único" | "unico" | "seule" | "seul"
+        ) || words[i.saturating_sub(3)..i].iter().any(|before| {
+            matches!(
+                *before,
+                "not" | "no" | "nor" | "never" | "ni" | "nunca" | "jamás" | "ne" | "pas"
+            )
+        }) {
+            return false;
+        }
+        let mut next = i + 1;
+        if available(words.get(next)) {
+            next += 1;
+        }
+        if !matches!(
+            words.get(next).copied(),
+            Some("source" | "fuente" | "note" | "nota")
+        ) {
+            return false;
+        }
+        next += 1;
+        if available(words.get(next)) {
+            next += 1;
+        }
+        !matches!(
+            words.get(next).copied(),
+            Some(
+                "that"
+                    | "which"
+                    | "with"
+                    | "to"
+                    | "for"
+                    | "of"
+                    | "about"
+                    | "giving"
+                    | "dated"
+                    | "showing"
+                    | "stating"
+                    | "where"
+                    | "in"
+                    | "on"
+                    | "con"
+                    | "que"
+                    | "de"
+                    | "del"
+                    | "para"
+                    | "sobre"
+                    | "en"
+                    | "fechada"
+                    | "qui"
+                    | "avec"
+                    | "pour"
+                    | "sur"
+                    | "datée"
+            )
+        )
+    });
+    if sole {
+        Err(SOLE_SOURCE_ERROR.into())
+    } else {
+        Ok(())
+    }
 }
 
 /// Reject an affirmative current-validity assertion when the attached evidence
@@ -101,6 +330,18 @@ pub(super) fn current_validity(
     let Some(year) = today.split('-').next().and_then(|s| s.parse::<u32>().ok()) else {
         return Ok(());
     };
+    // An expired offer and an undated listing state values for different or
+    // unknown times. They differ; calling them contradictory overstates them.
+    if conflict_wording(claim) && current_uncertainty(quotes, request, today) {
+        return Err("These quotations have expired or unspecified validity, so their values come from different or unknown times: they differ, but they do not contradict each other. Do not call them contradictory, inconsistent, incompatible or conflicting. Report each value with its own date status and state that neither establishes a current value. Keep the same evidence and repair within the remaining budget.".into());
+    }
+    if current_uncertainty(quotes, request, today)
+        && quotes.iter().any(|quote| past_window(quote, year))
+        && quotes.iter().any(|quote| undated(quote, year))
+        && collapses_statuses(claim)
+    {
+        return Err("One quotation's validity window has ended and another states no date or validity period. Give each value its own status: do not call both expired, and do not say that neither is dated. Keep the same evidence and repair within the remaining budget.".into());
+    }
     let lower = claim
         .to_lowercase()
         .replace('’', "'")
@@ -398,6 +639,193 @@ mod tests {
             query,
             "2026-11-21"
         ));
+    }
+    #[test]
+    fn expired_and_undated_values_differ_without_being_called_contradictory() {
+        let query = "¿Podemos confirmar el precio actual del pase Cobre? Compara estas dos notas.";
+        let quotes = vec![
+            "La promoción del pase Cobre costaba 14 euros y terminó el 30 de junio de 2022.".into(),
+            "El catálogo indica 22 euros para el pase Cobre. El catálogo no incluye fecha ni periodo de validez.".into(),
+        ];
+        for claim in [
+            "No, el precio actual no puede confirmarse. Las dos notas son contradictorias.",
+            "The two notes are inconsistent in both amount and temporal status.",
+            "Neither establishes a current price; the sources conflict.",
+        ] {
+            assert!(
+                super::current_validity(claim, &quotes, query, "2026-11-22").is_err(),
+                "{claim}"
+            );
+        }
+        for claim in [
+            "No se puede confirmar el precio actual: la promoción de 14 euros terminó en 2022 y el catálogo de 22 euros no tiene fecha.",
+            "The notes do not contradict each other; they describe different times.",
+            "Las notas no son contradictorias: una está vencida y la otra no tiene fecha.",
+        ] {
+            assert!(
+                super::current_validity(claim, &quotes, query, "2026-11-22").is_ok(),
+                "{claim}"
+            );
+        }
+        // Two current sources may genuinely conflict; this check abstains.
+        let current = vec![
+            "The Cobre pass costs 14 euros in 2026.".to_string(),
+            "The Cobre pass costs 22 euros in 2026.".to_string(),
+        ];
+        assert!(
+            super::current_validity(
+                "The current sources conflict.",
+                &current,
+                "What is the current price?",
+                "2026-11-22"
+            )
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn a_report_with_several_sources_does_not_call_one_the_only_source() {
+        for claim in [
+            // The 4B Spanish conclusion borderline in the 2026-11-24 strict2 run.
+            "No se puede confirmar el precio actual del pase Cobre. La única fuente disponible indica un precio histórico de 14 euros que ya expiró en junio de 2022, mientras que otra nota menciona 22 euros pero sin especificar fecha ni periodo de validez.",
+            "The only available source states 31 credits.",
+            "The offer is the only source.",
+            "La seule source indique 14 euros.",
+        ] {
+            assert_eq!(
+                sole_source(claim, 2),
+                Err(SOLE_SOURCE_ERROR.into()),
+                "{claim}"
+            );
+        }
+        for claim in [
+            // An accurate qualified wording from the 2026-11-22 run.
+            "No se puede confirmar el precio actual del pase Cobre. La única nota con fecha específica (30 de junio de 2022) establece un precio histórico expirado, mientras que la otra nota menciona 22 euros pero sin indicar si es vigente actualmente.",
+            "The offer is the only source with a date.",
+            "The catalogue is the only source that gives no date.",
+            "The listing is the only source of the 46-credit price.",
+            "The offer is not the only source.",
+            "The offer isn't the only available source.",
+            "Only the listing states a price without a date.",
+            "The source only lists 46 credits.",
+        ] {
+            assert!(sole_source(claim, 2).is_ok(), "{claim}");
+        }
+        // With one cited source the wording is accurate.
+        assert!(sole_source("The only available source states 31 credits.", 1).is_ok());
+    }
+
+    #[test]
+    fn an_expired_and_an_undated_value_keep_their_own_statuses() {
+        let english = "What current price can we establish for the Sable pass? Compare the dated offer with the undated listing.";
+        let sable = vec![
+            "Sable pass promotional price: 31 credits. This offer is valid only during April 2025."
+                .to_string(),
+            "Sable pass listed price: 46 credits. This listing has no date and no validity period."
+                .to_string(),
+        ];
+        let spanish = "¿Podemos confirmar el precio actual del pase Cobre? Compara estas dos notas y explica la incertidumbre temporal en español.";
+        let cobre = vec![
+            "La promoción del pase Cobre costaba 14 euros y terminó el 30 de junio de 2022.".to_string(),
+            "El catálogo indica 22 euros para el pase Cobre. El catálogo no incluye fecha ni periodo de validez.".to_string(),
+        ];
+        // Wording observed in the 2026-11-23 regression run, plus variants.
+        for (claim, quotes, request) in [
+            (
+                "The sources do not establish a current price for the Sable pass. The dated offer (April 2025) and undated listing are both expired relative to today's date of 2026-11-24.",
+                &sable,
+                english,
+            ),
+            ("Both prices have expired.", &sable, english),
+            ("Neither source includes a date.", &sable, english),
+            (
+                "No se puede confirmar el precio actual del pase Cobre. La evidencia disponible muestra un precio histórico de 14 euros (promoción que terminó el 30 de junio de 2022) y otro precio de catálogo de 22 euros, pero ninguno incluye fecha ni periodo de validez, por lo que no se establece cuál es el precio vigente.",
+                &cobre,
+                spanish,
+            ),
+            ("Ambas notas han caducado.", &cobre, spanish),
+            ("Ninguna nota incluye fecha.", &cobre, spanish),
+            (
+                "No, el precio actual del pase Cobre no puede confirmarse. Las dos notas son temporalmente incompatibles: una describe una promoción que terminó en 2022 y la otra un catálogo sin fecha.",
+                &cobre,
+                spanish,
+            ),
+        ] {
+            assert!(
+                super::current_validity(claim, quotes, request, "2026-11-24").is_err(),
+                "{claim}"
+            );
+        }
+        for (claim, quotes, request) in [
+            (
+                "The current price for the Sable pass cannot be established from these sources. The dated offer (valid only during April 2025) is expired as of 2026-11-24. The undated listing has no validity period, so it does not establish a current price either.",
+                &sable,
+                english,
+            ),
+            (
+                "We cannot establish a current price for the Sable pass. The dated offer expired in April 2025, and the undated listing has no validity period specified.",
+                &sable,
+                english,
+            ),
+            (
+                "Both are expired or undated, so neither establishes a current price.",
+                &sable,
+                english,
+            ),
+            (
+                "Neither the dated offer nor the undated listing establishes the price today.",
+                &sable,
+                english,
+            ),
+            (
+                "They are not both expired: the listing has no date.",
+                &sable,
+                english,
+            ),
+            (
+                "No se puede confirmar un precio actual del pase Cobre. Las dos notas discrepan: una promoción histórica de 14 euros que terminó el 30/06/2022 y un catálogo sin fecha que indica 22 euros. La incertidumbre temporal es que el catálogo no especifica validez, por lo que su valor podría estar desactualizado; la nota de la promoción sí está fechada y expirada.",
+                &cobre,
+                spanish,
+            ),
+            (
+                "No se puede confirmar el precio actual del pase Cobre. La evidencia disponible muestra que una promoción específica (14 euros) finalizó en 2022 y otra referencia indica 22 euros pero sin fecha de validez.",
+                &cobre,
+                spanish,
+            ),
+            // Rejected in the 2026-11-24 strict3 run although it describes only
+            // the catalogue: "no incluye ninguna fecha" means "has no date".
+            (
+                "No se puede confirmar el precio actual del pase Cobre. La primera nota establece un precio histórico (14 euros) con fecha de fin explícita (30 junio 2022). La segunda nota indica un precio de catálogo (22 euros) pero no incluye ninguna fecha ni periodo de validez, por lo que su vigencia temporal es incierta.",
+                &cobre,
+                spanish,
+            ),
+            (
+                "The offer ended in April 2025. The listing includes neither date nor validity period.",
+                &sable,
+                english,
+            ),
+        ] {
+            assert!(
+                super::current_validity(claim, quotes, request, "2026-11-24").is_ok(),
+                "{claim}"
+            );
+        }
+        // Two expired windows may be called expired together.
+        let both_old = vec![
+            "Sable pass promotional price: 31 credits. This offer is valid only during April 2025."
+                .to_string(),
+            "Sable pass winter price: 38 credits. This offer is valid only during January 2024."
+                .to_string(),
+        ];
+        assert!(
+            super::current_validity(
+                "Both offers have expired.",
+                &both_old,
+                english,
+                "2026-11-24"
+            )
+            .is_ok()
+        );
     }
     use super::*;
     #[test]

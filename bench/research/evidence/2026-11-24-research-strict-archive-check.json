@@ -1,0 +1,237 @@
+{
+  "verifiedAt": "2026-11-24T09:54:21.533Z",
+  "archiveSha256": "885fc56c04f95ed2798bc104b78c85c44af3bc58620a895a27e42e1c00f91f8f",
+  "binarySha256": "936277db8423d3dcabff622069949a216a766992dddafb7a57d8114eefb78c24",
+  "currentSourcesMatchFrozenManifest": true,
+  "frozenExecutableMatchesManifest": true,
+  "modelFilesMatchManifest": true,
+  "extractedReplaysMatch": true,
+  "extractedSupersededReplaysMatch": true,
+  "previousArchiveVerified": true,
+  "controls": {
+    "development": {
+      "controls": [
+        {
+          "control": "unaltered evidence accepted",
+          "pass": true
+        },
+        {
+          "control": "pre-execution rejection counted from core trace",
+          "pass": true
+        },
+        {
+          "control": "incomplete matrix rejected",
+          "pass": true
+        },
+        {
+          "control": "missing source review rejected",
+          "pass": true
+        },
+        {
+          "control": "duplicate source review rejected",
+          "pass": true
+        },
+        {
+          "control": "changed displayed quotation rejected",
+          "pass": true
+        },
+        {
+          "control": "changed frozen corpus rejected",
+          "pass": true
+        },
+        {
+          "control": "changed baseline corpus rejected",
+          "pass": true
+        },
+        {
+          "control": "changed restart capture time rejected",
+          "pass": true
+        },
+        {
+          "control": "exceeded execution limit rejected",
+          "pass": true
+        },
+        {
+          "control": "missing late-page fact rejected",
+          "pass": true
+        }
+      ]
+    },
+    "exposed": {
+      "controls": [
+        {
+          "control": "unaltered evidence accepted",
+          "pass": true
+        },
+        {
+          "control": "pre-execution rejection counted from core trace",
+          "pass": true
+        },
+        {
+          "control": "incomplete matrix rejected",
+          "pass": true
+        },
+        {
+          "control": "missing source review rejected",
+          "pass": true
+        },
+        {
+          "control": "duplicate source review rejected",
+          "pass": true
+        },
+        {
+          "control": "changed displayed quotation rejected",
+          "pass": true
+        },
+        {
+          "control": "changed frozen corpus rejected",
+          "pass": true
+        },
+        {
+          "control": "changed baseline corpus rejected",
+          "pass": true
+        },
+        {
+          "control": "changed restart capture time rejected",
+          "pass": true
+        },
+        {
+          "control": "exceeded execution limit rejected",
+          "pass": true
+        }
+      ]
+    }
+  },
+  "inferenceControls": {
+    "development": {
+      "controls": [
+        {
+          "control": "unaltered inference evidence accepted",
+          "pass": true
+        },
+        {
+          "control": "missing audit rejected",
+          "pass": true
+        },
+        {
+          "control": "context overflow rejected",
+          "pass": true
+        },
+        {
+          "control": "answer reservation reduced",
+          "pass": true
+        },
+        {
+          "control": "edited inference quote rejected",
+          "pass": true
+        },
+        {
+          "control": "foreign inference source rejected",
+          "pass": true
+        },
+        {
+          "control": "altered quote offset rejected",
+          "pass": true
+        },
+        {
+          "control": "reversed wall clock rejected",
+          "pass": true
+        },
+        {
+          "control": "removed restart views lose coverage without changing initial coverage",
+          "pass": true
+        }
+      ]
+    },
+    "exposed": {
+      "controls": [
+        {
+          "control": "unaltered inference evidence accepted",
+          "pass": true
+        },
+        {
+          "control": "missing audit rejected",
+          "pass": true
+        },
+        {
+          "control": "context overflow rejected",
+          "pass": true
+        },
+        {
+          "control": "answer reservation reduced",
+          "pass": true
+        },
+        {
+          "control": "edited inference quote rejected",
+          "pass": true
+        },
+        {
+          "control": "foreign inference source rejected",
+          "pass": true
+        },
+        {
+          "control": "altered quote offset rejected",
+          "pass": true
+        },
+        {
+          "control": "reversed wall clock rejected",
+          "pass": true
+        },
+        {
+          "control": "removed restart views lose coverage without changing initial coverage",
+          "pass": true
+        }
+      ]
+    }
+  },
+  "planControls": {
+    "development": {
+      "controls": [
+        {
+          "control": "unaltered plans and actual report citations match",
+          "pass": true
+        },
+        {
+          "control": "omitted planned citation is measured",
+          "pass": true
+        },
+        {
+          "control": "foreign planned reference rejected",
+          "pass": true
+        },
+        {
+          "control": "duplicated planned reference rejected",
+          "pass": true
+        },
+        {
+          "control": "missing inference alignment rejected",
+          "pass": true
+        }
+      ]
+    },
+    "exposed": {
+      "controls": [
+        {
+          "control": "unaltered plans and actual report citations match",
+          "pass": true
+        },
+        {
+          "control": "omitted planned citation is measured",
+          "pass": true
+        },
+        {
+          "control": "foreign planned reference rejected",
+          "pass": true
+        },
+        {
+          "control": "duplicated planned reference rejected",
+          "pass": true
+        },
+        {
+          "control": "missing inference alignment rejected",
+          "pass": true
+        }
+      ]
+    }
+  }
+}

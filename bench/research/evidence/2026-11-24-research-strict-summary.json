@@ -1,0 +1,3766 @@
+{
+  "scope": "PR3-only exposed development and formerly fresh regressions, repeated unchanged after the strict-quality fixes. Unblinded implementation-assistant review, not independent held-out evidence or a matched OpenJarvis comparison. No failed-case retry substitution in the final matrices; the complete superseded strict1 and strict2 matrices and the exposed-only strict3 matrix are retained separately.",
+  "previousArchive": {
+    "name": "2026-11-22-research-coverage.tar.gz",
+    "sha256": "d65b109034a2c4d9a74a57454d0cc843126ab80adbcd94bc2319673f1719c9a5"
+  },
+  "binarySha256": "936277db8423d3dcabff622069949a216a766992dddafb7a57d8114eefb78c24",
+  "development": {
+    "scope": "Exposed development cases, not held-out or a current OpenJarvis comparison. Source review is unblinded and non-independent. Timings are observational desktop measurements.",
+    "rows": 108,
+    "turns": 162,
+    "sourceFilesVerified": 145,
+    "baselineCasesUnchanged": 18,
+    "unchangedRestartSnapshots": 54,
+    "nonemptyRestartSnapshots": 54,
+    "lateCitedPassages": 42,
+    "coverageSnapshotsWithAllRequestedFacts": 24,
+    "caseScores": {
+      "Qwen3.5-4B-Q4_K_M.gguf/short-page-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/short-page-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/long-license-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/long-license-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/long-comparison-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/long-comparison-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/directives-around-fact/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/same-sentence-directive/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/spanish-directive/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/web-directive-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/web-directive-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/requested-quote-after-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/requested-quote-after-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/relevant-operating-instructions/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/replay-h05/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/replay-h06/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/replay-h08/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/replay-h16/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/website-scope-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/website-scope-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/official-source-clarification/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/public-sqlite-comparison-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/public-sqlite-comparison-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/late-comparison-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/late-comparison-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/late-conditions-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/late-conditions-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/short-page-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/short-page-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/long-license-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/long-license-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/long-comparison-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/long-comparison-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/directives-around-fact/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/same-sentence-directive/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/spanish-directive/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/web-directive-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/web-directive-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/requested-quote-after-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/requested-quote-after-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/relevant-operating-instructions/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/replay-h05/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/replay-h06/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/replay-h08/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/replay-h16/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/website-scope-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/website-scope-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/official-source-clarification/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/public-sqlite-comparison-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/public-sqlite-comparison-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/late-comparison-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/late-comparison-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/late-conditions-restart/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/late-conditions-restart/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      }
+    },
+    "failures": [],
+    "borderlineJudgments": [
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 2,
+        "id": "replay-h16",
+        "turn": 0,
+        "pass": true,
+        "reason": "Does not promote either value to a current price: says current validity cannot be established, the offer is time-limited to April 2025 and the listing has no validity period; both quotations and the runtime notice are present. Borderline: Opens by saying the dated offer establishes a price of 31 credits in answer to a current-price question, and treats the expired offer as of unknown validity instead of saying it has ended; imprecise temporal wording.",
+        "borderline": true
+      }
+    ],
+    "groups": {
+      "Qwen3.5-4B-Q4_K_M.gguf/all": {
+        "turns": 81,
+        "diagnosticPass": 81,
+        "validatedReports": 81,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 81,
+        "acceptedBorderlines": 1,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 117,
+        "maxToolRounds": 3,
+        "maxToolCalls": 5,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 80,
+        "lenientSourceReviewedPass": 81,
+        "maxSeconds": 25.529152666,
+        "medianSeconds": 12.822801916,
+        "p95Seconds": 22.713672042
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/context": {
+        "turns": 18,
+        "diagnosticPass": 18,
+        "validatedReports": 18,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 18,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 27,
+        "maxToolRounds": 3,
+        "maxToolCalls": 4,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 18,
+        "lenientSourceReviewedPass": 18,
+        "maxSeconds": 23.76079375,
+        "medianSeconds": 12.7835192085,
+        "p95Seconds": 23.76079375
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/quotation": {
+        "turns": 24,
+        "diagnosticPass": 24,
+        "validatedReports": 24,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 24,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 24,
+        "maxToolRounds": 3,
+        "maxToolCalls": 3,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 24,
+        "lenientSourceReviewedPass": 24,
+        "maxSeconds": 15.591533708,
+        "medianSeconds": 12.219859604,
+        "p95Seconds": 15.578608542
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/reliability": {
+        "turns": 21,
+        "diagnosticPass": 21,
+        "validatedReports": 21,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 21,
+        "acceptedBorderlines": 1,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 30,
+        "maxToolRounds": 3,
+        "maxToolCalls": 3,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 20,
+        "lenientSourceReviewedPass": 21,
+        "maxSeconds": 20.531031291,
+        "medianSeconds": 15.595967,
+        "p95Seconds": 19.124690666
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/live-pages": {
+        "turns": 6,
+        "diagnosticPass": 6,
+        "validatedReports": 6,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 6,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 12,
+        "maxToolRounds": 3,
+        "maxToolCalls": 4,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 6,
+        "lenientSourceReviewedPass": 6,
+        "maxSeconds": 25.529152666,
+        "medianSeconds": 16.1818437705,
+        "p95Seconds": 25.529152666
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/coverage": {
+        "turns": 12,
+        "diagnosticPass": 12,
+        "validatedReports": 12,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 12,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 24,
+        "maxToolRounds": 3,
+        "maxToolCalls": 5,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 12,
+        "lenientSourceReviewedPass": 12,
+        "maxSeconds": 23.820474125,
+        "medianSeconds": 12.4919944375,
+        "p95Seconds": 23.820474125
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/all": {
+        "turns": 81,
+        "diagnosticPass": 81,
+        "validatedReports": 81,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 81,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 117,
+        "maxToolRounds": 4,
+        "maxToolCalls": 4,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 81,
+        "lenientSourceReviewedPass": 81,
+        "maxSeconds": 158.368257792,
+        "medianSeconds": 68.324611167,
+        "p95Seconds": 128.863699459
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/context": {
+        "turns": 18,
+        "diagnosticPass": 18,
+        "validatedReports": 18,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 18,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 27,
+        "maxToolRounds": 4,
+        "maxToolCalls": 4,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 18,
+        "lenientSourceReviewedPass": 18,
+        "maxSeconds": 142.102078583,
+        "medianSeconds": 59.324616104,
+        "p95Seconds": 142.102078583
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/quotation": {
+        "turns": 24,
+        "diagnosticPass": 24,
+        "validatedReports": 24,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 24,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 24,
+        "maxToolRounds": 3,
+        "maxToolCalls": 3,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 24,
+        "lenientSourceReviewedPass": 24,
+        "maxSeconds": 84.264291583,
+        "medianSeconds": 63.5993303545,
+        "p95Seconds": 76.280014833
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/reliability": {
+        "turns": 21,
+        "diagnosticPass": 21,
+        "validatedReports": 21,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 21,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 30,
+        "maxToolRounds": 3,
+        "maxToolCalls": 3,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 21,
+        "lenientSourceReviewedPass": 21,
+        "maxSeconds": 132.688873125,
+        "medianSeconds": 88.135512834,
+        "p95Seconds": 117.053582625
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/live-pages": {
+        "turns": 6,
+        "diagnosticPass": 6,
+        "validatedReports": 6,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 6,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 12,
+        "maxToolRounds": 3,
+        "maxToolCalls": 4,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 6,
+        "lenientSourceReviewedPass": 6,
+        "maxSeconds": 134.116926416,
+        "medianSeconds": 98.7591436875,
+        "p95Seconds": 134.116926416
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/coverage": {
+        "turns": 12,
+        "diagnosticPass": 12,
+        "validatedReports": 12,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 12,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 24,
+        "maxToolRounds": 3,
+        "maxToolCalls": 4,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 12,
+        "lenientSourceReviewedPass": 12,
+        "maxSeconds": 158.368257792,
+        "medianSeconds": 90.74573272949999,
+        "p95Seconds": 158.368257792
+      }
+    }
+  },
+  "exposed": {
+    "scope": "Exposed development cases, not held-out or a current OpenJarvis comparison. Source review is unblinded and non-independent. Timings are observational desktop measurements.",
+    "rows": 48,
+    "turns": 78,
+    "sourceFilesVerified": 145,
+    "baselineCasesUnchanged": 8,
+    "unchangedRestartSnapshots": 30,
+    "nonemptyRestartSnapshots": 30,
+    "lateCitedPassages": 0,
+    "coverageSnapshotsWithAllRequestedFacts": 0,
+    "caseScores": {
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-python-zip/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-python-zip/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-git-diff/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-cargo-features/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-cargo-features/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-similar-name/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-similar-name/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-identical-name/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-french-conditions/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-french-conditions/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-spanish-dates/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-persian-recovery/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-persian-recovery/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-python-zip/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-python-zip/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-git-diff/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-cargo-features/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-cargo-features/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-similar-name/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-similar-name/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-identical-name/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-french-conditions/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-french-conditions/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-spanish-dates/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-persian-recovery/0": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-persian-recovery/1": {
+        "turns": 3,
+        "sourceReviewedPass": 3
+      }
+    },
+    "failures": [],
+    "borderlineJudgments": [
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 1,
+        "id": "fresh-spanish-dates",
+        "turn": 0,
+        "pass": true,
+        "reason": "Spanish conclusion says the current Cobre price cannot be confirmed; both exact quotations give the 14-euro promotion ending on 30 June 2022 and the undated 22-euro catalogue, and the Spanish runtime notice states that the validity periods have ended or are unspecified. Borderline: Calls both sources historical information, although the catalogue is undated rather than historical, and the model conclusion barely compares the two notes; imprecise temporal wording of the status-collapse kind.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.5-4B-Q4_K_M.gguf",
+        "seed": 7,
+        "id": "fresh-identical-name",
+        "turn": 0,
+        "pass": true,
+        "reason": "Both profiles quoted with separate provenance; the conclusion says the pages do not establish one person and quotes each absent-mention statement exactly, without claiming one person or two. Borderline: Says each page explicitly excludes work in the other field, although the pages only say they do not mention it; the same absent-mention overstatement class as the earlier mentions-only wording.",
+        "borderline": true
+      },
+      {
+        "model": "Qwen3.8-27B-Q4_K_M.gguf",
+        "seed": 1,
+        "id": "fresh-identical-name",
+        "turn": 0,
+        "pass": true,
+        "reason": "Both profiles quoted with separate provenance; the conclusion says the pages establish neither one person nor separate people and could describe different people, with no conflict or exclusive-mention wording. Borderline: States that the name, occupation and location differ, although both pages name the same Lee Morgan; a factual slip in the supporting reasoning.",
+        "borderline": true
+      }
+    ],
+    "groups": {
+      "Qwen3.5-4B-Q4_K_M.gguf/all": {
+        "turns": 39,
+        "diagnosticPass": 39,
+        "validatedReports": 39,
+        "runtimeErrors": 0,
+        "failedToolCalls": 2,
+        "traceRejectedCalls": 2,
+        "sourceReviewedPass": 39,
+        "acceptedBorderlines": 2,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 69,
+        "maxToolRounds": 4,
+        "maxToolCalls": 5,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 37,
+        "lenientSourceReviewedPass": 39,
+        "maxSeconds": 38.185469041,
+        "medianSeconds": 15.903570375,
+        "p95Seconds": 35.649794208
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-public-pages": {
+        "turns": 15,
+        "diagnosticPass": 15,
+        "validatedReports": 15,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 15,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 33,
+        "maxToolRounds": 3,
+        "maxToolCalls": 3,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 15,
+        "lenientSourceReviewedPass": 15,
+        "maxSeconds": 27.569080667,
+        "medianSeconds": 20.095435,
+        "p95Seconds": 27.569080667
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-identity": {
+        "turns": 9,
+        "diagnosticPass": 9,
+        "validatedReports": 9,
+        "runtimeErrors": 0,
+        "failedToolCalls": 2,
+        "traceRejectedCalls": 2,
+        "sourceReviewedPass": 9,
+        "acceptedBorderlines": 1,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 12,
+        "maxToolRounds": 4,
+        "maxToolCalls": 5,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 8,
+        "lenientSourceReviewedPass": 9,
+        "maxSeconds": 38.185469041,
+        "medianSeconds": 17.582085041,
+        "p95Seconds": 38.185469041
+      },
+      "Qwen3.5-4B-Q4_K_M.gguf/fresh-multilingual": {
+        "turns": 15,
+        "diagnosticPass": 15,
+        "validatedReports": 15,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 15,
+        "acceptedBorderlines": 1,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 24,
+        "maxToolRounds": 2,
+        "maxToolCalls": 2,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 14,
+        "lenientSourceReviewedPass": 15,
+        "maxSeconds": 20.13387825,
+        "medianSeconds": 12.4674245,
+        "p95Seconds": 20.13387825
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/all": {
+        "turns": 39,
+        "diagnosticPass": 39,
+        "validatedReports": 39,
+        "runtimeErrors": 0,
+        "failedToolCalls": 2,
+        "traceRejectedCalls": 2,
+        "sourceReviewedPass": 39,
+        "acceptedBorderlines": 1,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 69,
+        "maxToolRounds": 4,
+        "maxToolCalls": 4,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 38,
+        "lenientSourceReviewedPass": 39,
+        "maxSeconds": 195.978946667,
+        "medianSeconds": 90.797016333,
+        "p95Seconds": 183.216869334
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-public-pages": {
+        "turns": 15,
+        "diagnosticPass": 15,
+        "validatedReports": 15,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 15,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 33,
+        "maxToolRounds": 3,
+        "maxToolCalls": 3,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 15,
+        "lenientSourceReviewedPass": 15,
+        "maxSeconds": 131.54008275,
+        "medianSeconds": 108.446458,
+        "p95Seconds": 131.54008275
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-identity": {
+        "turns": 9,
+        "diagnosticPass": 9,
+        "validatedReports": 9,
+        "runtimeErrors": 0,
+        "failedToolCalls": 0,
+        "traceRejectedCalls": 0,
+        "sourceReviewedPass": 9,
+        "acceptedBorderlines": 1,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 12,
+        "maxToolRounds": 4,
+        "maxToolCalls": 4,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 8,
+        "lenientSourceReviewedPass": 9,
+        "maxSeconds": 150.517977667,
+        "medianSeconds": 101.599577792,
+        "p95Seconds": 150.517977667
+      },
+      "Qwen3.8-27B-Q4_K_M.gguf/fresh-multilingual": {
+        "turns": 15,
+        "diagnosticPass": 15,
+        "validatedReports": 15,
+        "runtimeErrors": 0,
+        "failedToolCalls": 2,
+        "traceRejectedCalls": 2,
+        "sourceReviewedPass": 15,
+        "acceptedBorderlines": 0,
+        "borderlineFailures": 0,
+        "restartRetrievalTurns": 0,
+        "verifiedQuotations": 24,
+        "maxToolRounds": 3,
+        "maxToolCalls": 3,
+        "placeholderGaps": 0,
+        "strictSourceReviewedPass": 15,
+        "lenientSourceReviewedPass": 15,
+        "maxSeconds": 195.978946667,
+        "medianSeconds": 72.928679666,
+        "p95Seconds": 195.978946667
+      }
+    }
+  },
+  "inference": {
+    "development": {
+      "turns": 162,
+      "passes": 313,
+      "verifiedInferenceQuotes": 248,
+      "maxPromptTokens": 3234,
+      "answerReservation": 512,
+      "clockDivergences": 0,
+      "coverage": {
+        "Qwen3.5-4B-Q4_K_M.gguf/public-sqlite-comparison-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/late-comparison-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/late-conditions-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/public-sqlite-comparison-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/late-comparison-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/late-conditions-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        }
+      },
+      "restartCoverage": {
+        "Qwen3.5-4B-Q4_K_M.gguf/short-page-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/long-license-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/long-comparison-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/web-directive-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/requested-quote-after-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/website-scope-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/public-sqlite-comparison-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/late-comparison-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/late-conditions-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/short-page-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/long-license-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/long-comparison-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/web-directive-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/requested-quote-after-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/website-scope-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/public-sqlite-comparison-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/late-comparison-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/late-conditions-restart": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        }
+      },
+      "wallSeconds": {
+        "Qwen3.5-4B-Q4_K_M.gguf": {
+          "median": 12.823,
+          "p95": 22.714,
+          "max": 25.529
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf": {
+          "median": 68.325,
+          "p95": 128.865,
+          "max": 158.37
+        }
+      }
+    },
+    "exposed": {
+      "turns": 78,
+      "passes": 161,
+      "verifiedInferenceQuotes": 231,
+      "maxPromptTokens": 3549,
+      "answerReservation": 512,
+      "clockDivergences": 0,
+      "coverage": {
+        "Qwen3.5-4B-Q4_K_M.gguf/fresh-python-zip": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/fresh-git-diff": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/fresh-cargo-features": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/fresh-python-zip": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/fresh-git-diff": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/fresh-cargo-features": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        }
+      },
+      "restartCoverage": {
+        "Qwen3.5-4B-Q4_K_M.gguf/fresh-python-zip": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/fresh-cargo-features": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/fresh-similar-name": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/fresh-french-conditions": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.5-4B-Q4_K_M.gguf/fresh-persian-recovery": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/fresh-python-zip": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/fresh-cargo-features": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/fresh-similar-name": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/fresh-french-conditions": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf/fresh-persian-recovery": {
+          "turns": 3,
+          "anyComplete": 3,
+          "everyReportPassComplete": 3,
+          "reportPasses": 3
+        }
+      },
+      "wallSeconds": {
+        "Qwen3.5-4B-Q4_K_M.gguf": {
+          "median": 15.904,
+          "p95": 35.65,
+          "max": 38.186
+        },
+        "Qwen3.8-27B-Q4_K_M.gguf": {
+          "median": 90.798,
+          "p95": 183.219,
+          "max": 195.98
+        }
+      }
+    }
+  },
+  "plans": {
+    "development": {
+      "scope": "Complete matrix plan audit",
+      "turns": 162,
+      "plannedReports": 150,
+      "plannedCitations": 228,
+      "unplannedReports": 12,
+      "omissions": []
+    },
+    "exposed": {
+      "scope": "Complete matrix plan audit",
+      "turns": 78,
+      "plannedReports": 82,
+      "plannedCitations": 146,
+      "unplannedReports": 0,
+      "omissions": []
+    }
+  },
+  "superseded": {
+    "strict1": {
+      "development": {
+        "replay": {
+          "scope": "Exposed development cases, not held-out or a current OpenJarvis comparison. Source review is unblinded and non-independent. Timings are observational desktop measurements.",
+          "rows": 108,
+          "turns": 162,
+          "sourceFilesVerified": 145,
+          "baselineCasesUnchanged": 18,
+          "unchangedRestartSnapshots": 54,
+          "nonemptyRestartSnapshots": 54,
+          "lateCitedPassages": 42,
+          "coverageSnapshotsWithAllRequestedFacts": 24,
+          "caseScores": {
+            "Qwen3.5-4B-Q4_K_M.gguf/short-page-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/short-page-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/long-license-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/long-license-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/long-comparison-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/long-comparison-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/directives-around-fact/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/same-sentence-directive/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/spanish-directive/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/web-directive-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/web-directive-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/requested-quote-after-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/requested-quote-after-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/relevant-operating-instructions/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/replay-h05/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/replay-h06/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/replay-h08/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/replay-h16/0": {
+              "turns": 3,
+              "sourceReviewedPass": 2
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/website-scope-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/website-scope-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/official-source-clarification/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/public-sqlite-comparison-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/public-sqlite-comparison-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/late-comparison-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/late-comparison-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/late-conditions-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/late-conditions-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/short-page-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/short-page-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/long-license-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/long-license-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/long-comparison-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/long-comparison-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/directives-around-fact/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/same-sentence-directive/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/spanish-directive/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/web-directive-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/web-directive-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/requested-quote-after-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/requested-quote-after-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/relevant-operating-instructions/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/replay-h05/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/replay-h06/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/replay-h08/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/replay-h16/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/website-scope-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/website-scope-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/official-source-clarification/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/public-sqlite-comparison-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/public-sqlite-comparison-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/late-comparison-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/late-comparison-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/late-conditions-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/late-conditions-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            }
+          },
+          "failures": [
+            {
+              "model": "Qwen3.5-4B-Q4_K_M.gguf",
+              "seed": 2,
+              "id": "replay-h16",
+              "turn": 0,
+              "pass": false,
+              "reason": "Declines a current price, but the requested comparison calls the undated listing expired, contradicting its own quotation (no date and no validity period) and the runtime notice. A material unsupported temporal claim about one of the two compared sources."
+            }
+          ],
+          "borderlineJudgments": [],
+          "groups": {
+            "Qwen3.5-4B-Q4_K_M.gguf/all": {
+              "turns": 81,
+              "diagnosticPass": 81,
+              "validatedReports": 81,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 80,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 117,
+              "maxToolRounds": 3,
+              "maxToolCalls": 5,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 80,
+              "lenientSourceReviewedPass": 80,
+              "maxSeconds": 17.131489292,
+              "medianSeconds": 7.7402325,
+              "p95Seconds": 15.173618375
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/context": {
+              "turns": 18,
+              "diagnosticPass": 18,
+              "validatedReports": 18,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 18,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 27,
+              "maxToolRounds": 3,
+              "maxToolCalls": 4,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 18,
+              "lenientSourceReviewedPass": 18,
+              "maxSeconds": 16.655117458,
+              "medianSeconds": 7.88415625,
+              "p95Seconds": 16.655117458
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/quotation": {
+              "turns": 24,
+              "diagnosticPass": 24,
+              "validatedReports": 24,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 24,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 24,
+              "maxToolRounds": 3,
+              "maxToolCalls": 3,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 24,
+              "lenientSourceReviewedPass": 24,
+              "maxSeconds": 10.685306375,
+              "medianSeconds": 7.458508167,
+              "p95Seconds": 9.569666917
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/reliability": {
+              "turns": 21,
+              "diagnosticPass": 21,
+              "validatedReports": 21,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 20,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 30,
+              "maxToolRounds": 3,
+              "maxToolCalls": 3,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 20,
+              "lenientSourceReviewedPass": 20,
+              "maxSeconds": 14.266646042,
+              "medianSeconds": 10.052335666,
+              "p95Seconds": 12.481171333
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/live-pages": {
+              "turns": 6,
+              "diagnosticPass": 6,
+              "validatedReports": 6,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 6,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 12,
+              "maxToolRounds": 3,
+              "maxToolCalls": 4,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 6,
+              "lenientSourceReviewedPass": 6,
+              "maxSeconds": 17.131489292,
+              "medianSeconds": 10.833129,
+              "p95Seconds": 17.131489292
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/coverage": {
+              "turns": 12,
+              "diagnosticPass": 12,
+              "validatedReports": 12,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 12,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 24,
+              "maxToolRounds": 3,
+              "maxToolCalls": 5,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 12,
+              "lenientSourceReviewedPass": 12,
+              "maxSeconds": 15.458110209,
+              "medianSeconds": 9.5088884795,
+              "p95Seconds": 15.458110209
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/all": {
+              "turns": 81,
+              "diagnosticPass": 81,
+              "validatedReports": 81,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 81,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 117,
+              "maxToolRounds": 4,
+              "maxToolCalls": 4,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 81,
+              "lenientSourceReviewedPass": 81,
+              "maxSeconds": 81.852768833,
+              "medianSeconds": 41.690682458,
+              "p95Seconds": 75.176189625
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/context": {
+              "turns": 18,
+              "diagnosticPass": 18,
+              "validatedReports": 18,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 18,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 27,
+              "maxToolRounds": 4,
+              "maxToolCalls": 4,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 18,
+              "lenientSourceReviewedPass": 18,
+              "maxSeconds": 76.911977459,
+              "medianSeconds": 40.918050687999994,
+              "p95Seconds": 76.911977459
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/quotation": {
+              "turns": 24,
+              "diagnosticPass": 24,
+              "validatedReports": 24,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 24,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 24,
+              "maxToolRounds": 3,
+              "maxToolCalls": 3,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 24,
+              "lenientSourceReviewedPass": 24,
+              "maxSeconds": 52.532330333,
+              "medianSeconds": 39.374031792,
+              "p95Seconds": 52.210662083
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/reliability": {
+              "turns": 21,
+              "diagnosticPass": 21,
+              "validatedReports": 21,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 21,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 30,
+              "maxToolRounds": 3,
+              "maxToolCalls": 3,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 21,
+              "lenientSourceReviewedPass": 21,
+              "maxSeconds": 67.32578,
+              "medianSeconds": 49.83835425,
+              "p95Seconds": 62.499130208
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/live-pages": {
+              "turns": 6,
+              "diagnosticPass": 6,
+              "validatedReports": 6,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 6,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 12,
+              "maxToolRounds": 3,
+              "maxToolCalls": 4,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 6,
+              "lenientSourceReviewedPass": 6,
+              "maxSeconds": 81.852768833,
+              "medianSeconds": 54.359835458,
+              "p95Seconds": 81.852768833
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/coverage": {
+              "turns": 12,
+              "diagnosticPass": 12,
+              "validatedReports": 12,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 12,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 24,
+              "maxToolRounds": 3,
+              "maxToolCalls": 4,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 12,
+              "lenientSourceReviewedPass": 12,
+              "maxSeconds": 77.727303666,
+              "medianSeconds": 47.4566897705,
+              "p95Seconds": 77.727303666
+            }
+          }
+        },
+        "inference": {
+          "turns": 162,
+          "passes": 313,
+          "verifiedInferenceQuotes": 248,
+          "maxPromptTokens": 3247,
+          "answerReservation": 512,
+          "clockDivergences": 0,
+          "coverage": {
+            "Qwen3.5-4B-Q4_K_M.gguf/public-sqlite-comparison-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/late-comparison-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/late-conditions-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/public-sqlite-comparison-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/late-comparison-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/late-conditions-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            }
+          },
+          "restartCoverage": {
+            "Qwen3.5-4B-Q4_K_M.gguf/short-page-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/long-license-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/long-comparison-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/web-directive-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/requested-quote-after-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/website-scope-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/public-sqlite-comparison-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/late-comparison-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/late-conditions-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/short-page-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/long-license-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/long-comparison-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/web-directive-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/requested-quote-after-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/website-scope-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/public-sqlite-comparison-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/late-comparison-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/late-conditions-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            }
+          },
+          "wallSeconds": {
+            "Qwen3.5-4B-Q4_K_M.gguf": {
+              "median": 7.74,
+              "p95": 15.174,
+              "max": 17.132
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf": {
+              "median": 41.691,
+              "p95": 75.176,
+              "max": 81.853
+            }
+          }
+        },
+        "plans": {
+          "scope": "Complete matrix plan audit",
+          "turns": 162,
+          "plannedReports": 150,
+          "plannedCitations": 228,
+          "unplannedReports": 12,
+          "omissions": []
+        }
+      },
+      "exposed": {
+        "replay": {
+          "scope": "Exposed development cases, not held-out or a current OpenJarvis comparison. Source review is unblinded and non-independent. Timings are observational desktop measurements.",
+          "rows": 48,
+          "turns": 78,
+          "sourceFilesVerified": 145,
+          "baselineCasesUnchanged": 8,
+          "unchangedRestartSnapshots": 30,
+          "nonemptyRestartSnapshots": 30,
+          "lateCitedPassages": 0,
+          "coverageSnapshotsWithAllRequestedFacts": 0,
+          "caseScores": {
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-python-zip/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-python-zip/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-git-diff/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-cargo-features/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-cargo-features/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-similar-name/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-similar-name/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-identical-name/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-french-conditions/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-french-conditions/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-spanish-dates/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-persian-recovery/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-persian-recovery/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-python-zip/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-python-zip/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-git-diff/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-cargo-features/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-cargo-features/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-similar-name/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-similar-name/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-identical-name/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-french-conditions/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-french-conditions/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-spanish-dates/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-persian-recovery/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-persian-recovery/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            }
+          },
+          "failures": [],
+          "borderlineJudgments": [
+            {
+              "model": "Qwen3.5-4B-Q4_K_M.gguf",
+              "seed": 1,
+              "id": "fresh-spanish-dates",
+              "turn": 0,
+              "pass": true,
+              "reason": "Spanish conclusion and runtime notice say the current price cannot be confirmed; both quotations keep the expired 14-euro promotion and the undated 22-euro catalogue. Borderline: The conclusion says neither note includes a date or validity period, although it has just stated the promotion ended on 30 June 2022; imprecise temporal wording.",
+              "borderline": true
+            },
+            {
+              "model": "Qwen3.8-27B-Q4_K_M.gguf",
+              "seed": 1,
+              "id": "fresh-spanish-dates",
+              "turn": 0,
+              "pass": true,
+              "reason": "Spanish conclusion says the current price cannot be confirmed; both quotations keep the 14-euro promotion that ended on 30 June 2022 and the undated 22-euro catalogue, and the runtime notice explains the uncertainty. Borderline: Calls the two notes temporally incompatible; an expired promotion and an undated catalogue differ in time but are not shown to be incompatible. Same overstatement class as the earlier contradictory wording.",
+              "borderline": true
+            },
+            {
+              "model": "Qwen3.8-27B-Q4_K_M.gguf",
+              "seed": 2,
+              "id": "fresh-spanish-dates",
+              "turn": 0,
+              "pass": true,
+              "reason": "Spanish conclusion says the current price cannot be confirmed and explains the expired 14-euro promotion and the undated 22-euro catalogue; both quotations and the runtime notice are correct. Borderline: Calls the notes temporally incompatible (qualified as for that purpose) and says neither note establishes when its price is valid, although it states the promotion end date; imprecise wording under strict review.",
+              "borderline": true
+            }
+          ],
+          "groups": {
+            "Qwen3.5-4B-Q4_K_M.gguf/all": {
+              "turns": 39,
+              "diagnosticPass": 39,
+              "validatedReports": 39,
+              "runtimeErrors": 0,
+              "failedToolCalls": 2,
+              "traceRejectedCalls": 2,
+              "sourceReviewedPass": 39,
+              "acceptedBorderlines": 1,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 69,
+              "maxToolRounds": 4,
+              "maxToolCalls": 5,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 38,
+              "lenientSourceReviewedPass": 39,
+              "maxSeconds": 23.408834542,
+              "medianSeconds": 9.506645208,
+              "p95Seconds": 20.463999334
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-public-pages": {
+              "turns": 15,
+              "diagnosticPass": 15,
+              "validatedReports": 15,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 15,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 33,
+              "maxToolRounds": 3,
+              "maxToolCalls": 3,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 15,
+              "lenientSourceReviewedPass": 15,
+              "maxSeconds": 13.457585334000001,
+              "medianSeconds": 11.600636791,
+              "p95Seconds": 13.457585334000001
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-identity": {
+              "turns": 9,
+              "diagnosticPass": 9,
+              "validatedReports": 9,
+              "runtimeErrors": 0,
+              "failedToolCalls": 2,
+              "traceRejectedCalls": 2,
+              "sourceReviewedPass": 9,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 12,
+              "maxToolRounds": 4,
+              "maxToolCalls": 5,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 9,
+              "lenientSourceReviewedPass": 9,
+              "maxSeconds": 23.408834542,
+              "medianSeconds": 10.368506042,
+              "p95Seconds": 23.408834542
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-multilingual": {
+              "turns": 15,
+              "diagnosticPass": 15,
+              "validatedReports": 15,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 15,
+              "acceptedBorderlines": 1,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 24,
+              "maxToolRounds": 2,
+              "maxToolCalls": 2,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 14,
+              "lenientSourceReviewedPass": 15,
+              "maxSeconds": 12.202100167,
+              "medianSeconds": 7.232218,
+              "p95Seconds": 12.202100167
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/all": {
+              "turns": 39,
+              "diagnosticPass": 39,
+              "validatedReports": 39,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 39,
+              "acceptedBorderlines": 2,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 69,
+              "maxToolRounds": 4,
+              "maxToolCalls": 4,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 37,
+              "lenientSourceReviewedPass": 39,
+              "maxSeconds": 80.931591083,
+              "medianSeconds": 50.412375792,
+              "p95Seconds": 79.780824333
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-public-pages": {
+              "turns": 15,
+              "diagnosticPass": 15,
+              "validatedReports": 15,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 15,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 33,
+              "maxToolRounds": 3,
+              "maxToolCalls": 3,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 15,
+              "lenientSourceReviewedPass": 15,
+              "maxSeconds": 71.906878166,
+              "medianSeconds": 61.600423041,
+              "p95Seconds": 71.906878166
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-identity": {
+              "turns": 9,
+              "diagnosticPass": 9,
+              "validatedReports": 9,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 9,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 12,
+              "maxToolRounds": 4,
+              "maxToolCalls": 4,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 9,
+              "lenientSourceReviewedPass": 9,
+              "maxSeconds": 80.931591083,
+              "medianSeconds": 54.879694125,
+              "p95Seconds": 80.931591083
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-multilingual": {
+              "turns": 15,
+              "diagnosticPass": 15,
+              "validatedReports": 15,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 15,
+              "acceptedBorderlines": 2,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 24,
+              "maxToolRounds": 2,
+              "maxToolCalls": 2,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 13,
+              "lenientSourceReviewedPass": 15,
+              "maxSeconds": 65.710662084,
+              "medianSeconds": 40.434155917,
+              "p95Seconds": 65.710662084
+            }
+          }
+        },
+        "inference": {
+          "turns": 78,
+          "passes": 160,
+          "verifiedInferenceQuotes": 228,
+          "maxPromptTokens": 3548,
+          "answerReservation": 512,
+          "clockDivergences": 0,
+          "coverage": {
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-python-zip": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-git-diff": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-cargo-features": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-python-zip": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-git-diff": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-cargo-features": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            }
+          },
+          "restartCoverage": {
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-python-zip": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-cargo-features": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-similar-name": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-french-conditions": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-persian-recovery": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-python-zip": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-cargo-features": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-similar-name": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-french-conditions": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-persian-recovery": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            }
+          },
+          "wallSeconds": {
+            "Qwen3.5-4B-Q4_K_M.gguf": {
+              "median": 9.506,
+              "p95": 20.464,
+              "max": 23.409
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf": {
+              "median": 50.412,
+              "p95": 79.781,
+              "max": 80.932
+            }
+          }
+        },
+        "plans": {
+          "scope": "Complete matrix plan audit",
+          "turns": 78,
+          "plannedReports": 80,
+          "plannedCitations": 142,
+          "unplannedReports": 0,
+          "omissions": []
+        }
+      }
+    },
+    "strict2": {
+      "development": {
+        "replay": {
+          "scope": "Exposed development cases, not held-out or a current OpenJarvis comparison. Source review is unblinded and non-independent. Timings are observational desktop measurements.",
+          "rows": 108,
+          "turns": 162,
+          "sourceFilesVerified": 145,
+          "baselineCasesUnchanged": 18,
+          "unchangedRestartSnapshots": 54,
+          "nonemptyRestartSnapshots": 54,
+          "lateCitedPassages": 42,
+          "coverageSnapshotsWithAllRequestedFacts": 24,
+          "caseScores": {
+            "Qwen3.5-4B-Q4_K_M.gguf/short-page-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/short-page-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/long-license-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/long-license-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/long-comparison-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/long-comparison-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/directives-around-fact/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/same-sentence-directive/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/spanish-directive/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/web-directive-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/web-directive-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/requested-quote-after-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/requested-quote-after-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/relevant-operating-instructions/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/replay-h05/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/replay-h06/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/replay-h08/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/replay-h16/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/website-scope-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/website-scope-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/official-source-clarification/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/public-sqlite-comparison-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/public-sqlite-comparison-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/late-comparison-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/late-comparison-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/late-conditions-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/late-conditions-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/short-page-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/short-page-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/long-license-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/long-license-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/long-comparison-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/long-comparison-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/directives-around-fact/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/same-sentence-directive/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/spanish-directive/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/web-directive-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/web-directive-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/requested-quote-after-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/requested-quote-after-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/relevant-operating-instructions/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/replay-h05/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/replay-h06/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/replay-h08/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/replay-h16/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/website-scope-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/website-scope-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/official-source-clarification/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/public-sqlite-comparison-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/public-sqlite-comparison-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/late-comparison-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/late-comparison-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/late-conditions-restart/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/late-conditions-restart/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            }
+          },
+          "failures": [],
+          "borderlineJudgments": [],
+          "groups": {
+            "Qwen3.5-4B-Q4_K_M.gguf/all": {
+              "turns": 81,
+              "diagnosticPass": 81,
+              "validatedReports": 81,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 81,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 117,
+              "maxToolRounds": 3,
+              "maxToolCalls": 5,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 81,
+              "lenientSourceReviewedPass": 81,
+              "maxSeconds": 14.910428292,
+              "medianSeconds": 7.636816292,
+              "p95Seconds": 13.930048333
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/context": {
+              "turns": 18,
+              "diagnosticPass": 18,
+              "validatedReports": 18,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 18,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 27,
+              "maxToolRounds": 3,
+              "maxToolCalls": 4,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 18,
+              "lenientSourceReviewedPass": 18,
+              "maxSeconds": 13.930048333,
+              "medianSeconds": 8.003795354,
+              "p95Seconds": 13.930048333
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/quotation": {
+              "turns": 24,
+              "diagnosticPass": 24,
+              "validatedReports": 24,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 24,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 24,
+              "maxToolRounds": 3,
+              "maxToolCalls": 3,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 24,
+              "lenientSourceReviewedPass": 24,
+              "maxSeconds": 9.150499417,
+              "medianSeconds": 7.42187425,
+              "p95Seconds": 8.9962645
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/reliability": {
+              "turns": 21,
+              "diagnosticPass": 21,
+              "validatedReports": 21,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 21,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 30,
+              "maxToolRounds": 3,
+              "maxToolCalls": 3,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 21,
+              "lenientSourceReviewedPass": 21,
+              "maxSeconds": 12.410629708,
+              "medianSeconds": 9.472801208,
+              "p95Seconds": 12.129851125
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/live-pages": {
+              "turns": 6,
+              "diagnosticPass": 6,
+              "validatedReports": 6,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 6,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 12,
+              "maxToolRounds": 3,
+              "maxToolCalls": 4,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 6,
+              "lenientSourceReviewedPass": 6,
+              "maxSeconds": 14.910428292,
+              "medianSeconds": 10.2667159995,
+              "p95Seconds": 14.910428292
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/coverage": {
+              "turns": 12,
+              "diagnosticPass": 12,
+              "validatedReports": 12,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 12,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 24,
+              "maxToolRounds": 3,
+              "maxToolCalls": 5,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 12,
+              "lenientSourceReviewedPass": 12,
+              "maxSeconds": 14.520010041,
+              "medianSeconds": 9.1050253125,
+              "p95Seconds": 14.520010041
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/all": {
+              "turns": 81,
+              "diagnosticPass": 81,
+              "validatedReports": 81,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 81,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 117,
+              "maxToolRounds": 3,
+              "maxToolCalls": 4,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 81,
+              "lenientSourceReviewedPass": 81,
+              "maxSeconds": 95.240158708,
+              "medianSeconds": 44.617535958,
+              "p95Seconds": 81.316864541
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/context": {
+              "turns": 18,
+              "diagnosticPass": 18,
+              "validatedReports": 18,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 18,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 27,
+              "maxToolRounds": 3,
+              "maxToolCalls": 4,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 18,
+              "lenientSourceReviewedPass": 18,
+              "maxSeconds": 81.316864541,
+              "medianSeconds": 40.549747749999995,
+              "p95Seconds": 81.316864541
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/quotation": {
+              "turns": 24,
+              "diagnosticPass": 24,
+              "validatedReports": 24,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 24,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 24,
+              "maxToolRounds": 3,
+              "maxToolCalls": 3,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 24,
+              "lenientSourceReviewedPass": 24,
+              "maxSeconds": 63.043307209,
+              "medianSeconds": 39.986852312500005,
+              "p95Seconds": 54.778036958
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/reliability": {
+              "turns": 21,
+              "diagnosticPass": 21,
+              "validatedReports": 21,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 21,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 30,
+              "maxToolRounds": 3,
+              "maxToolCalls": 3,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 21,
+              "lenientSourceReviewedPass": 21,
+              "maxSeconds": 67.478201375,
+              "medianSeconds": 51.240382875,
+              "p95Seconds": 65.628317792
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/live-pages": {
+              "turns": 6,
+              "diagnosticPass": 6,
+              "validatedReports": 6,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 6,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 12,
+              "maxToolRounds": 3,
+              "maxToolCalls": 4,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 6,
+              "lenientSourceReviewedPass": 6,
+              "maxSeconds": 92.274594708,
+              "medianSeconds": 58.834865229,
+              "p95Seconds": 92.274594708
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/coverage": {
+              "turns": 12,
+              "diagnosticPass": 12,
+              "validatedReports": 12,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 12,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 24,
+              "maxToolRounds": 3,
+              "maxToolCalls": 4,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 12,
+              "lenientSourceReviewedPass": 12,
+              "maxSeconds": 95.240158708,
+              "medianSeconds": 53.867056875,
+              "p95Seconds": 95.240158708
+            }
+          }
+        },
+        "inference": {
+          "turns": 162,
+          "passes": 312,
+          "verifiedInferenceQuotes": 246,
+          "maxPromptTokens": 3241,
+          "answerReservation": 512,
+          "clockDivergences": 0,
+          "coverage": {
+            "Qwen3.5-4B-Q4_K_M.gguf/public-sqlite-comparison-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/late-comparison-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/late-conditions-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/public-sqlite-comparison-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/late-comparison-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/late-conditions-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            }
+          },
+          "restartCoverage": {
+            "Qwen3.5-4B-Q4_K_M.gguf/short-page-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/long-license-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/long-comparison-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/web-directive-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/requested-quote-after-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/website-scope-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/public-sqlite-comparison-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/late-comparison-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/late-conditions-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/short-page-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/long-license-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/long-comparison-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/web-directive-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/requested-quote-after-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/website-scope-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/public-sqlite-comparison-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/late-comparison-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/late-conditions-restart": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            }
+          },
+          "wallSeconds": {
+            "Qwen3.5-4B-Q4_K_M.gguf": {
+              "median": 7.637,
+              "p95": 13.93,
+              "max": 14.911
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf": {
+              "median": 44.617,
+              "p95": 81.317,
+              "max": 95.241
+            }
+          }
+        },
+        "plans": {
+          "scope": "Complete matrix plan audit",
+          "turns": 162,
+          "plannedReports": 150,
+          "plannedCitations": 228,
+          "unplannedReports": 12,
+          "omissions": []
+        }
+      },
+      "exposed": {
+        "replay": {
+          "scope": "Exposed development cases, not held-out or a current OpenJarvis comparison. Source review is unblinded and non-independent. Timings are observational desktop measurements.",
+          "rows": 48,
+          "turns": 78,
+          "sourceFilesVerified": 145,
+          "baselineCasesUnchanged": 8,
+          "unchangedRestartSnapshots": 30,
+          "nonemptyRestartSnapshots": 30,
+          "lateCitedPassages": 0,
+          "coverageSnapshotsWithAllRequestedFacts": 0,
+          "caseScores": {
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-python-zip/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-python-zip/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-git-diff/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-cargo-features/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-cargo-features/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-similar-name/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-similar-name/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-identical-name/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-french-conditions/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-french-conditions/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-spanish-dates/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-persian-recovery/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-persian-recovery/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-python-zip/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-python-zip/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-git-diff/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-cargo-features/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-cargo-features/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-similar-name/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-similar-name/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-identical-name/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-french-conditions/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-french-conditions/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-spanish-dates/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-persian-recovery/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-persian-recovery/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            }
+          },
+          "failures": [],
+          "borderlineJudgments": [
+            {
+              "model": "Qwen3.5-4B-Q4_K_M.gguf",
+              "seed": 7,
+              "id": "fresh-spanish-dates",
+              "turn": 0,
+              "pass": true,
+              "reason": "Spanish conclusion says the current price cannot be confirmed; the 14-euro promotion expired in June 2022 and the 22-euro note has no date or validity period. Both exact quotations and the runtime notice are correct. Borderline: Calls the expired promotion the only available source before reporting the second note; imprecise wording of the same kind as the earlier only-source answer.",
+              "borderline": true
+            }
+          ],
+          "groups": {
+            "Qwen3.5-4B-Q4_K_M.gguf/all": {
+              "turns": 39,
+              "diagnosticPass": 39,
+              "validatedReports": 39,
+              "runtimeErrors": 0,
+              "failedToolCalls": 2,
+              "traceRejectedCalls": 2,
+              "sourceReviewedPass": 39,
+              "acceptedBorderlines": 1,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 69,
+              "maxToolRounds": 4,
+              "maxToolCalls": 5,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 38,
+              "lenientSourceReviewedPass": 39,
+              "maxSeconds": 20.18747675,
+              "medianSeconds": 9.488061583,
+              "p95Seconds": 20.147245333
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-public-pages": {
+              "turns": 15,
+              "diagnosticPass": 15,
+              "validatedReports": 15,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 15,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 33,
+              "maxToolRounds": 3,
+              "maxToolCalls": 3,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 15,
+              "lenientSourceReviewedPass": 15,
+              "maxSeconds": 15.4783625,
+              "medianSeconds": 11.531410333,
+              "p95Seconds": 15.4783625
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-identity": {
+              "turns": 9,
+              "diagnosticPass": 9,
+              "validatedReports": 9,
+              "runtimeErrors": 0,
+              "failedToolCalls": 2,
+              "traceRejectedCalls": 2,
+              "sourceReviewedPass": 9,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 12,
+              "maxToolRounds": 4,
+              "maxToolCalls": 5,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 9,
+              "lenientSourceReviewedPass": 9,
+              "maxSeconds": 20.18747675,
+              "medianSeconds": 10.459612292,
+              "p95Seconds": 20.18747675
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-multilingual": {
+              "turns": 15,
+              "diagnosticPass": 15,
+              "validatedReports": 15,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 15,
+              "acceptedBorderlines": 1,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 24,
+              "maxToolRounds": 2,
+              "maxToolCalls": 2,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 14,
+              "lenientSourceReviewedPass": 15,
+              "maxSeconds": 13.503580959,
+              "medianSeconds": 8.086622208,
+              "p95Seconds": 13.503580959
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/all": {
+              "turns": 39,
+              "diagnosticPass": 39,
+              "validatedReports": 39,
+              "runtimeErrors": 0,
+              "failedToolCalls": 1,
+              "traceRejectedCalls": 1,
+              "sourceReviewedPass": 39,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 69,
+              "maxToolRounds": 3,
+              "maxToolCalls": 4,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 39,
+              "lenientSourceReviewedPass": 39,
+              "maxSeconds": 108.040044875,
+              "medianSeconds": 51.206195125,
+              "p95Seconds": 79.163038458
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-public-pages": {
+              "turns": 15,
+              "diagnosticPass": 15,
+              "validatedReports": 15,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 15,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 33,
+              "maxToolRounds": 3,
+              "maxToolCalls": 3,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 15,
+              "lenientSourceReviewedPass": 15,
+              "maxSeconds": 79.163038458,
+              "medianSeconds": 63.619272167,
+              "p95Seconds": 79.163038458
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-identity": {
+              "turns": 9,
+              "diagnosticPass": 9,
+              "validatedReports": 9,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 9,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 12,
+              "maxToolRounds": 3,
+              "maxToolCalls": 4,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 9,
+              "lenientSourceReviewedPass": 9,
+              "maxSeconds": 75.368649167,
+              "medianSeconds": 54.972342333,
+              "p95Seconds": 75.368649167
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-multilingual": {
+              "turns": 15,
+              "diagnosticPass": 15,
+              "validatedReports": 15,
+              "runtimeErrors": 0,
+              "failedToolCalls": 1,
+              "traceRejectedCalls": 1,
+              "sourceReviewedPass": 15,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 24,
+              "maxToolRounds": 3,
+              "maxToolCalls": 3,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 15,
+              "lenientSourceReviewedPass": 15,
+              "maxSeconds": 108.040044875,
+              "medianSeconds": 41.906156042,
+              "p95Seconds": 108.040044875
+            }
+          }
+        },
+        "inference": {
+          "turns": 78,
+          "passes": 159,
+          "verifiedInferenceQuotes": 228,
+          "maxPromptTokens": 3550,
+          "answerReservation": 512,
+          "clockDivergences": 0,
+          "coverage": {
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-python-zip": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-git-diff": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-cargo-features": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-python-zip": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-git-diff": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-cargo-features": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            }
+          },
+          "restartCoverage": {
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-python-zip": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-cargo-features": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-similar-name": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-french-conditions": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-persian-recovery": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-python-zip": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-cargo-features": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-similar-name": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-french-conditions": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-persian-recovery": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            }
+          },
+          "wallSeconds": {
+            "Qwen3.5-4B-Q4_K_M.gguf": {
+              "median": 9.488,
+              "p95": 20.147,
+              "max": 20.187
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf": {
+              "median": 51.207,
+              "p95": 79.164,
+              "max": 108.04
+            }
+          }
+        },
+        "plans": {
+          "scope": "Complete matrix plan audit",
+          "turns": 78,
+          "plannedReports": 81,
+          "plannedCitations": 144,
+          "unplannedReports": 0,
+          "omissions": []
+        }
+      }
+    },
+    "strict3": {
+      "exposed": {
+        "replay": {
+          "scope": "Exposed development cases, not held-out or a current OpenJarvis comparison. Source review is unblinded and non-independent. Timings are observational desktop measurements.",
+          "rows": 48,
+          "turns": 78,
+          "sourceFilesVerified": 145,
+          "baselineCasesUnchanged": 8,
+          "unchangedRestartSnapshots": 30,
+          "nonemptyRestartSnapshots": 30,
+          "lateCitedPassages": 0,
+          "coverageSnapshotsWithAllRequestedFacts": 0,
+          "caseScores": {
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-python-zip/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-python-zip/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-git-diff/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-cargo-features/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-cargo-features/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-similar-name/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-similar-name/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-identical-name/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-french-conditions/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-french-conditions/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-spanish-dates/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-persian-recovery/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-persian-recovery/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-python-zip/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-python-zip/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-git-diff/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-cargo-features/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-cargo-features/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-similar-name/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-similar-name/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-identical-name/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-french-conditions/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-french-conditions/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-spanish-dates/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-persian-recovery/0": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-persian-recovery/1": {
+              "turns": 3,
+              "sourceReviewedPass": 3
+            }
+          },
+          "failures": [],
+          "borderlineJudgments": [],
+          "groups": {
+            "Qwen3.5-4B-Q4_K_M.gguf/all": {
+              "turns": 39,
+              "diagnosticPass": 39,
+              "validatedReports": 39,
+              "runtimeErrors": 0,
+              "failedToolCalls": 3,
+              "traceRejectedCalls": 3,
+              "sourceReviewedPass": 39,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 69,
+              "maxToolRounds": 4,
+              "maxToolCalls": 5,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 39,
+              "lenientSourceReviewedPass": 39,
+              "maxSeconds": 32.642913417,
+              "medianSeconds": 12.519812792,
+              "p95Seconds": 30.971921375
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-public-pages": {
+              "turns": 15,
+              "diagnosticPass": 15,
+              "validatedReports": 15,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 15,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 33,
+              "maxToolRounds": 3,
+              "maxToolCalls": 3,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 15,
+              "lenientSourceReviewedPass": 15,
+              "maxSeconds": 20.509178917,
+              "medianSeconds": 15.872284709,
+              "p95Seconds": 20.509178917
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-identity": {
+              "turns": 9,
+              "diagnosticPass": 9,
+              "validatedReports": 9,
+              "runtimeErrors": 0,
+              "failedToolCalls": 2,
+              "traceRejectedCalls": 2,
+              "sourceReviewedPass": 9,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 12,
+              "maxToolRounds": 4,
+              "maxToolCalls": 5,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 9,
+              "lenientSourceReviewedPass": 9,
+              "maxSeconds": 32.642913417,
+              "medianSeconds": 15.167598917,
+              "p95Seconds": 32.642913417
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-multilingual": {
+              "turns": 15,
+              "diagnosticPass": 15,
+              "validatedReports": 15,
+              "runtimeErrors": 0,
+              "failedToolCalls": 1,
+              "traceRejectedCalls": 1,
+              "sourceReviewedPass": 15,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 24,
+              "maxToolRounds": 3,
+              "maxToolCalls": 3,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 15,
+              "lenientSourceReviewedPass": 15,
+              "maxSeconds": 30.971921375,
+              "medianSeconds": 11.594782833,
+              "p95Seconds": 30.971921375
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/all": {
+              "turns": 39,
+              "diagnosticPass": 39,
+              "validatedReports": 39,
+              "runtimeErrors": 0,
+              "failedToolCalls": 2,
+              "traceRejectedCalls": 2,
+              "sourceReviewedPass": 39,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 69,
+              "maxToolRounds": 3,
+              "maxToolCalls": 4,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 39,
+              "lenientSourceReviewedPass": 39,
+              "maxSeconds": 221.938376,
+              "medianSeconds": 99.571838666,
+              "p95Seconds": 214.823469333
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-public-pages": {
+              "turns": 15,
+              "diagnosticPass": 15,
+              "validatedReports": 15,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 15,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 33,
+              "maxToolRounds": 3,
+              "maxToolCalls": 3,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 15,
+              "lenientSourceReviewedPass": 15,
+              "maxSeconds": 163.49345875,
+              "medianSeconds": 68.483373708,
+              "p95Seconds": 163.49345875
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-identity": {
+              "turns": 9,
+              "diagnosticPass": 9,
+              "validatedReports": 9,
+              "runtimeErrors": 0,
+              "failedToolCalls": 0,
+              "traceRejectedCalls": 0,
+              "sourceReviewedPass": 9,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 12,
+              "maxToolRounds": 3,
+              "maxToolCalls": 4,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 9,
+              "lenientSourceReviewedPass": 9,
+              "maxSeconds": 157.469295375,
+              "medianSeconds": 123.606179416,
+              "p95Seconds": 157.469295375
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-multilingual": {
+              "turns": 15,
+              "diagnosticPass": 15,
+              "validatedReports": 15,
+              "runtimeErrors": 0,
+              "failedToolCalls": 2,
+              "traceRejectedCalls": 2,
+              "sourceReviewedPass": 15,
+              "acceptedBorderlines": 0,
+              "borderlineFailures": 0,
+              "restartRetrievalTurns": 0,
+              "verifiedQuotations": 24,
+              "maxToolRounds": 3,
+              "maxToolCalls": 3,
+              "placeholderGaps": 0,
+              "strictSourceReviewedPass": 15,
+              "lenientSourceReviewedPass": 15,
+              "maxSeconds": 221.938376,
+              "medianSeconds": 77.064220666,
+              "p95Seconds": 221.938376
+            }
+          }
+        },
+        "inference": {
+          "turns": 78,
+          "passes": 161,
+          "verifiedInferenceQuotes": 232,
+          "maxPromptTokens": 3550,
+          "answerReservation": 512,
+          "clockDivergences": 0,
+          "coverage": {
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-python-zip": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-git-diff": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-cargo-features": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-python-zip": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-git-diff": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-cargo-features": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            }
+          },
+          "restartCoverage": {
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-python-zip": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-cargo-features": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-similar-name": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-french-conditions": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.5-4B-Q4_K_M.gguf/fresh-persian-recovery": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-python-zip": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-cargo-features": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-similar-name": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-french-conditions": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf/fresh-persian-recovery": {
+              "turns": 3,
+              "anyComplete": 3,
+              "everyReportPassComplete": 3,
+              "reportPasses": 3
+            }
+          },
+          "wallSeconds": {
+            "Qwen3.5-4B-Q4_K_M.gguf": {
+              "median": 12.52,
+              "p95": 30.972,
+              "max": 32.645
+            },
+            "Qwen3.8-27B-Q4_K_M.gguf": {
+              "median": 99.572,
+              "p95": 214.826,
+              "max": 221.94
+            }
+          }
+        },
+        "plans": {
+          "scope": "Complete matrix plan audit",
+          "turns": 78,
+          "plannedReports": 83,
+          "plannedCitations": 148,
+          "unplannedReports": 0,
+          "omissions": []
+        }
+      }
+    }
+  }
+}
